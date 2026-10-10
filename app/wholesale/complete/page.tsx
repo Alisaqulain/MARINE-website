@@ -69,11 +69,11 @@ function CompleteWholesaleInner() {
         }}
       >
         <WholesaleApplicationFields defaultEmail={session.user.email ?? ""} />
-        <label className="block text-[13px] md:col-span-2">
+        <label className="block text-[13px]">
           <span className="mb-1.5 block text-navy-700">Password</span>
           <input className="input" name="password" type="password" required minLength={8} autoComplete="new-password" />
         </label>
-        <label className="block text-[13px] md:col-span-2">
+        <label className="block text-[13px]">
           <span className="mb-1.5 block text-navy-700">Confirm password</span>
           <input className="input" name="confirm" type="password" required minLength={8} autoComplete="new-password" />
         </label>

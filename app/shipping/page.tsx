@@ -46,7 +46,7 @@ export default function ShippingPage() {
         title="Shipping — We deliver your orders worldwide"
       />
 
-      <section className="px-5 py-10 md:py-12">
+      <section className="px-5 pt-8 pb-3 md:pt-10 md:pb-4">
         <div className="mx-auto max-w-[1180px] space-y-7">
           <div className="grid items-center gap-6 lg:grid-cols-[300px_1fr]">
             <div className="flex items-center gap-4">
@@ -142,37 +142,42 @@ export default function ShippingPage() {
         </div>
       </section>
 
-      <section className="relative overflow-hidden border-t border-[#e8eef5] bg-[#F3F7FB] px-5 py-10">
-        <div className="relative mx-auto grid max-w-[1180px] items-center gap-8 lg:grid-cols-[0.85fr_1.15fr]">
-          <div>
-            <h2 className="font-serif text-[1.65rem] text-[#0B1D36] md:text-[2.15rem]">Our Global Reach</h2>
-            <p className="mt-3 max-w-[340px] text-[13px] leading-relaxed text-navy-600">
+      <section className="border-t border-[#e8eef5] bg-[#F3F7FB] px-5 py-3">
+        <div className="mx-auto flex max-w-[1180px] flex-col items-center gap-5 lg:flex-row lg:items-center lg:gap-6">
+          <div className="w-full shrink-0 lg:w-[280px]">
+            <h2 className="font-serif text-[1.65rem] leading-tight text-[#0B1D36] md:text-[2rem]">Our Global Reach</h2>
+            <p className="mt-2 text-[13px] leading-relaxed text-navy-600">
               We export to our valued customers around the world. Our main markets include Europe, USA, UK,
               Canada, Australia and Middle East, along with other international clients.
             </p>
           </div>
-          <div className="relative min-h-[160px]">
-            <Image
-              src="/shipping-world-map.png"
-              alt="Worldwide shipping routes from India"
-              fill
-              className="object-contain object-right opacity-90"
-            />
-            <div className="grid grid-cols-4 gap-x-3 gap-y-4 sm:flex sm:flex-wrap sm:items-end sm:gap-5">
+          <div className="flex w-full min-w-0 flex-1 flex-wrap items-center justify-center gap-x-3 gap-y-3 sm:flex-nowrap sm:justify-between sm:gap-4">
+            <div className="grid grid-cols-4 justify-items-center gap-x-2 gap-y-3 sm:flex sm:items-start sm:gap-3">
               {markets.map((m) => (
-                <div key={m.name} className="text-center">
-                  <div className="relative mx-auto h-[54px] w-[54px] overflow-hidden rounded-full bg-white shadow-[0_4px_12px_rgba(11,29,54,0.12)] ring-1 ring-[#d7e2ee]">
-                    <Image src={m.src} alt={`${m.name} flag`} fill className="object-cover" sizes="54px" />
+                <div key={m.name} className="flex w-[64px] flex-col items-center sm:w-[68px]">
+                  <div className="relative h-[48px] w-[48px] overflow-hidden rounded-full bg-white shadow-[0_4px_12px_rgba(11,29,54,0.12)] ring-1 ring-[#d7e2ee] sm:h-[52px] sm:w-[52px]">
+                    <Image src={m.src} alt={`${m.name} flag`} fill className="object-cover" sizes="52px" />
                   </div>
-                  <p className="mt-1.5 text-[11px] font-medium text-[#0B1D36]">{m.name}</p>
+                  <p className="mt-1.5 text-center text-[10px] font-medium leading-tight text-[#0B1D36] sm:text-[11px]">
+                    {m.name}
+                  </p>
                 </div>
               ))}
+            </div>
+            <div className="relative h-[108px] w-[220px] shrink-0 overflow-hidden sm:h-[118px] sm:w-[250px]">
+              <Image
+                src="/shipping-world-map.png"
+                alt="Worldwide shipping routes from India"
+                width={1280}
+                height={720}
+                className="pointer-events-none absolute right-0 top-1/2 h-[220px] w-auto max-w-none -translate-y-1/2"
+              />
             </div>
           </div>
         </div>
       </section>
 
-      <section className="bg-[#0B1D36] px-5 py-6">
+      <section className="bg-[#0B1D36] px-5 py-3">
         <div className="mx-auto flex max-w-[900px] flex-col items-center justify-center gap-3 text-center sm:flex-row sm:gap-4">
           <Handshake className="h-10 w-10 shrink-0 text-[#C9A84C]" strokeWidth={1.5} />
           <p className="font-serif text-[1.35rem] italic leading-snug text-[#C9A84C] md:text-[1.55rem]">

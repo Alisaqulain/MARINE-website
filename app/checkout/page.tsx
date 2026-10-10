@@ -56,7 +56,7 @@ export default function CheckoutPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Could not start payment.");
-      if (!window.Razorpay) throw new Error("Razorpay checkout failed to load.");
+      if (!window.Razorpay) throw new Error("Secure checkout failed to load.");
 
       const rzp = new window.Razorpay({
         key: data.keyId,
@@ -110,12 +110,12 @@ export default function CheckoutPage() {
   }
 
   return (
-    <div className="mx-auto grid max-w-7xl gap-10 px-4 py-12 lg:grid-cols-2">
+    <div className="mx-auto grid max-w-7xl items-start gap-10 px-4 py-8 lg:grid-cols-2 lg:py-10">
       <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="afterInteractive" />
       <form className="space-y-4" onSubmit={pay}>
-        <h1 className="font-serif text-3xl md:text-4xl">Secure checkout</h1>
+        <h1 className="font-serif text-3xl leading-none md:text-4xl">Secure checkout</h1>
         <p className="text-sm text-navy-600">
-          Pay through Razorpay. Your order is confirmed only after our server verifies the payment.{" "}
+          Pay through secure checkout. Your order is confirmed only after our server verifies the payment.{" "}
           <Link href="/payment" className="underline decoration-[#C9A84C]">
             How secure payment works
           </Link>
@@ -140,15 +140,15 @@ export default function CheckoutPage() {
         </label>
         {error ? <p className="text-sm text-red-700">{error}</p> : null}
         <button className="btn-gold w-full" type="submit" disabled={busy}>
-          {busy ? "Connecting to Razorpay…" : `Pay ${formatPrice(subtotal)} with Razorpay`}
+          {busy ? "Connecting to secure checkout…" : `Pay ${formatPrice(subtotal)}`}
         </button>
         <p className="text-center text-xs text-navy-500">
-          SSL checkout · Cards, UPI, netbanking and wallets as offered by Razorpay
+          SSL protection · Cards, UPI, netbanking and wallets at secure checkout
         </p>
       </form>
-      <aside className="h-fit rounded-2xl bg-white p-6 shadow-soft">
+      <aside className="h-fit self-start rounded-2xl bg-white px-6 pb-6 pt-4 shadow-soft">
         {items.map(({ product, qty }) => (
-          <div key={product.slug} className="flex justify-between border-b border-cream-300 py-3 text-sm">
+          <div key={product.slug} className="flex justify-between border-b border-cream-300 py-3 text-sm first:pt-0">
             <span>
               {product.name} × {qty}
             </span>

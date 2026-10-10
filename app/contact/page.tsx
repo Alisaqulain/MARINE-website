@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Clock3, ExternalLink, Mail, MapPin, MessageCircle, Phone } from "lucide-react";
+import { ExternalLink, Mail, MapPin, MessageCircle, Phone } from "lucide-react";
 import { BannerHero } from "@/components/BannerHero";
 import { ContactForm } from "@/components/ContactForm";
 import { company, companyDirections, companyMapSrc, companyTel, companyWhatsApp } from "@/lib/company";
@@ -65,10 +65,6 @@ export default function ContactPage() {
                   {company.phone}
                 </a>
               </li>
-              <li className="flex gap-3">
-                <Clock3 className="mt-0.5 h-5 w-5 shrink-0 text-[#C9A84C]" />
-                <span>{company.hours}</span>
-              </li>
             </ul>
             <a
               href={companyWhatsApp}
@@ -126,7 +122,7 @@ export default function ContactPage() {
           </div>
           <div className="relative overflow-hidden rounded-3xl border border-[#eee7db] bg-white shadow-soft">
             <iframe
-              title={`${company.name} factory map — Charthawal, Muzaffarnagar, Uttar Pradesh, India`}
+              title={`${company.name} factory map — Muzaffarnagar, Uttar Pradesh, India`}
               src={companyMapSrc}
               className="h-[280px] w-full md:h-[480px]"
               loading="lazy"

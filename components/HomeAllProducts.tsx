@@ -82,14 +82,6 @@ export function HomeAllProducts() {
               </button>
             ))}
           </div>
-          {!wholesaleOk ? (
-            <p className="max-w-md text-center text-xs text-navy-600">
-              B2B pricing requires a wholesale account.{" "}
-              <WholesaleNavLink callbackUrl="/wholesale" className="font-semibold text-[#8C6E28] underline">
-                Sign up or log in as wholesale
-              </WholesaleNavLink>
-            </p>
-          ) : null}
         </div>
 
         <div className="mt-8 grid grid-cols-2 gap-x-3 gap-y-7 sm:gap-x-5 lg:grid-cols-4">

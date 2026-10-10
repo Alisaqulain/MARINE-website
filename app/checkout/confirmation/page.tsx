@@ -62,7 +62,7 @@ function ConfirmationBody() {
   if (!order) {
     return (
       <div className="mx-auto max-w-xl px-4 py-20 text-center text-navy-600">
-        Confirming your Razorpay payment…
+        Confirming your payment…
       </div>
     );
   }

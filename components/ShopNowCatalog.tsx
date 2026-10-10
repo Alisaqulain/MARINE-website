@@ -9,14 +9,8 @@ import { useEffect, useMemo, useState } from "react";
 
 const PAGE_SIZE = 24;
 
-export function ShopNowCatalog({
-  retail = false,
-  defaultOpen = null,
-}: {
-  retail?: boolean;
-  defaultOpen?: string | null;
-}) {
-  const [open, setOpen] = useState<string | null>(defaultOpen);
+export function ShopNowCatalog({ retail = false }: { retail?: boolean }) {
+  const [open, setOpen] = useState<string | null>(null);
   const [parent, setParent] = useState<string | null>(null);
   const [sub, setSub] = useState<string | null>(null);
   const [sort, setSort] = useState("new");
@@ -29,7 +23,7 @@ export function ShopNowCatalog({
     if (!node) return;
     setParent(node.slug);
     setSub(null);
-    setOpen(node.children.length ? node.slug : null);
+    setOpen(null);
   }, []);
 
   useEffect(() => {

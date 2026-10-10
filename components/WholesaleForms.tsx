@@ -64,9 +64,7 @@ export function WholesaleApplicationFields({ defaultEmail = "" }: { defaultEmail
         <span className="mb-1.5 block text-navy-700">Tax ID / VAT / GST</span>
         <input name="tax" className="input" required />
       </label>
-      <div className="md:col-span-2">
-        <ProductPicker name="interest" label="Products Interested In" />
-      </div>
+      <ProductPicker name="interest" label="Products Interested In" />
     </>
   );
 }
