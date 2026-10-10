@@ -12,22 +12,33 @@ export function AdminProductImageField({
 }) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
 
   async function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     setError("");
+    setNotice("");
     setUploading(true);
     try {
       const body = new FormData();
       body.append("file", file);
-      const res = await fetch("/api/upload", { method: "POST", body });
+      let res: Response;
+      try {
+        res = await fetch("/api/upload", { method: "POST", body });
+      } catch {
+        setError(
+          "Network error — could not reach /api/upload. Check that the site is running and you are logged in as admin."
+        );
+        return;
+      }
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data.error ?? "Upload failed");
+        setError(typeof data.error === "string" ? data.error : "Upload failed");
         return;
       }
       if (data.url) onChange(String(data.url));
+      if (data.warning) setNotice(String(data.warning));
     } finally {
       setUploading(false);
       e.target.value = "";
@@ -53,6 +64,7 @@ export function AdminProductImageField({
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />
+      {notice ? <p className="text-xs text-amber-800">{notice}</p> : null}
       {error ? <p className="text-xs text-red-700">{error}</p> : null}
     </div>
   );
