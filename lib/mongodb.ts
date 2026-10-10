@@ -137,25 +137,47 @@ function describeConnectionMode(u: string): string {
   return "standard replica set";
 }
 
+function mongoEnvSummary(): { dbUser?: string; clusterHost?: string } {
+  const raw = process.env.MONGODB_URI_STANDARD?.trim() || process.env.MONGODB_URI?.trim();
+  if (!raw) return {};
+  const parsed = parseSrvCredentials(normalizeMongoUri(raw) ?? raw);
+  if (parsed) return { dbUser: parsed.user, clusterHost: parsed.host };
+  try {
+    const url = new URL(raw.replace(/^mongodb(\+srv)?:/, "mongodb:"));
+    if (url.username) {
+      return {
+        dbUser: decodeURIComponent(url.username),
+        clusterHost: url.hostname || undefined,
+      };
+    }
+  } catch {
+    /* ignore */
+  }
+  return {};
+}
+
 export type PingResult = {
   ok: boolean;
   message: string;
   nodeVersion?: string;
   hints?: string[];
   connectionMode?: string;
+  dbUser?: string;
+  clusterHost?: string;
+  runtimeEnv?: string;
 };
 
 export async function pingDatabase(): Promise<PingResult> {
   const hints: string[] = [];
   const nodeVersion = process.version;
+  const { dbUser, clusterHost } = mongoEnvSummary();
+  const runtimeEnv = process.env.NODE_ENV ?? "unknown";
   let connectionMode = "unknown";
 
   try {
-    if (process.env.NODE_ENV === "development") {
-      global._mongoClientPromise = undefined;
-      cachedUri = undefined;
-      uriPromise = undefined;
-    }
+    global._mongoClientPromise = undefined;
+    cachedUri = undefined;
+    uriPromise = undefined;
     const u = await connectionUri();
     connectionMode = describeConnectionMode(u);
 
@@ -173,6 +195,9 @@ export async function pingDatabase(): Promise<PingResult> {
       message: `Connected to ${dbName}`,
       nodeVersion,
       connectionMode,
+      dbUser,
+      clusterHost,
+      runtimeEnv,
     };
   } catch (e) {
     const message = e instanceof Error ? e.message : "Connection failed";
@@ -196,15 +221,18 @@ export async function pingDatabase(): Promise<PingResult> {
     }
     if (/bad auth|Authentication failed|auth failed/i.test(message)) {
       hints.push(
-        "Atlas → Database Access → your DB user → Edit → Reset password. Update MONGODB_URI with the new password (no quotes). Wait 1 minute, restart npm run dev."
+        "Next.js loads MONGODB_URI only at startup. After editing .env.local: Ctrl+C to stop npm run dev, then start it again."
       );
       hints.push(
-        "Confirm the username in the URI matches Atlas exactly (e.g. …_db_user), not your Atlas login email."
+        "Local and production use separate env. Copy the same MONGODB_URI to your KVM/server .env and restart the Node app (pm2/systemd)."
+      );
+      hints.push(
+        "In Atlas → Database Access, confirm user exists on this cluster and password matches the URI (username is the …_db_user, not your Gmail login)."
       );
     }
     if (message.includes("MONGODB_URI is not set")) {
       hints.push("Add MONGODB_URI to .env.local in the project root and restart the dev server.");
     }
-    return { ok: false, message, nodeVersion, hints, connectionMode };
+    return { ok: false, message, nodeVersion, hints, connectionMode, dbUser, clusterHost, runtimeEnv };
   }
 }

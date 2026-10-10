@@ -19,6 +19,20 @@ export default async function TestDbPage() {
       {result.connectionMode ? (
         <p className="mt-1 text-xs text-navy-500">Connection mode: {result.connectionMode}</p>
       ) : null}
+      {result.runtimeEnv ? (
+        <p className="mt-1 text-xs text-navy-500">NODE_ENV: {result.runtimeEnv}</p>
+      ) : null}
+      {result.dbUser ? (
+        <p className="mt-1 text-xs text-navy-500">
+          URI user: <code className="text-[11px]">{result.dbUser}</code>
+          {result.clusterHost ? (
+            <>
+              {" "}
+              · cluster <code className="text-[11px]">{result.clusterHost}</code>
+            </>
+          ) : null}
+        </p>
+      ) : null}
       <div
         className={`mt-8 rounded-2xl border px-6 py-5 ${
           result.ok ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-red-200 bg-red-50 text-red-900"
