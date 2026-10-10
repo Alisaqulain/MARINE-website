@@ -17,3 +17,18 @@ export function getKvmUploadToken(): string | undefined {
   const t = process.env.KVM2_UPLOAD_TOKEN?.trim();
   return t && t !== "optional" ? t : undefined;
 }
+
+/** Skip remote KVM POST (avoids SSL loop when app and KVM URL are the same host). */
+export function kvmRemoteUploadEnabled(): boolean {
+  if (process.env.KVM2_UPLOAD_SKIP === "1" || process.env.KVM2_UPLOAD_SKIP === "true") return false;
+  return Boolean(getKvmUploadBase());
+}
+
+export function sameOriginAsKvm(requestOrigin: string | null, kvmBase: string | null): boolean {
+  if (!requestOrigin || !kvmBase) return false;
+  try {
+    return new URL(requestOrigin).origin === new URL(kvmBase).origin;
+  } catch {
+    return false;
+  }
+}

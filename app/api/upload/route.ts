@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
-import { getKvmUploadBase, getKvmUploadToken } from "@/lib/kvm-upload";
+import {
+  getKvmUploadBase,
+  getKvmUploadToken,
+  kvmRemoteUploadEnabled,
+  sameOriginAsKvm,
+} from "@/lib/kvm-upload";
 
 export const runtime = "nodejs";
 
@@ -35,6 +40,9 @@ export async function POST(req: Request) {
 
   const kvmBase = getKvmUploadBase();
   const kvmToken = getKvmUploadToken();
+  const origin = requestOrigin(req);
+  const useKvmRemote =
+    kvmRemoteUploadEnabled() && kvmBase && !sameOriginAsKvm(origin, kvmBase);
 
   try {
     const form = await req.formData();
@@ -53,7 +61,7 @@ export async function POST(req: Request) {
     const safe = original.replace(/[^a-zA-Z0-9._-]/g, "_");
     const filename = `${Date.now()}-${safe}`;
 
-    if (kvmBase) {
+    if (useKvmRemote && kvmBase) {
       try {
         const remote = new FormData();
         remote.append("file", new Blob([bytes]), filename);

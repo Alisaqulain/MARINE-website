@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { BrandLogo } from "@/components/Logo";
+import { PASSWORD_OTP_FROM } from "@/lib/password-otp-email";
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
@@ -23,7 +24,11 @@ export default function ForgotPasswordPage() {
       </Link>
       <h1 className="mt-6 text-center font-serif text-2xl text-navy-900">Forgot password</h1>
       <p className="mt-2 text-center text-sm text-navy-600">
-        We will email a 6-digit code from our support mailbox.
+        We will email a 6-digit code from{" "}
+        <a href={`mailto:${PASSWORD_OTP_FROM}`} className="text-[#8C6E28] underline">
+          {PASSWORD_OTP_FROM}
+        </a>
+        .
       </p>
 
       {step === "email" ? (

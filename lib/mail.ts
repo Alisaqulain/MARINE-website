@@ -1,12 +1,18 @@
 import nodemailer from "nodemailer";
 
-export async function sendPasswordOtp(to: string, otp: string) {
-  const user = process.env.SMTP_USER ?? process.env.OTP_EMAIL_FROM;
-  const pass = process.env.SMTP_PASS;
-  const from = process.env.SMTP_FROM ?? user;
+import { PASSWORD_OTP_FROM } from "@/lib/password-otp-email";
 
-  if (!user || !pass || !from) {
-    throw new Error("SMTP is not configured (SMTP_USER, SMTP_PASS, SMTP_FROM).");
+export { PASSWORD_OTP_FROM };
+
+export async function sendPasswordOtp(to: string, otp: string) {
+  const user = process.env.SMTP_USER ?? process.env.OTP_EMAIL_FROM ?? PASSWORD_OTP_FROM;
+  const pass = process.env.SMTP_PASS;
+  const from = process.env.SMTP_FROM ?? user ?? PASSWORD_OTP_FROM;
+
+  if (!pass) {
+    throw new Error(
+      "SMTP_PASS is not set. Use a Gmail App Password for ibrahiminternational3112026@gmail.com (Google Account → Security → App passwords)."
+    );
   }
 
   const transport = nodemailer.createTransport({
