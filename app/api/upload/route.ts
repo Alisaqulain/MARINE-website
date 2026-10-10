@@ -10,7 +10,20 @@ async function saveLocal(bytes: Buffer, filename: string) {
   const dir = path.join(process.cwd(), "public", "uploads");
   await mkdir(dir, { recursive: true });
   await writeFile(path.join(dir, filename), bytes);
-  return `/uploads/${filename}`;
+  /** Served by app/api/media/[...path] — works when nginx does not expose public/uploads. */
+  return `/api/media/${filename}`;
+}
+
+function requestOrigin(req: Request): string | null {
+  const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
+  if (!host) return null;
+  const proto = req.headers.get("x-forwarded-proto") ?? (host.includes("localhost") ? "http" : "https");
+  return `${proto}://${host.split(",")[0]!.trim()}`;
+}
+
+function absolutize(req: Request, relative: string): string {
+  const origin = requestOrigin(req);
+  return origin ? `${origin}${relative}` : relative;
 }
 
 /** Upload product images — tries KVM POST /upload when configured, else (or on failure) public/uploads. */
@@ -53,31 +66,37 @@ export async function POST(req: Request) {
           signal: AbortSignal.timeout(45_000),
         });
         if (res.ok) {
-          const data = (await res.json().catch(() => ({}))) as { url?: string };
-          const url = data.url ?? `${kvmBase}/files/${filename}`;
-          return NextResponse.json({ url, storage: "kvm" });
+          const ct = res.headers.get("content-type") ?? "";
+          if (ct.includes("application/json")) {
+            const data = (await res.json().catch(() => ({}))) as { url?: string };
+            if (data.url?.startsWith("http")) {
+              return NextResponse.json({ url: data.url, storage: "kvm" });
+            }
+          }
         }
-        const text = (await res.text()).slice(0, 300);
+        const text = res.ok ? "invalid JSON (no url)" : (await res.text()).slice(0, 300);
         const localUrl = await saveLocal(bytes, filename);
         return NextResponse.json({
-          url: localUrl,
+          url: absolutize(req, localUrl),
+          path: localUrl,
           storage: "local",
-          warning: `KVM upload returned ${res.status}. Saved locally instead. ${text}`,
+          warning: `KVM /upload did not return a valid image URL (${res.status}). Saved on this server.`,
         });
       } catch (remoteErr) {
         const localUrl = await saveLocal(bytes, filename);
         const hint =
           remoteErr instanceof Error ? remoteErr.message : "Could not reach KVM upload URL";
         return NextResponse.json({
-          url: localUrl,
+          url: absolutize(req, localUrl),
+          path: localUrl,
           storage: "local",
-          warning: `KVM unreachable (${hint}). Image saved on this server at ${localUrl}. Fix KVM2_UPLOAD_URL or add POST ${kvmBase}/upload on your host.`,
+          warning: `KVM unreachable (${hint}). Image saved on this server.`,
         });
       }
     }
 
     const localUrl = await saveLocal(bytes, filename);
-    return NextResponse.json({ url: localUrl, storage: "local" });
+    return NextResponse.json({ url: absolutize(req, localUrl), path: localUrl, storage: "local" });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Upload failed";
     return NextResponse.json({ error: message }, { status: 500 });

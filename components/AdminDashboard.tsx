@@ -3,7 +3,7 @@
 import { BrandLogo } from "@/components/Logo";
 import { ExternalLink, Menu, Package, Users, X, MessageSquare, FileText, RotateCcw, Star } from "lucide-react";
 import Link from "next/link";
-import Image from "next/image";
+import { ProductImage } from "@/components/ProductImage";
 import { useCallback, useEffect, useState } from "react";
 import { AdminProductImageField } from "@/components/AdminProductImageField";
 
@@ -327,13 +327,12 @@ export function AdminDashboard() {
                           <td className="px-4 py-2">
                             {p.image ? (
                               <div className="relative h-10 w-10 overflow-hidden rounded bg-[#f4f1ea]">
-                                <Image
+                                <ProductImage
                                   src={String(p.image)}
                                   alt=""
                                   fill
                                   className="object-cover"
                                   sizes="40px"
-                                  unoptimized={String(p.image).startsWith("http")}
                                 />
                               </div>
                             ) : (

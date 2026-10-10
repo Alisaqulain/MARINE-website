@@ -1,7 +1,8 @@
 "use client";
 
-import Image from "next/image";
 import { useState } from "react";
+import { ProductImage } from "@/components/ProductImage";
+import { resolveMediaUrl } from "@/lib/media-url";
 
 export function AdminProductImageField({
   value,
@@ -37,7 +38,9 @@ export function AdminProductImageField({
         setError(typeof data.error === "string" ? data.error : "Upload failed");
         return;
       }
-      if (data.url) onChange(String(data.url));
+      const url = data.path ?? data.url;
+      if (url) onChange(String(url));
+      else if (data.url) onChange(String(data.url));
       if (data.warning) setNotice(String(data.warning));
     } finally {
       setUploading(false);
@@ -55,8 +58,13 @@ export function AdminProductImageField({
       </label>
       {value ? (
         <div className="relative h-24 w-24 overflow-hidden rounded-lg border border-[#e6dfd2]">
-          <Image src={value} alt="" fill className="object-cover" sizes="96px" unoptimized={value.startsWith("http")} />
+          <ProductImage src={value} alt="" fill className="object-cover" sizes="96px" />
         </div>
+      ) : null}
+      {value ? (
+        <p className="truncate text-[10px] text-navy-500" title={value}>
+          {resolveMediaUrl(value)}
+        </p>
       ) : null}
       <input
         className="input text-sm"
