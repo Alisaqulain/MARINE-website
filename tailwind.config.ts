@@ -5,6 +5,9 @@ const config: Config = {
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
     "./lib/**/*.{js,ts,jsx,tsx,mdx}",
+    "./auth.config.ts",
+    "./auth.ts",
+    "./middleware.ts",
   ],
   theme: {
     extend: {
