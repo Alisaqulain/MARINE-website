@@ -8,7 +8,8 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build && node scripts/verify-build-static.mjs",
-    "start": "next start -H 0.0.0.0"
+    "start": "next start -H 0.0.0.0",
+    "check:mongo": "node scripts/check-mongo-env.mjs"
   },
   "dependencies": {
     "autoprefixer": "^10.4.21",

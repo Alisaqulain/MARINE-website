@@ -31,6 +31,15 @@ export default async function TestDbPage() {
               · cluster <code className="text-[11px]">{result.clusterHost}</code>
             </>
           ) : null}
+          {result.passwordLength != null ? (
+            <> · password length in URI: {result.passwordLength}</>
+          ) : null}
+        </p>
+      ) : null}
+      {result.platform ? (
+        <p className="mt-1 text-xs text-navy-500">
+          Server: {result.platform}
+          {result.usesStandardUri ? " · MONGODB_URI_STANDARD is set (overrides MONGODB_URI)" : null}
         </p>
       ) : null}
       <div

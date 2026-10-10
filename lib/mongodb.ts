@@ -1,5 +1,6 @@
 import dns from "node:dns";
 import { MongoClient, ServerApiVersion, type Db, type MongoClientOptions } from "mongodb";
+import { mongoUriFromProcessEnv, parseMongoCredentials, sanitizeEnvValue } from "@/lib/env-mongo-uri";
 
 /** Atlas on Windows + OpenSSL 3 often fails on IPv6 first — prefer IPv4. */
 if (process.env.MONGODB_PREFER_IPV4 !== "0") {
@@ -18,18 +19,7 @@ function normalizeMongoUri(raw: string | undefined): string | undefined {
 }
 
 function parseSrvCredentials(srvUri: string) {
-  try {
-    const normalized = srvUri.replace(/^mongodb\+srv:/, "mongodb:");
-    const url = new URL(normalized);
-    if (!url.username || !url.password) return null;
-    return {
-      user: decodeURIComponent(url.username),
-      pass: decodeURIComponent(url.password),
-      host: url.hostname,
-    };
-  } catch {
-    return null;
-  }
+  return parseMongoCredentials(srvUri);
 }
 
 /** Windows + Node 24 often breaks mongodb+srv TLS; direct to first SRV host works. */
@@ -50,12 +40,9 @@ async function connectionUri(): Promise<string> {
   if (cachedUri) return cachedUri;
   if (!uriPromise) {
     uriPromise = (async () => {
-      const standard = process.env.MONGODB_URI_STANDARD?.trim();
-      if (standard) {
-        cachedUri = normalizeMongoUri(standard)!;
-        return cachedUri;
-      }
-      const srv = normalizeMongoUri(process.env.MONGODB_URI);
+      const fromEnv = mongoUriFromProcessEnv();
+      if (!fromEnv) throw new Error("MONGODB_URI is not set");
+      const srv = normalizeMongoUri(fromEnv);
       if (!srv) throw new Error("MONGODB_URI is not set");
 
       const wantDirect =
@@ -63,8 +50,13 @@ async function connectionUri(): Promise<string> {
         (process.platform === "win32" && process.env.MONGODB_DIRECT !== "0");
 
       if (wantDirect && srv.startsWith("mongodb+srv://")) {
-        cachedUri = await srvToDirectUri(srv);
-        return cachedUri;
+        try {
+          cachedUri = await srvToDirectUri(srv);
+          return cachedUri;
+        } catch {
+          cachedUri = srv;
+          return cachedUri;
+        }
       }
       cachedUri = srv;
       return cachedUri;
@@ -133,27 +125,36 @@ export async function getDb(): Promise<Db> {
 
 function describeConnectionMode(u: string): string {
   if (u.startsWith("mongodb+srv")) return "SRV (mongodb+srv)";
-  if (u.includes("directConnection=true")) return "direct single-node (Windows / Node 24 TLS workaround)";
+  if (u.includes("directConnection=true")) {
+    return process.env.MONGODB_DIRECT === "1"
+      ? "direct single-node (MONGODB_DIRECT=1)"
+      : "direct single-node (Windows TLS workaround)";
+  }
   return "standard replica set";
 }
 
-function mongoEnvSummary(): { dbUser?: string; clusterHost?: string } {
-  const raw = process.env.MONGODB_URI_STANDARD?.trim() || process.env.MONGODB_URI?.trim();
-  if (!raw) return {};
-  const parsed = parseSrvCredentials(normalizeMongoUri(raw) ?? raw);
-  if (parsed) return { dbUser: parsed.user, clusterHost: parsed.host };
-  try {
-    const url = new URL(raw.replace(/^mongodb(\+srv)?:/, "mongodb:"));
-    if (url.username) {
-      return {
-        dbUser: decodeURIComponent(url.username),
-        clusterHost: url.hostname || undefined,
-      };
-    }
-  } catch {
-    /* ignore */
+function mongoEnvSummary(): {
+  dbUser?: string;
+  clusterHost?: string;
+  passwordLength?: number;
+  usesStandardUri?: boolean;
+  platform?: string;
+} {
+  const usesStandardUri = Boolean(sanitizeEnvValue(process.env.MONGODB_URI_STANDARD));
+  const raw = mongoUriFromProcessEnv();
+  if (!raw) return { usesStandardUri, platform: process.platform };
+  const normalized = normalizeMongoUri(raw) ?? raw;
+  const parsed = parseSrvCredentials(normalized);
+  if (parsed) {
+    return {
+      dbUser: parsed.user,
+      clusterHost: parsed.host,
+      passwordLength: parsed.pass.length,
+      usesStandardUri,
+      platform: process.platform,
+    };
   }
-  return {};
+  return { usesStandardUri, platform: process.platform };
 }
 
 export type PingResult = {
@@ -165,12 +166,16 @@ export type PingResult = {
   dbUser?: string;
   clusterHost?: string;
   runtimeEnv?: string;
+  passwordLength?: number;
+  usesStandardUri?: boolean;
+  platform?: string;
 };
 
 export async function pingDatabase(): Promise<PingResult> {
   const hints: string[] = [];
   const nodeVersion = process.version;
-  const { dbUser, clusterHost } = mongoEnvSummary();
+  const envSummary = mongoEnvSummary();
+  const { dbUser, clusterHost, passwordLength, usesStandardUri, platform } = envSummary;
   const runtimeEnv = process.env.NODE_ENV ?? "unknown";
   let connectionMode = "unknown";
 
@@ -198,6 +203,9 @@ export async function pingDatabase(): Promise<PingResult> {
       dbUser,
       clusterHost,
       runtimeEnv,
+      passwordLength,
+      usesStandardUri,
+      platform,
     };
   } catch (e) {
     const message = e instanceof Error ? e.message : "Connection failed";
@@ -221,18 +229,33 @@ export async function pingDatabase(): Promise<PingResult> {
     }
     if (/bad auth|Authentication failed|auth failed/i.test(message)) {
       hints.push(
-        "Next.js loads MONGODB_URI only at startup. After editing .env.local: Ctrl+C to stop npm run dev, then start it again."
+        "On the KVM: SSH in, cd to the app folder, run npm run check:mongo — it must say OK using the same password length as local /test."
       );
       hints.push(
-        "Local and production use separate env. Copy the same MONGODB_URI to your KVM/server .env and restart the Node app (pm2/systemd)."
+        "pm2/systemd often injects an OLD MONGODB_URI that overrides .env files. Run pm2 show your-app and remove duplicate env, then pm2 restart your-app --update-env."
       );
       hints.push(
-        "In Atlas → Database Access, confirm user exists on this cluster and password matches the URI (username is the …_db_user, not your Gmail login)."
+        "Use one line, no quotes: MONGODB_URI=mongodb+srv://USER:PASSWORD@cluster0.... Put it in .env.production.local or .env on the server (same folder as package.json), not only on your PC."
       );
+      if (usesStandardUri) {
+        hints.push("MONGODB_URI_STANDARD is set on this server — it overrides MONGODB_URI. Update or remove it.");
+      }
     }
     if (message.includes("MONGODB_URI is not set")) {
       hints.push("Add MONGODB_URI to .env.local in the project root and restart the dev server.");
     }
-    return { ok: false, message, nodeVersion, hints, connectionMode, dbUser, clusterHost, runtimeEnv };
+    return {
+      ok: false,
+      message,
+      nodeVersion,
+      hints,
+      connectionMode,
+      dbUser,
+      clusterHost,
+      runtimeEnv,
+      passwordLength,
+      usesStandardUri,
+      platform,
+    };
   }
 }
