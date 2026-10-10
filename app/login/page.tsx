@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState, Suspense } from "react";
 import { signIn, useSession } from "next-auth/react";
+import { ArrowRight } from "lucide-react";
 import { BrandLogo } from "@/components/Logo";
 import { GoogleAuthButton } from "@/components/GoogleAuthButton";
 import { WholesaleApplicationFields, wholesaleApplicationPayload } from "@/components/WholesaleForms";
@@ -144,14 +145,17 @@ function LoginInner() {
   }
 
   return (
-    <div className={`mx-auto px-4 py-10 md:py-12 ${wholesaleRegister ? "max-w-[820px]" : "max-w-md"}`}>
+    <div className={`mx-auto w-full px-4 py-10 md:py-12 ${mode === "wholesale" ? "max-w-[820px]" : "max-w-md"}`}>
       <Link href="/" className="flex justify-center">
         <BrandLogo size="auth" priority />
       </Link>
       <h1 className="sr-only">{view === "login" ? "Login" : "Register"}</h1>
 
       {mode === "wholesale" ? (
-        <p className="mt-4 text-center text-sm text-navy-600">{t("login.wholesaleIntro")}</p>
+        <p className="mt-5 flex items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-[#C9A84C]/80 bg-[#FBF6E8] px-4 py-2.5 text-[13px] font-medium tracking-[0.01em] text-navy-900">
+          <ArrowRight className="h-3.5 w-3.5 shrink-0 text-[#8C6E28]" strokeWidth={2.25} aria-hidden />
+          <span>{t("login.wholesaleIntro")}</span>
+        </p>
       ) : null}
 
       <div className="mt-6 grid grid-cols-2 rounded-full bg-cream-300 p-1 text-sm">
@@ -170,17 +174,21 @@ function LoginInner() {
           {t("login.tab.register")}
         </button>
       </div>
-      <div className="mt-4 grid grid-cols-2 rounded-full bg-[#F4F1EA] p-1 text-sm">
+      <div className="mt-4 grid grid-cols-2 rounded-full bg-[#EDE6D9] p-1 text-sm">
         <button
           type="button"
-          className={`rounded-full py-2 ${mode === "customer" ? "bg-white shadow" : ""}`}
+          className={`rounded-full py-2 font-medium transition ${
+            mode === "customer" ? "bg-[#0B1D36] text-white shadow" : "text-navy-700"
+          }`}
           onClick={() => setMode("customer")}
         >
           {t("login.tab.customer")}
         </button>
         <button
           type="button"
-          className={`rounded-full py-2 ${mode === "wholesale" ? "bg-white shadow" : ""}`}
+          className={`rounded-full py-2 font-medium transition ${
+            mode === "wholesale" ? "bg-[#C9A84C] text-[#0B1D36] shadow" : "text-navy-700"
+          }`}
           onClick={() => setMode("wholesale")}
         >
           {t("login.tab.wholesale")}
@@ -200,11 +208,11 @@ function LoginInner() {
           <>
             <p className="md:col-span-2 font-serif text-lg text-navy-900">{t("login.wholesaleRegisterTitle")}</p>
             <WholesaleApplicationFields />
-            <label className="block text-[13px] md:col-span-2">
+            <label className="block text-[13px]">
               <span className="mb-1.5 block text-navy-700">{t("login.password")}</span>
               <input className="input" name="password" type="password" required minLength={8} />
             </label>
-            <label className="block text-[13px] md:col-span-2">
+            <label className="block text-[13px]">
               <span className="mb-1.5 block text-navy-700">{t("login.confirmPassword")}</span>
               <input className="input" name="confirm" type="password" required minLength={8} />
             </label>

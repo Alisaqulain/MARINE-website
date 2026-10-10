@@ -270,20 +270,13 @@ function AboutPanel({ product }: { product?: Product }) {
         </span>
         <div>
           <h2 className="text-[18px] font-semibold text-[#222]">{company.name}</h2>
-          <p className="text-[13px] text-[#595959]">
-            {company.city}, {company.country}
-          </p>
         </div>
       </div>
 
-      <dl className="mt-5 grid grid-cols-2 gap-3 text-[13px]">
-        <div className="rounded-lg bg-[#f7f7f7] px-3 py-2.5">
+      <dl className="mt-5 text-[13px]">
+        <div className="inline-block rounded-lg bg-[#f7f7f7] px-3 py-2.5">
           <dt className="text-[#888]">Established</dt>
           <dd className="mt-0.5 font-medium text-[#222]">2011</dd>
-        </div>
-        <div className="rounded-lg bg-[#f7f7f7] px-3 py-2.5">
-          <dt className="text-[#888]">Sales</dt>
-          <dd className="mt-0.5 font-medium text-[#222]">{products.length * 48}+</dd>
         </div>
       </dl>
 
@@ -315,11 +308,7 @@ function AboutPanel({ product }: { product?: Product }) {
         {product ? `${product.name} — handcrafted in Roorkee` : "Our manufacturing facility, Roorkee"}
       </p>
 
-      <p className="mt-6 text-[13px] leading-relaxed text-[#595959]">
-        {company.address.join(", ")}
-        <br />
-        {company.hours}
-      </p>
+      <p className="mt-6 text-[13px] leading-relaxed text-[#595959]">{company.address.join(", ")}</p>
     </div>
   );
 }

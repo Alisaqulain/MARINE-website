@@ -6,7 +6,7 @@ export async function POST(req: Request) {
   const keySecret = process.env.RAZORPAY_KEY_SECRET;
   if (!keyId || !keySecret) {
     return NextResponse.json(
-      { error: "Razorpay is not configured. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET on the server." },
+      { error: "Secure checkout is not configured. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET on the server." },
       { status: 503 }
     );
   }
@@ -72,7 +72,7 @@ export async function POST(req: Request) {
     order.status = "failed";
     saveOrder(order);
     return NextResponse.json(
-      { error: data.error?.description ?? "Could not start Razorpay checkout." },
+      { error: data.error?.description ?? "Could not start secure checkout." },
       { status: 502 }
     );
   }

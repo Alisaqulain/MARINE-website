@@ -24,7 +24,7 @@ const pillars = [
   {
     icon: ShieldCheck,
     title: "Trusted Payment Processing",
-    body: "Payments are processed through Razorpay and the payment options available on our secure checkout.",
+    body: "Payments are processed through secure checkout and the payment options available on this site.",
   },
   {
     icon: Headset,
@@ -39,7 +39,7 @@ export default function PaymentPage() {
       <BannerHero
         src="/secure-payment-banner.png"
         mobileSrc="/mobile/payment.png"
-        alt="Secure International Payment — shop with confidence through Razorpay"
+        alt="Secure International Payment — shop with confidence"
         title="Secure International Payment"
       />
 
@@ -48,7 +48,7 @@ export default function PaymentPage() {
           <p className="text-[11px] uppercase tracking-[0.28em] text-[#8C6E28]">Shop with confidence</p>
           <h2 className="mt-3 font-serif text-[1.85rem] text-navy-900 md:text-5xl">Secure International Payment</h2>
           <p className="mx-auto mt-5 max-w-2xl text-sm leading-relaxed text-navy-600 md:text-base">
-            Pay securely through Razorpay using the payment methods available at checkout. Your payment information
+            Pay through secure checkout using the payment methods available on this page. Your payment information
             is processed securely to help protect your transaction.
           </p>
         </div>
@@ -71,14 +71,14 @@ export default function PaymentPage() {
             <div>
               <h3 className="font-serif text-2xl md:text-3xl">Order confirmation system</h3>
               <p className="mt-3 max-w-3xl text-sm leading-relaxed text-cream-100/75">
-                After a successful Razorpay payment, the website verifies the payment on the server before the order
+                After a successful payment, the website verifies it on the server before the order
                 is confirmed. You then see an Order Confirmation page, receive an email with your order number, product
                 details, quantity, amount paid, payment status, shipping address, estimated delivery and support
                 contact, and can check status from your account.
               </p>
               <ul className="mt-5 grid gap-2 text-sm text-cream-100/80 sm:grid-cols-2">
                 {[
-                  "Server-side Razorpay signature verification",
+                  "Server-side secure checkout verification",
                   "Order created only after payment is verified",
                   "Confirmation email after successful payment",
                   "Order status in your account",

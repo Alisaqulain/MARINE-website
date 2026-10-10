@@ -298,7 +298,15 @@ export function Footer() {
           © 2026 {company.name}. Exporter · Manufacturer · Supplier.
           <span className="mt-1 block text-cream-100/55 sm:mt-0 sm:inline">
             {" "}
-            | Developed by <span className="font-medium text-[#C9A84C]">Robust Web Solution</span>
+            | Developed by{" "}
+            <a
+              href="https://robustwebsolution.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-[#C9A84C] underline-offset-2 hover:underline"
+            >
+              Robust Web Solution
+            </a>
           </span>
         </div>
       </div>

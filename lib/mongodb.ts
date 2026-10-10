@@ -1,4 +1,7 @@
+import { setDefaultResultOrder } from "node:dns";
 import { MongoClient, type Db } from "mongodb";
+
+setDefaultResultOrder("ipv4first");
 
 const uri = process.env.MONGODB_URI;
 const dbName = process.env.MONGODB_DB_NAME ?? "marina_muse";
@@ -14,11 +17,15 @@ function getClientPromise(): Promise<MongoClient> {
   }
   if (process.env.NODE_ENV === "development") {
     if (!global._mongoClientPromise) {
-      global._mongoClientPromise = new MongoClient(uri).connect();
+      const client = new MongoClient(uri, { family: 4, autoSelectFamily: false, serverSelectionTimeoutMS: 10000 });
+      global._mongoClientPromise = client.connect().catch((error) => {
+        global._mongoClientPromise = undefined;
+        throw error;
+      });
     }
     return global._mongoClientPromise;
   }
-  return new MongoClient(uri).connect();
+  return new MongoClient(uri, { family: 4, autoSelectFamily: false, serverSelectionTimeoutMS: 10000 }).connect();
 }
 
 export async function getDb(): Promise<Db> {

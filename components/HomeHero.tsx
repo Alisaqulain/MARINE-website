@@ -12,14 +12,17 @@ const btnBase =
 const btnPad =
   "box-border h-8 w-[10rem] px-2.5 text-[7.5px] tracking-[0.05em] sm:h-9 sm:w-[11.25rem] sm:text-[8px] md:h-9 md:w-[12.25rem] md:px-3 md:text-[9px] md:tracking-[0.08em] lg:h-10 lg:w-[13.5rem] lg:px-4 lg:text-[10px]";
 
+const heroBtnPad =
+  "box-border h-10 w-[12.75rem] px-3 text-[9px] tracking-[0.06em] sm:h-11 sm:w-[14.75rem] sm:text-[11px] md:h-12 md:w-[16.25rem] md:px-4 md:text-[12px] md:tracking-[0.08em] lg:h-[3.25rem] lg:w-[18rem] lg:text-[13px]";
+
 const arrowCls =
   "absolute top-1/2 z-30 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-white/35 bg-[#081525]/50 text-white shadow-[0_4px_16px_rgba(0,0,0,0.28)] backdrop-blur-sm transition hover:bg-[#081525]/80 sm:h-10 sm:w-10 lg:h-11 lg:w-11";
 
 const slides = [
   {
-    src: "/Banners/1.png",
-    mobileSrc: "/mobile1.jpeg",
-    alt: "See More. Explore Further. Handcrafted brass telescopes, binoculars and nautical treasures",
+    src: "/firstbannerlaptop.jpeg",
+    mobileSrc: "/firstbannermobile.jpeg",
+    alt: "Real viewing, not just décor. Worldwide shipping, premium brass craftsmanship, ideal for gifts and home décor",
     at: { left: "45%", top: "56%", center: true },
     buttons: true,
     pos: "sm:object-center",
@@ -146,36 +149,18 @@ export function HomeHero() {
           />
         ))}
 
-        {i === 0 && (
-          <Link
-            href="/about"
-            className="group absolute left-1/2 top-[52%] z-20 flex -translate-x-[38%] items-center gap-2 sm:left-[80%] sm:top-[42%] sm:-translate-x-1/2 sm:gap-4 md:top-[43%]"
-          >
-            <span className="relative grid h-8 w-8 place-items-center sm:h-12 sm:w-12 md:h-[3.25rem] md:w-[3.25rem] lg:h-16 lg:w-16">
-              <span className="absolute inset-0 rounded-full bg-[#F6BE52]/50 animate-story-ring group-hover:[animation-play-state:paused]" />
-              <span className="absolute inset-0 rounded-full bg-[#FFD56A]/40 animate-story-ring [animation-delay:1s] group-hover:[animation-play-state:paused]" />
-              <span className="relative z-10 grid h-full w-full place-items-center rounded-full bg-[#F6BE52] text-[#0B1D36] ring-2 ring-[#FFE7A8]/90 shadow-[0_0_28px_rgba(246,190,82,0.85)] transition animate-story-pulse group-hover:bg-[#ffd56a] group-hover:[animation-play-state:paused]">
-                <Play className="ml-0.5 h-3.5 w-3.5 fill-current sm:h-5 sm:w-5 lg:h-7 lg:w-7" />
-              </span>
-            </span>
-            <span className="font-serif text-[13px] font-medium tracking-[0.04em] text-[#0B1D36] underline decoration-[#0B1D36] decoration-2 underline-offset-[4px] drop-shadow-[0_1px_4px_rgba(255,255,255,0.35)] transition group-hover:text-[#152a4a] group-hover:decoration-[#152a4a] sm:text-[17px] md:text-[19px] lg:text-[22px]">
-              Watch Our Story
-            </span>
-          </Link>
-        )}
-
         {/* BUTTONS */}
         {slide.buttons && (
           <div
             key={slide.src}
-            className={`absolute z-20 hidden animate-fadeIn flex-col gap-1.5 sm:flex sm:gap-2 md:gap-3 ${
+            className={`absolute z-20 animate-fadeIn flex-col gap-1.5 sm:gap-2 md:gap-3 ${
               slide.mobileDock
-                ? "sm:bottom-auto sm:left-[4.8%] sm:top-[52%] sm:w-auto sm:translate-x-0 sm:items-stretch sm:pt-8 md:pt-12 lg:pt-14"
-                : `sm:left-[46%] sm:top-[51%] sm:items-center sm:-translate-x-1/2 sm:pt-1 md:pt-2`
+                ? "hidden sm:flex sm:bottom-auto sm:left-[4.8%] sm:top-[52%] sm:w-auto sm:translate-x-0 sm:items-stretch sm:pt-8 md:pt-12 lg:pt-14"
+                : "left-[58%] top-[22%] flex -translate-x-1/2 items-center sm:left-[56%] sm:top-[32%] sm:pt-0 md:top-[28%]"
             }`}
           >
             <div
-              className={`flex ${
+              className={`${i === 0 ? "hidden sm:flex" : "flex"} ${
                 slide.at.center || slide.mobileDock
                   ? "flex-row flex-wrap items-center justify-center gap-2 sm:gap-2 md:gap-3"
                   : "flex-col gap-1 sm:gap-2 md:gap-3"
@@ -183,18 +168,31 @@ export function HomeHero() {
             >
               <Link
                 href="/shop"
-                className={`${btnBase} ${btnPad} shadow-[0_4px_12px_rgba(0,0,0,0.3)] ${slide.primaryCls}`}
+                className={`${btnBase} ${i === 0 ? heroBtnPad : btnPad} shadow-[0_4px_12px_rgba(0,0,0,0.3)] ${slide.primaryCls}`}
               >
                 B2C Retail Collection
               </Link>
               <WholesaleNavLink
                 callbackUrl="/wholesale"
-                className={`${btnBase} ${btnPad} ${slide.secondaryCls}`}
+                className={`${btnBase} ${i === 0 ? heroBtnPad : btnPad} ${slide.secondaryCls}`}
               >
                 B2B Wholesale Collection
               </WholesaleNavLink>
             </div>
-
+            {i === 0 ? (
+              <Link href="/about" className="group mt-1 flex flex-nowrap items-center gap-2 whitespace-nowrap sm:mt-2 sm:gap-3">
+                <span className="relative grid h-8 w-8 shrink-0 place-items-center sm:h-11 sm:w-11 lg:h-14 lg:w-14">
+                  <span className="absolute inset-0 rounded-full bg-[#F6BE52]/50 animate-story-ring group-hover:[animation-play-state:paused]" />
+                  <span className="absolute inset-0 rounded-full bg-[#FFD56A]/40 animate-story-ring [animation-delay:1s] group-hover:[animation-play-state:paused]" />
+                  <span className="relative z-10 grid h-full w-full place-items-center rounded-full bg-[#F6BE52] text-[#0B1D36] ring-2 ring-[#FFE7A8]/90 shadow-[0_0_28px_rgba(246,190,82,0.85)] transition animate-story-pulse group-hover:bg-[#ffd56a] group-hover:[animation-play-state:paused]">
+                    <Play className="ml-0.5 h-3.5 w-3.5 fill-current sm:h-5 sm:w-5 lg:h-6 lg:w-6" />
+                  </span>
+                </span>
+                <span className="whitespace-nowrap font-serif text-[14px] font-semibold tracking-[0.02em] text-white underline decoration-[#F6BE52] decoration-2 underline-offset-[5px] drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)] transition group-hover:text-[#F6BE52] sm:text-[18px] sm:tracking-[0.04em] lg:text-[22px]">
+                  Watch Our Story
+                </span>
+              </Link>
+            ) : null}
           </div>
         )}
 
@@ -274,11 +272,11 @@ export function HomeHero() {
         </Link>
         <WholesaleNavLink
           callbackUrl="/wholesale"
-          className="flex items-center justify-center gap-2 px-2 py-2.5 transition hover:bg-[#0B1D36]"
+          className="flex items-center justify-center gap-1.5 px-1.5 py-2.5 transition hover:bg-[#0B1D36]"
         >
-          <Briefcase className="h-5 w-5 shrink-0 text-[#C9A84C]" strokeWidth={1.7} />
+          <Briefcase className="h-4 w-4 shrink-0 text-[#C9A84C]" strokeWidth={1.7} />
           <span className="min-w-0 text-left">
-            <span className="block text-[12px] font-semibold leading-tight">B2B Wholesale Collection</span>
+            <span className="block whitespace-nowrap text-[10px] font-semibold leading-none tracking-tight">B2B Wholesale Collection</span>
             <span className="mt-0.5 block text-[10px] leading-tight text-[#F3E6C8]/70">Volume pricing for business</span>
           </span>
         </WholesaleNavLink>

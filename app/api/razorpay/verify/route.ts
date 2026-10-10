@@ -5,7 +5,7 @@ import { getOrder, publicOrder, saveOrder, sendOrderConfirmation, whatsappConfir
 export async function POST(req: Request) {
   const keySecret = process.env.RAZORPAY_KEY_SECRET;
   if (!keySecret) {
-    return NextResponse.json({ error: "Razorpay is not configured on the server." }, { status: 503 });
+    return NextResponse.json({ error: "Secure checkout is not configured on the server." }, { status: 503 });
   }
 
   const body = await req.json().catch(() => null);

@@ -53,7 +53,7 @@ export default function AccountOrdersPage() {
     <div className="mx-auto max-w-3xl px-4 py-10 md:py-12">
       <p className="text-[11px] uppercase tracking-[0.28em] text-[#8C6E28]">Account</p>
       <h1 className="mt-2 font-serif text-3xl md:text-4xl">Order status</h1>
-      <p className="mt-2 text-navy-600">Confirmed orders appear here after Razorpay payment is verified on the server.</p>
+      <p className="mt-2 text-navy-600">Confirmed orders appear here after your secure checkout payment is verified.</p>
 
       <form className="mt-6 flex flex-col gap-3 sm:flex-row" onSubmit={lookup}>
         <input

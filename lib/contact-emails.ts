@@ -1,8 +1,8 @@
 import { company } from "@/lib/company";
 
 const DEFAULT_CONTACT = [
-  "marinamuseinternational@gmail.com",
   "muaasiyainternational@gmail.com",
+  "marinamuseinternational@gmail.com",
 ] as const;
 
 /** Public contact inboxes (footer, contact page). Set CONTACT_EMAILS in .env — comma-separated. */

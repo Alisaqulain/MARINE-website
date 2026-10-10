@@ -212,10 +212,10 @@ export default function ProductPage() {
                     new CustomEvent("marina-chat-open", { detail: { product: product.slug } })
                   )
                 }
-                className="inline-flex h-11 min-w-0 items-center justify-center gap-1 whitespace-nowrap rounded-full border border-navy-800 px-2 text-[8px] font-semibold uppercase tracking-[0.04em] sm:h-12 sm:gap-2 sm:px-4 sm:text-[11px] sm:tracking-[0.14em]"
+                className="inline-flex h-11 min-w-0 items-center justify-center gap-1 rounded-full border border-navy-800 px-2.5 text-center text-[9px] font-semibold uppercase leading-tight tracking-tight sm:h-12 sm:gap-1.5 sm:px-3 sm:text-[10px]"
               >
-                <Sparkles className="h-3 w-3 shrink-0 text-[#C9A84C] sm:h-3.5 sm:w-3.5" />
-                Ask Marina About This Product
+                <Sparkles className="h-3 w-3 shrink-0 text-[#C9A84C]" />
+                <span className="min-w-0">Ask Marina About This Product</span>
               </button>
               <a
                 href={companyWhatsApp}
@@ -235,7 +235,9 @@ export default function ProductPage() {
               </div>
               <div>
                 <RotateCcw className="mx-auto h-5 w-5 text-[#C9A84C]" />
-                <p className="mt-1">Easy Returns 14 Days</p>
+                <Link href="/returns" className="mt-1 block hover:text-[#8C6E28]">
+                  Return in 14 Days
+                </Link>
               </div>
               <Link
                 href="/returns"
