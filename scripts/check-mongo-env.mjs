@@ -72,8 +72,19 @@ async function main() {
   if (process.env.MONGODB_URI_STANDARD) console.log("(using MONGODB_URI_STANDARD)");
 
   const directFlag = process.env.MONGODB_DIRECT ?? "(not set)";
-  const wantDirect = process.env.MONGODB_DIRECT !== "0";
-  console.log("MONGODB_DIRECT:", directFlag, wantDirect ? "→ try direct shards first" : "→ SRV only (not recommended on VPS)");
+  const srvOnly = process.env.MONGODB_SRV_ONLY === "1";
+  const wantDirect =
+    !srvOnly &&
+    !(process.env.MONGODB_DIRECT === "0" && process.platform === "win32") &&
+    uri.startsWith("mongodb+srv://");
+  if (process.env.MONGODB_DIRECT === "0" && process.platform === "linux") {
+    console.log("MONGODB_DIRECT=0 ignored on Linux — VPS still uses direct shards (remove =0 or delete the line).");
+  }
+  console.log(
+    "MONGODB_DIRECT:",
+    directFlag,
+    srvOnly ? "→ SRV only (MONGODB_SRV_ONLY=1)" : wantDirect ? "→ try direct shards first" : "→ SRV only"
+  );
 
   const nodeMajor = Number(/^v(\d+)/.exec(process.version)?.[1] ?? 0);
   const skipSrvAfterDirect =

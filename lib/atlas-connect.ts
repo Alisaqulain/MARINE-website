@@ -17,10 +17,13 @@ export function atlasDirectOnlyOnThisRuntime(): boolean {
   return process.platform === "win32" && nodeMajor() >= 24;
 }
 
-/** Direct shard URIs fix srv TLS issues on Windows Node 24 and many Linux VPS hosts. */
+/** Direct shard URIs fix srv TLS on Windows Node 24 and many Linux VPS hosts (SSL alert 80). */
 export function shouldTryDirectShards(srvUri: string): boolean {
-  if (process.env.MONGODB_DIRECT === "0") return false;
-  return srvUri.startsWith("mongodb+srv://");
+  if (!srvUri.startsWith("mongodb+srv://")) return false;
+  if (process.env.MONGODB_SRV_ONLY === "1") return false;
+  // MONGODB_DIRECT=0 only disables direct on Windows; on Linux VPS, srv-only often fails — still try shards.
+  if (process.env.MONGODB_DIRECT === "0" && process.platform === "win32") return false;
+  return true;
 }
 
 function shardSortKey(host: string): number {
