@@ -71,17 +71,23 @@ async function main() {
   console.log("password length in URI:", c.pass.length);
   if (process.env.MONGODB_URI_STANDARD) console.log("(using MONGODB_URI_STANDARD)");
 
-  let connectUri = uri;
+  const directFlag = process.env.MONGODB_DIRECT ?? "(not set)";
   const wantDirect = process.env.MONGODB_DIRECT !== "0";
+  console.log("MONGODB_DIRECT:", directFlag, wantDirect ? "→ try direct shards first" : "→ SRV only (not recommended on VPS)");
 
   const nodeMajor = Number(/^v(\d+)/.exec(process.version)?.[1] ?? 0);
-  const directOnly = process.platform === "win32" && nodeMajor >= 24;
+  const skipSrvAfterDirect =
+    (process.platform === "win32" && nodeMajor >= 24) || process.env.MONGODB_SKIP_SRV_FALLBACK === "1";
+  const preferIpv4 =
+    process.platform === "win32" ||
+    process.env.MONGODB_PREFER_IPV4 === "1" ||
+    process.env.MONGODB_FORCE_IPV4 === "1";
   const opts = {
     serverSelectionTimeoutMS: 15_000,
-    autoSelectFamily: process.platform === "win32" ? false : undefined,
-    ...(process.platform === "win32" ? { family: 4 } : {}),
+    autoSelectFamily: preferIpv4 ? false : undefined,
+    ...(preferIpv4 ? { family: 4 } : {}),
   };
-  if (directOnly) console.log("Node", process.version, "— skipping mongodb+srv (Windows TLS); trying direct shards only.");
+  console.log("check-mongo script: direct-shards-v2 · Node", process.version, "·", process.platform);
 
   async function tryPing(label, tryUri, tryOpts = opts) {
     const client = new MongoClient(tryUri, tryOpts);
@@ -99,6 +105,7 @@ async function main() {
   }
 
   if (wantDirect && uri.startsWith("mongodb+srv://")) {
+    console.log("Trying direct Atlas shard hosts (SRV lookup)...");
     const recs = await dns.promises.resolveSrv(`_mongodb._tcp.${c.host}`);
     const auth = `${encodeURIComponent(c.user)}:${encodeURIComponent(c.pass)}`;
     const sortKey = (h) =>
@@ -108,10 +115,20 @@ async function main() {
       const direct = `mongodb://${auth}@${r.name}:27017/?ssl=true&authSource=admin&directConnection=true`;
       if (await tryPing(`direct ${r.name}`, direct)) return;
     }
+    console.log("All direct shard attempts failed.");
+  } else if (!uri.startsWith("mongodb+srv://")) {
+    console.log("URI is not mongodb+srv — skipping direct shard step.");
   }
 
-  if (!directOnly && (await tryPing("mongodb+srv", uri))) return;
+  if (!skipSrvAfterDirect) {
+    if (await tryPing("mongodb+srv", uri)) return;
+  } else {
+    console.log("Skipping mongodb+srv fallback.");
+  }
 
+  console.error(
+    "\nIf every attempt shows SSL alert 80: MongoDB Atlas → Network Access → add this server's public IP (or 0.0.0.0/0)."
+  );
   process.exit(1);
 }
 
