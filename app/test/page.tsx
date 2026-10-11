@@ -42,6 +42,18 @@ export default async function TestDbPage() {
           {result.usesStandardUri ? " · MONGODB_URI_STANDARD is set (overrides MONGODB_URI)" : null}
         </p>
       ) : null}
+      {result.connectorVersion ? (
+        <p className="mt-1 text-xs font-medium text-navy-700">
+          Connector: <code className="text-[11px]">{result.connectorVersion}</code>
+          {result.mongodbDirectEnv ? (
+            <> · MONGODB_DIRECT={result.mongodbDirectEnv}</>
+          ) : null}
+        </p>
+      ) : (
+        <p className="mt-1 text-xs font-semibold text-amber-800">
+          Connector: (old build — deploy latest code from your PC to the KVM)
+        </p>
+      )}
       <div
         className={`mt-8 rounded-2xl border px-6 py-5 ${
           result.ok ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-red-200 bg-red-50 text-red-900"

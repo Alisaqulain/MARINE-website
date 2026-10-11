@@ -1,10 +1,12 @@
 import dns from "node:dns";
 import { MongoClient, ServerApiVersion, type Db, type MongoClientOptions } from "mongodb";
 import {
+  ATLAS_CONNECTOR_VERSION,
   atlasDirectOnlyOnThisRuntime,
   clientOptionsForAtlas,
   connectWithAtlasStrategy,
   nodeMajor,
+  shouldTryDirectShards,
 } from "@/lib/atlas-connect";
 import { mongoUriFromProcessEnv, parseMongoCredentials, sanitizeEnvValue } from "@/lib/env-mongo-uri";
 
@@ -159,6 +161,8 @@ export type PingResult = {
   passwordLength?: number;
   usesStandardUri?: boolean;
   platform?: string;
+  connectorVersion?: string;
+  mongodbDirectEnv?: string;
 };
 
 export async function pingDatabase(): Promise<PingResult> {
@@ -167,6 +171,8 @@ export async function pingDatabase(): Promise<PingResult> {
   const envSummary = mongoEnvSummary();
   const { dbUser, clusterHost, passwordLength, usesStandardUri, platform } = envSummary;
   const runtimeEnv = process.env.NODE_ENV ?? "unknown";
+  const connectorVersion = ATLAS_CONNECTOR_VERSION;
+  const mongodbDirectEnv = process.env.MONGODB_DIRECT ?? "(not set, direct shards enabled)";
   let connectionMode = "unknown";
 
   try {
@@ -194,19 +200,36 @@ export async function pingDatabase(): Promise<PingResult> {
       passwordLength,
       usesStandardUri,
       platform,
+      connectorVersion,
+      mongodbDirectEnv,
     };
   } catch (e) {
     const message = e instanceof Error ? e.message : "Connection failed";
     if (connectionMode === "unknown") {
       try {
-        connectionMode = describeConnectionMode(cachedUri ?? (await connectionUri()));
+        const srv = await normalizedSrvFromEnv();
+        if (cachedUri) {
+          connectionMode = describeConnectionMode(cachedUri);
+        } else if (shouldTryDirectShards(srv)) {
+          connectionMode = "direct shards tried, then SRV (all failed)";
+        } else {
+          connectionMode = describeConnectionMode(srv);
+        }
       } catch {
         connectionMode = "could not build URI (check MONGODB_URI)";
       }
     }
     if (isTlsError(message)) {
+      if (connectionMode.startsWith("SRV") || connectionMode.includes("then SRV")) {
+        hints.push(
+          `/test must show Connector: ${ATLAS_CONNECTOR_VERSION}. If you still see old Windows/Node 24 hints, the server is running an OLD build — git pull, npm run build, pm2 restart.`
+        );
+      }
+      if (process.env.MONGODB_DIRECT === "0") {
+        hints.push("Remove MONGODB_DIRECT=0 from production env — it disables direct shard connections.");
+      }
       hints.push(
-        "Deploy the latest app build — production must not stop at mongodb+srv only; it should try direct Atlas shard hosts first."
+        "Deploy the latest app build — production must try direct Atlas shard hosts before mongodb+srv."
       );
       hints.push(
         "Atlas → Network Access → add your KVM public IP (or 0.0.0.0/0 for testing). SSL alert 80 often means IP not allowed."
@@ -242,6 +265,8 @@ export async function pingDatabase(): Promise<PingResult> {
       passwordLength,
       usesStandardUri,
       platform,
+      connectorVersion,
+      mongodbDirectEnv,
     };
   }
 }

@@ -2,6 +2,9 @@ import dns from "node:dns";
 import { MongoClient, type MongoClientOptions } from "mongodb";
 import { parseMongoCredentials } from "@/lib/env-mongo-uri";
 
+/** Bump when deploy verification is needed — shown on /test */
+export const ATLAS_CONNECTOR_VERSION = "direct-shards-v2";
+
 export function nodeMajor(): number {
   const m = /^v(\d+)/.exec(process.version);
   return m ? Number(m[1]) : 0;
@@ -18,11 +21,6 @@ export function atlasDirectOnlyOnThisRuntime(): boolean {
 export function shouldTryDirectShards(srvUri: string): boolean {
   if (process.env.MONGODB_DIRECT === "0") return false;
   return srvUri.startsWith("mongodb+srv://");
-}
-
-/** @deprecated use shouldTryDirectShards */
-export function wantDirectConnection(): boolean {
-  return shouldTryDirectShards("mongodb+srv://x");
 }
 
 function shardSortKey(host: string): number {
