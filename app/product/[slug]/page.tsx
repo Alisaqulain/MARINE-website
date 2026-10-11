@@ -1,6 +1,13 @@
 "use client";
 
-import { B2B_MIN_ORDER_QTY, getCollection, getProduct, products, showsFreeShipping } from "@/lib/products";
+import {
+  B2B_MIN_ORDER_QTY,
+  getCollection,
+  getProduct,
+  products,
+  showsFreeShipping,
+  type Product,
+} from "@/lib/products";
 import { getProductCategory } from "@/lib/catalog";
 import { findShopNowLabel, shopNowTree } from "@/lib/shop-now-data";
 import { useCart } from "@/lib/cart-context";
@@ -33,7 +40,18 @@ import { ProductGalleryViewer } from "@/components/ProductGalleryViewer";
 
 export default function ProductPage() {
   const { slug } = useParams<{ slug: string }>();
-  const product = getProduct(slug);
+  const [product, setProduct] = useState<Product | undefined>(() => getProduct(slug));
+
+  useEffect(() => {
+    const local = getProduct(slug);
+    setProduct(local);
+    void fetch(`/api/catalog/product/${encodeURIComponent(slug)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.product) setProduct(data.product);
+      })
+      .catch(() => {});
+  }, [slug]);
   const b2bQuery = useSearchParams().get("b2b") === "1";
   const router = useRouter();
   const { data: session, status } = useSession();

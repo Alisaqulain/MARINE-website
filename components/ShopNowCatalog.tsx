@@ -3,13 +3,14 @@
 import { CatalogCard } from "@/components/CatalogCard";
 import { getProductCategory } from "@/lib/catalog";
 import { findShopNowLabel, shopNowSubtree, shopNowTree } from "@/lib/shop-now-data";
-import { products } from "@/lib/products";
+import { products as staticProducts, type Product } from "@/lib/products";
 import { ChevronDown, ChevronRight, LayoutGrid, LayoutList, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 const PAGE_SIZE = 24;
 
 export function ShopNowCatalog({ retail = false }: { retail?: boolean }) {
+  const [catalogProducts, setCatalogProducts] = useState<Product[]>(staticProducts);
   const [open, setOpen] = useState<string | null>(null);
   const [parent, setParent] = useState<string | null>(null);
   const [sub, setSub] = useState<string | null>(null);
@@ -17,6 +18,16 @@ export function ShopNowCatalog({ retail = false }: { retail?: boolean }) {
   const [grid, setGrid] = useState(true);
   const [limit, setLimit] = useState(PAGE_SIZE);
   const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    const channel = retail ? "retail" : "wholesale";
+    void fetch(`/api/catalog/products?channel=${channel}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data.items) && data.items.length) setCatalogProducts(data.items);
+      })
+      .catch(() => {});
+  }, [retail]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -35,7 +46,7 @@ export function ShopNowCatalog({ retail = false }: { retail?: boolean }) {
   }, [parent, sub, sort, query]);
 
   const list = useMemo(() => {
-    let next = [...products];
+    let next = [...catalogProducts];
     if (sub) {
       const slugs = shopNowSubtree(sub);
       next = next.filter((p) => p.subcategory && slugs.includes(p.subcategory));
@@ -59,7 +70,7 @@ export function ShopNowCatalog({ retail = false }: { retail?: boolean }) {
     if (sort === "rating") next.sort((a, b) => b.rating - a.rating);
     if (sort === "new") next.reverse();
     return next;
-  }, [parent, sub, sort, query]);
+  }, [parent, sub, sort, query, catalogProducts]);
 
   const filtered = Boolean(sub || parent);
   const title = filtered ? findShopNowLabel(sub || parent) : "All products";
@@ -151,7 +162,7 @@ export function ShopNowCatalog({ retail = false }: { retail?: boolean }) {
               }`}
             >
               <span>All products</span>
-              <span className="text-[11px] text-[#999]">{products.length}</span>
+              <span className="text-[11px] text-[#999]">{catalogProducts.length}</span>
             </button>
             {shopNowTree.map((c) => {
               const hasChildren = c.children.length > 0;

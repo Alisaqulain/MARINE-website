@@ -1,13 +1,16 @@
-const DEFAULT_CONTACT = ["info@marinamuseinternational.com", "contact@marinamuseinternational.com"] as const;
+const PUBLIC_CONTACT = "info@marinamuseinternational.com";
 
-/** Public contact inboxes (footer, contact page). Set CONTACT_EMAILS in .env — comma-separated. */
-export function getContactEmails(): string[] {
+/** Single public inbox for footer, contact page, and secure payment. */
+export function getPublicContactEmail(): string {
   const raw = process.env.CONTACT_EMAILS?.trim();
   if (raw) {
-    return raw
-      .split(",")
-      .map((e) => e.trim().toLowerCase())
-      .filter(Boolean);
+    const first = raw.split(",")[0]?.trim().toLowerCase();
+    if (first) return first;
   }
-  return [...DEFAULT_CONTACT];
+  return PUBLIC_CONTACT;
+}
+
+/** @deprecated Use getPublicContactEmail — kept for callers expecting an array. */
+export function getContactEmails(): string[] {
+  return [getPublicContactEmail()];
 }

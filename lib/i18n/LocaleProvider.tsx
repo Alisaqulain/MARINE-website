@@ -54,6 +54,15 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
     document.documentElement.dir = dir;
   }, [locale, dir]);
 
+  useEffect(() => {
+    const onExternal = (e: Event) => {
+      const code = (e as CustomEvent<string>).detail;
+      if (code) setLocaleState(normalizeLocale(code));
+    };
+    window.addEventListener("marina-locale-change", onExternal);
+    return () => window.removeEventListener("marina-locale-change", onExternal);
+  }, []);
+
   const t = useCallback((key: string) => translate(locale, key), [locale]);
 
   const value = useMemo(() => ({ locale, setLocale, t, dir }), [locale, setLocale, t, dir]);

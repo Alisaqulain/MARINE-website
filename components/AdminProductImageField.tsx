@@ -52,13 +52,28 @@ export function AdminProductImageField({
     <div className="space-y-2">
       <span className="block text-xs font-semibold uppercase tracking-wide text-navy-600">Product image</span>
       <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-[#C9A84C]/50 bg-[#FAF7F2] px-4 py-6 text-center transition hover:border-[#C9A84C]">
-        <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="sr-only" onChange={onPickFile} />
-        <span className="text-sm font-medium text-navy-800">{uploading ? "Uploading…" : "Upload image"}</span>
-        <span className="mt-1 text-[11px] text-navy-500">JPG, PNG, WebP · saved to server / KVM2</span>
+        <input
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/gif"
+          capture="environment"
+          className="sr-only"
+          onChange={onPickFile}
+        />
+        <span className="text-sm font-medium text-navy-800">{uploading ? "Uploading…" : "Take photo or upload"}</span>
+        <span className="mt-1 text-[11px] text-navy-500">Camera, gallery, or JPG / PNG / WebP</span>
       </label>
       {value ? (
-        <div className="relative h-24 w-24 overflow-hidden rounded-lg border border-[#e6dfd2]">
-          <ProductImage src={value} alt="" fill className="object-cover" sizes="96px" />
+        <div className="flex items-start gap-3">
+          <div className="relative h-24 w-24 overflow-hidden rounded-lg border border-[#e6dfd2]">
+            <ProductImage src={value} alt="" fill className="object-cover" sizes="96px" />
+          </div>
+          <button
+            type="button"
+            className="text-xs font-semibold text-red-700 underline"
+            onClick={() => onChange("")}
+          >
+            Remove image
+          </button>
         </div>
       ) : null}
       {value ? (

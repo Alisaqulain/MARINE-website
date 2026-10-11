@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, ShoppingBag, X, Heart, LayoutDashboard } from "lucide-react";
+import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
 import { BrandLogo } from "./Logo";
 import { useCart } from "@/lib/cart-context";
@@ -33,6 +34,8 @@ export function Header() {
   const { count: wishCount } = useWishlist();
   const [open, setOpen] = useState(false);
   const t = useT();
+  const { data: session } = useSession();
+  const hideAdminLink = session?.user?.role === "admin";
   const nav = navKeys.map((item) => ({
     href: item.href,
     label: t(item.key),
@@ -50,7 +53,7 @@ export function Header() {
           <BrandLogo size="header" priority />
         </Link>
 
-        <nav className="hidden min-w-0 flex-1 items-center justify-center gap-x-3 lg:flex xl:gap-x-5 2xl:gap-x-6">
+        <nav className="hidden min-w-0 flex-1 items-center justify-center gap-x-2 lg:flex xl:gap-x-4 2xl:gap-x-5">
           {nav.map((item) => {
             const cls = `whitespace-nowrap py-2 text-[10px] font-medium uppercase tracking-[0.08em] transition-colors xl:text-[11px] 2xl:text-[12px] ${
               isActive(pathname, item.href) ? "text-[#C9A84C]" : "text-white/80 hover:text-[#C9A84C]"
@@ -74,14 +77,16 @@ export function Header() {
           <div className="hidden sm:block">
             <HeaderAuth />
           </div>
-          <Link
-            href="/admin/login"
-            aria-label={t("nav.admin")}
-            title={t("nav.admin")}
-            className="hidden p-2 text-white/85 hover:text-[#C9A84C] sm:inline-flex"
-          >
-            <LayoutDashboard className="h-[18px] w-[18px]" />
-          </Link>
+          {!hideAdminLink ? (
+            <Link
+              href="/admin/login"
+              aria-label={t("nav.admin")}
+              title={t("nav.admin")}
+              className="hidden p-2 text-white/85 hover:text-[#C9A84C] sm:inline-flex"
+            >
+              <LayoutDashboard className="h-[18px] w-[18px]" />
+            </Link>
+          ) : null}
           <Link href="/wishlist" aria-label="My Wishlist" className="relative p-2 text-white/85 hover:text-[#C9A84C]">
             <Heart className="h-[18px] w-[18px]" />
             {wishCount > 0 && (
@@ -124,17 +129,19 @@ export function Header() {
               </Link>
             );
           })}
-          <div className="border-t border-[#C9A84C]/20 py-2 sm:hidden">
+          <div className="border-t border-[#C9A84C]/20 py-2 lg:hidden">
             <HeaderAuth />
           </div>
-          <Link
-            href="/admin/login"
-            onClick={() => setOpen(false)}
-            className="flex items-center gap-2 py-2.5 text-xs uppercase tracking-[0.16em] text-white"
-          >
-            <LayoutDashboard className="h-4 w-4 text-[#C9A84C]" />
-            {t("nav.admin")}
-          </Link>
+          {!hideAdminLink ? (
+            <Link
+              href="/admin/login"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-2 py-2.5 text-xs uppercase tracking-[0.16em] text-white lg:hidden"
+            >
+              <LayoutDashboard className="h-4 w-4 text-[#C9A84C]" />
+              {t("nav.admin")}
+            </Link>
+          ) : null}
         </div>
       )}
     </header>

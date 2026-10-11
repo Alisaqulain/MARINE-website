@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { estimatedDelivery, newOrderId, newToken, pricedItems, saveOrder } from "@/lib/orders";
+import { estimatedDelivery, newOrderId, newToken, pricedItemsAsync, saveOrder } from "@/lib/orders";
 
 export async function POST(req: Request) {
   const keyId = process.env.RAZORPAY_KEY_ID;
@@ -16,7 +16,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 
-  const { items, amount: total } = pricedItems(Array.isArray(body.lines) ? body.lines : []);
+  const { items, amount: total } = await pricedItemsAsync(Array.isArray(body.lines) ? body.lines : []);
 
   if (!items.length || total <= 0) {
     return NextResponse.json({ error: "Your cart has no valid products." }, { status: 400 });

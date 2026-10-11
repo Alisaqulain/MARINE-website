@@ -34,6 +34,16 @@ export async function POST(req: Request) {
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Registration failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const dbDown =
+      /Mongo|ECONNREFUSED|SSL|connection|timed out|Atlas/i.test(message) ||
+      message.includes("MONGODB_URI");
+    return NextResponse.json(
+      {
+        error: dbDown
+          ? "We could not reach the account database. Please try again in a few minutes or contact support at info@marinamuseinternational.com."
+          : message,
+      },
+      { status: dbDown ? 503 : 500 }
+    );
   }
 }

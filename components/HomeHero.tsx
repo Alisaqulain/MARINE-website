@@ -156,7 +156,7 @@ export function HomeHero() {
             className={`absolute z-20 animate-fadeIn flex-col gap-1.5 sm:gap-2 md:gap-3 ${
               slide.mobileDock
                 ? "hidden sm:flex sm:bottom-auto sm:left-[4.8%] sm:top-[52%] sm:w-auto sm:translate-x-0 sm:items-stretch sm:pt-8 md:pt-12 lg:pt-14"
-                : "left-[58%] top-[22%] flex -translate-x-1/2 items-center sm:left-[56%] sm:top-[32%] sm:pt-0 md:top-[28%]"
+                : "left-1/2 top-[38%] flex -translate-x-1/2 items-center sm:top-[42%] md:top-[40%]"
             }`}
           >
             <div
@@ -265,14 +265,14 @@ export function HomeHero() {
           className="flex min-w-0 flex-1 items-center justify-center gap-1.5 px-2 py-2.5 transition hover:bg-[#0B1D36]"
         >
           <ShoppingBag className="h-4 w-4 shrink-0 text-[#C9A84C]" strokeWidth={1.7} />
-          <span className="truncate text-[10px] font-semibold leading-tight">B2C Retail</span>
+          <span className="text-center text-[9px] font-semibold leading-tight">B2C Retail Collection</span>
         </Link>
         <WholesaleNavLink
           callbackUrl="/wholesale"
           className="flex min-w-0 flex-1 items-center justify-center gap-1.5 px-2 py-2.5 transition hover:bg-[#0B1D36]"
         >
           <Briefcase className="h-4 w-4 shrink-0 text-[#C9A84C]" strokeWidth={1.7} />
-          <span className="truncate text-[10px] font-semibold leading-tight">B2B Wholesale</span>
+          <span className="text-center text-[9px] font-semibold leading-tight">B2B Wholesale Collection</span>
         </WholesaleNavLink>
       </div>
     </section>

@@ -109,14 +109,21 @@ async function main() {
     const per = Math.floor((budget - external) / nodeProcs);
     poolHint = `~${Math.max(2, Math.min(5, per))} (MONGODB_NODE_PROCESSES=${nodeProcs})`;
   }
-  console.log("check-mongo script: direct-shards-v6 · Node", process.version, "·", process.platform, "· pool", poolHint);
+  console.log("check-mongo script: direct-shards-v7 · Node", process.version, "·", process.platform, "· pool", poolHint);
 
   async function tryPing(label, tryUri, tryOpts = opts) {
     const client = new MongoClient(tryUri, tryOpts);
     try {
       await client.connect();
+      const hello = await client.db("admin").command({ hello: 1 });
+      const primary = hello.isWritablePrimary === true || hello.ismaster === true;
+      if (!primary && tryUri.includes("directConnection=true")) {
+        console.log("SKIP:", label, "- secondary (not primary)");
+        await client.close();
+        return false;
+      }
       await client.db(process.env.MONGODB_DB_NAME || "marina_muse").command({ ping: 1 });
-      console.log("OK:", label);
+      console.log("OK:", label, primary ? "(primary)" : "(replica set)");
       await client.close();
       return true;
     } catch (e) {

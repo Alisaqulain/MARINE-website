@@ -4,7 +4,7 @@ import { parseMongoCredentials } from "@/lib/env-mongo-uri";
 import { resolveMaxPoolSize } from "@/lib/mongodb-pool";
 
 /** Bump when deploy verification is needed — shown on /test */
-export const ATLAS_CONNECTOR_VERSION = "direct-shards-v6";
+export const ATLAS_CONNECTOR_VERSION = "direct-shards-v7";
 
 export function nodeMajor(): number {
   const m = /^v(\d+)/.exec(process.version);
@@ -118,6 +118,22 @@ declare global {
   var _mongoPreferredDirectUri: string | undefined;
 }
 
+export function clearAtlasDirectPreference() {
+  global._mongoPreferredDirectUri = undefined;
+}
+
+/** directConnection=true pins one host — it may be a secondary; writes then fail with "not primary". */
+async function assertWritablePrimary(client: MongoClient): Promise<void> {
+  const hello = await client.db("admin").command({ hello: 1 });
+  const writable =
+    hello.isWritablePrimary === true ||
+    hello.ismaster === true ||
+    hello.primary === true;
+  if (!writable) {
+    throw new Error("MongoDB host is not primary (read-only secondary)");
+  }
+}
+
 export async function connectWithAtlasStrategy(
   srvUri: string,
   tryConnect: (uri: string) => Promise<MongoClient>
@@ -133,11 +149,17 @@ export async function connectWithAtlasStrategy(
       : directUris;
 
     for (const u of ordered) {
+      let client: MongoClient | undefined;
       try {
-        const client = await tryConnect(u);
+        client = await tryConnect(u);
+        await assertWritablePrimary(client);
         global._mongoPreferredDirectUri = u;
         return { client, uri: u };
       } catch (err) {
+        if (client) await client.close().catch(() => {});
+        if (preferred && u === preferred) {
+          global._mongoPreferredDirectUri = undefined;
+        }
         lastError = err;
       }
     }
@@ -146,6 +168,8 @@ export async function connectWithAtlasStrategy(
       const replicaUri = await replicaSetUriFromSrv(srvUri);
       if (replicaUri) {
         const client = await tryConnect(replicaUri);
+        await assertWritablePrimary(client);
+        global._mongoPreferredDirectUri = undefined;
         return { client, uri: replicaUri };
       }
     } catch (err) {

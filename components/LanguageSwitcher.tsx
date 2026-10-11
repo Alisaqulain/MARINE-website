@@ -31,8 +31,14 @@ export function LanguageSwitcher() {
   const current = SITE_LOCALES.find((l) => l.code === code) ?? SITE_LOCALES[0];
 
   const select = (next: string) => {
-    setLocale(normalizeLocale(next));
+    const code = normalizeLocale(next);
+    setLocale(code);
     setOpen(false);
+    try {
+      window.dispatchEvent(new CustomEvent("marina-locale-change", { detail: code }));
+    } catch {
+      /* ignore */
+    }
   };
 
   return (

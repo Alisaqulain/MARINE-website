@@ -18,6 +18,8 @@ export function wholesaleApplicationPayload(fd: FormData) {
     tax: fd.get("tax"),
     interest,
     interestOther: fd.get("interestOther"),
+    password: fd.get("password"),
+    confirm: fd.get("confirm"),
   };
 }
 
@@ -28,7 +30,7 @@ export function WholesaleApplicationFields({ defaultEmail = "" }: { defaultEmail
         [
           ["Company Name", "company", "text", false],
           ["Contact Person", "contact", "text", true],
-          ["Company Email", "email", "email", true],
+          ["Company email (login)", "email", "email", true],
           ["Phone", "phone", "tel", true],
           ["Website", "website", "url", false],
         ] as const
@@ -45,6 +47,7 @@ export function WholesaleApplicationFields({ defaultEmail = "" }: { defaultEmail
             className="input"
             defaultValue={name === "email" ? defaultEmail : undefined}
             readOnly={name === "email" && Boolean(defaultEmail)}
+            autoComplete={name === "email" ? "username" : name === "phone" ? "tel" : undefined}
           />
         </label>
       ))}

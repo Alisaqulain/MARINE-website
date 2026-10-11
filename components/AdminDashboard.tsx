@@ -17,7 +17,7 @@ import {
 import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { ProductImage } from "@/components/ProductImage";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { AdminProductImageField } from "@/components/AdminProductImageField";
 
 type Panel = "customer" | "wholesale";
@@ -74,6 +74,8 @@ export function AdminDashboard() {
     totalPages: 1,
     pageSize: 25,
   });
+  const [customerPage, setCustomerPage] = useState(1);
+  const customerPageSize = 15;
 
   const load = useCallback(async () => {
     const segment = panel === "wholesale" ? "wholesale" : "customer";
@@ -121,6 +123,16 @@ export function AdminDashboard() {
   useEffect(() => {
     setProductPage(1);
   }, [panel, productSearch]);
+
+  useEffect(() => {
+    setCustomerPage(1);
+  }, [panel, users.length]);
+
+  const customerTotalPages = Math.max(1, Math.ceil(users.length / customerPageSize));
+  const pagedCustomers = users.slice(
+    (customerPage - 1) * customerPageSize,
+    customerPage * customerPageSize
+  );
 
   const nav: { id: Tab; label: string; icon: typeof Package }[] =
     panel === "wholesale"
@@ -440,30 +452,18 @@ export function AdminDashboard() {
                     )}
                   </tbody>
                 </table>
-                <div className="flex flex-wrap items-center justify-between gap-3 border-t bg-[#FAF7F2] px-4 py-3 text-xs text-navy-600">
-                  <span>
-                    Page {productPagination.totalPages ? productPage : 0} of {productPagination.totalPages} ·{" "}
-                    {productPagination.total} products
-                  </span>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      className="rounded border border-[#e8dfd0] bg-white px-3 py-1.5 disabled:opacity-40"
-                      disabled={productPage <= 1}
-                      onClick={() => setProductPage((p) => Math.max(1, p - 1))}
-                    >
-                      Previous
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded border border-[#e8dfd0] bg-white px-3 py-1.5 disabled:opacity-40"
-                      disabled={productPage >= productPagination.totalPages}
-                      onClick={() => setProductPage((p) => p + 1)}
-                    >
-                      Next
-                    </button>
-                  </div>
-                </div>
+                <AdminListPagination
+                  className="border-t bg-[#FAF7F2] px-4 py-3"
+                  page={productPagination.totalPages ? productPage : 0}
+                  totalPages={productPagination.totalPages}
+                  summary={
+                    <>
+                      Page {productPagination.totalPages ? productPage : 0} of {productPagination.totalPages} ·{" "}
+                      {productPagination.total} products
+                    </>
+                  }
+                  onPageChange={setProductPage}
+                />
               </div>
               <form onSubmit={saveProduct} className="space-y-3 rounded-xl bg-white p-5 shadow-sm">
                 <h2 className="font-serif text-lg">{editing ? "Edit product" : "Add product"}</h2>
@@ -581,7 +581,26 @@ export function AdminDashboard() {
           {tab === "applications" ? <DataTable rows={applications} columns={["company", "contact", "email", "businessType", "status", "createdAt"]} /> : null}
           {tab === "contacts" ? <DataTable rows={contacts} columns={["kind", "name", "email", "subject", "createdAt"]} /> : null}
           {tab === "returns" ? <DataTable rows={returns} columns={["orderNumber", "customerName", "productName", "status", "createdAt"]} /> : null}
-          {tab === "users" ? <DataTable rows={users} columns={["name", "email", "role", "createdAt"]} /> : null}
+          {tab === "users" ? (
+            <div className="overflow-x-auto rounded-xl bg-white shadow-sm">
+              <div className="border-b bg-[#FAF7F2] px-4 py-3 text-xs text-navy-600">
+                Customers ({users.length} total)
+              </div>
+              <DataTable rows={pagedCustomers} columns={["name", "email", "role", "createdAt"]} />
+              <AdminListPagination
+                className="border-t px-4 py-3"
+                page={customerPage}
+                totalPages={customerTotalPages}
+                summary={
+                  <>
+                    Page {customerPage} of {customerTotalPages}
+                  </>
+                }
+                onPageChange={setCustomerPage}
+                compact
+              />
+            </div>
+          ) : null}
           {tab === "testimonials" ? (
             <AdminReviewsPanel rows={testimonials} onReload={() => void load()} />
           ) : null}
@@ -616,32 +635,99 @@ export function AdminDashboard() {
                   )}
                 </tbody>
               </table>
-              <div className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3 text-xs text-navy-600">
-                <span>
-                  Page {visitorPage} of {visitorPagination.totalPages} · {visitorPagination.total} visits
-                </span>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    className="btn-outline px-3 py-1 text-xs"
-                    disabled={visitorPage <= 1}
-                    onClick={() => setVisitorPage((p) => Math.max(1, p - 1))}
-                  >
-                    Previous
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-outline px-3 py-1 text-xs"
-                    disabled={visitorPage >= visitorPagination.totalPages}
-                    onClick={() => setVisitorPage((p) => p + 1)}
-                  >
-                    Next
-                  </button>
-                </div>
-              </div>
+              <AdminListPagination
+                className="border-t px-4 py-3"
+                page={visitorPage}
+                totalPages={visitorPagination.totalPages}
+                summary={
+                  <>
+                    Page {visitorPage} of {visitorPagination.totalPages} · {visitorPagination.total} visits
+                  </>
+                }
+                onPageChange={setVisitorPage}
+                compact
+              />
             </div>
           ) : null}
         </main>
+      </div>
+    </div>
+  );
+}
+
+function AdminListPagination({
+  page,
+  totalPages,
+  summary,
+  onPageChange,
+  className = "",
+  compact = false,
+}: {
+  page: number;
+  totalPages: number;
+  summary: ReactNode;
+  onPageChange: (page: number) => void;
+  className?: string;
+  compact?: boolean;
+}) {
+  const [goTo, setGoTo] = useState(String(page));
+  const maxPage = Math.max(1, totalPages);
+
+  useEffect(() => {
+    setGoTo(String(page));
+  }, [page]);
+
+  function jump(e: FormEvent) {
+    e.preventDefault();
+    const n = Number.parseInt(goTo, 10);
+    if (!Number.isFinite(n)) return;
+    onPageChange(Math.min(maxPage, Math.max(1, n)));
+  }
+
+  const btn = compact
+    ? "btn-outline px-3 py-1 text-xs disabled:opacity-40"
+    : "rounded border border-[#e8dfd0] bg-white px-3 py-1.5 disabled:opacity-40";
+
+  return (
+    <div
+      className={`flex flex-wrap items-center justify-between gap-3 text-xs text-navy-600 ${className}`}
+    >
+      <span>{summary}</span>
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          className={btn}
+          disabled={page <= 1 || totalPages < 1}
+          onClick={() => onPageChange(Math.max(1, page - 1))}
+        >
+          Previous
+        </button>
+        <form onSubmit={jump} className="flex items-center gap-1.5">
+          <label className="sr-only" htmlFor="admin-page-jump">
+            Go to page
+          </label>
+          <input
+            id="admin-page-jump"
+            type="number"
+            min={1}
+            max={maxPage}
+            value={goTo}
+            onChange={(e) => setGoTo(e.target.value)}
+            className="w-14 rounded border border-[#e8dfd0] bg-white px-2 py-1 text-center text-xs text-navy-900"
+          />
+          <span className="whitespace-nowrap text-navy-500">of {totalPages || 1}</span>
+          <button type="submit" className={btn} disabled={totalPages < 1}>
+            Go
+          </button>
+        </form>
+        <button
+          type="button"
+          className={btn}
+          disabled={page >= totalPages || totalPages < 1}
+          onClick={() => onPageChange(page + 1)}
+        >
+          Next
+        </button>
       </div>
     </div>
   );

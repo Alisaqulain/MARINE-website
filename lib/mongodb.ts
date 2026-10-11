@@ -3,6 +3,7 @@ import { MongoClient, ServerApiVersion, type Db, type MongoClientOptions } from 
 import {
   ATLAS_CONNECTOR_VERSION,
   atlasDirectOnlyOnThisRuntime,
+  clearAtlasDirectPreference,
   clientOptionsForAtlas,
   connectWithAtlasStrategy,
   nodeMajor,
@@ -55,6 +56,23 @@ function clearMongoClientCache() {
   global._mongoClientPromise = undefined;
   cachedUri = undefined;
   uriPromise = undefined;
+  clearAtlasDirectPreference();
+}
+
+export function isMongoNotPrimaryError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /not primary|read-only secondary/i.test(msg);
+}
+
+/** Reconnect and run once more when a stale direct shard was a secondary. */
+export async function withMongoWriteRetry<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (err) {
+    if (!isMongoNotPrimaryError(err)) throw err;
+    clearMongoClientCache();
+    return fn();
+  }
 }
 
 function clientOptions(): MongoClientOptions {
@@ -298,6 +316,14 @@ export async function pingDatabase(): Promise<PingResult> {
     }
     if (message.includes("MONGODB_URI is not set")) {
       hints.push("Add MONGODB_URI to .env.local in the project root and restart the dev server.");
+    }
+    if (/not primary|read-only secondary/i.test(message)) {
+      hints.push(
+        "The app connected to a read-only Atlas secondary. Restart the dev server after updating — direct shard connections now skip non-primary hosts."
+      );
+      hints.push(
+        "Optional: set MONGODB_URI_STANDARD to Atlas Connect → Drivers → Standard connection string (multi-host replica set)."
+      );
     }
     return {
       ok: false,

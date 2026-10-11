@@ -1,4 +1,5 @@
 import { getProduct } from "@/lib/products";
+import { getStorefrontProduct } from "@/lib/storefront-catalog";
 import { company, companyWhatsApp } from "@/lib/company";
 
 export type OrderItem = {
@@ -108,6 +109,25 @@ export function trackOrderByEmail(orderId: string, email: string) {
   if (!order || order.status !== "paid") return null;
   if (order.email.trim().toLowerCase() !== email.trim().toLowerCase()) return null;
   return order;
+}
+
+export async function pricedItemsAsync(lines: { slug: string; qty: number; b2b?: boolean }[]) {
+  const items: OrderItem[] = [];
+  let amount = 0;
+  for (const line of lines) {
+    const product = (await getStorefrontProduct(line.slug)) ?? getProduct(line.slug);
+    if (!product) continue;
+    const qty = Math.max(1, Math.floor(Number(line.qty) || 1));
+    items.push({
+      slug: product.slug,
+      name: product.name,
+      qty,
+      unitPrice: product.price,
+      b2b: Boolean(line.b2b),
+    });
+    amount += product.price * qty;
+  }
+  return { items, amount: Number(amount.toFixed(2)) };
 }
 
 export function pricedItems(lines: { slug: string; qty: number; b2b?: boolean }[]) {

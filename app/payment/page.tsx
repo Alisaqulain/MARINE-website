@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { BannerHero } from "@/components/BannerHero";
 import { company } from "@/lib/company";
+import { getPublicContactEmail } from "@/lib/contact-emails";
 
 const pillars = [
   {
@@ -34,6 +35,7 @@ const pillars = [
 ];
 
 export default function PaymentPage() {
+  const supportEmail = getPublicContactEmail();
   return (
     <div className="bg-[#FAF7F2]">
       <BannerHero
@@ -113,9 +115,9 @@ export default function PaymentPage() {
             Secure Payment <span className="text-[#C9A84C]">|</span> Worldwide Shipping{" "}
             <span className="text-[#C9A84C]">|</span> International Customer Support
           </p>
-          <a href={`mailto:${company.email}`} className="inline-flex items-center gap-2 text-sm text-navy-600 hover:text-[#8C6E28]">
+          <a href={`mailto:${supportEmail}`} className="inline-flex items-center gap-2 text-sm text-navy-600 hover:text-[#8C6E28]">
             <Mail className="h-4 w-4 text-[#C9A84C]" />
-            {company.email}
+            {supportEmail}
           </a>
         </div>
       </section>

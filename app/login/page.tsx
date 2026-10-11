@@ -52,7 +52,9 @@ function LoginInner() {
     const fd = new FormData(e.currentTarget);
 
     if (wholesaleRegister) {
-      const email = String(fd.get("email") ?? "").trim();
+      const email = String(fd.get("email") ?? "")
+        .trim()
+        .toLowerCase();
       const password = String(fd.get("password") ?? "");
       const confirm = String(fd.get("confirm") ?? "");
       const contact = String(fd.get("contact") ?? "").trim();
@@ -63,10 +65,16 @@ function LoginInner() {
         return;
       }
 
-      const reg = await fetch("/api/auth/register", {
+      const payload = wholesaleApplicationPayload(fd);
+      const reg = await fetch("/api/auth/register-wholesale", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, name: contact, mode: "wholesale" }),
+        body: JSON.stringify({
+          ...payload,
+          email,
+          password,
+          confirm,
+        }),
       });
       const regData = await reg.json().catch(() => ({}));
       if (!reg.ok) {
@@ -81,25 +89,12 @@ function LoginInner() {
         mode: "wholesale",
         redirect: false,
       });
-      if (signedIn?.error) {
-        setLoading(false);
-        setError("Account created but sign-in failed.");
-        return;
-      }
-
-      const app = await fetch("/api/wholesale/application", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(wholesaleApplicationPayload(fd)),
-      });
       setLoading(false);
-      if (!app.ok) {
-        const appData = await app.json().catch(() => ({}));
-        setError(appData.error ?? "Trade application could not be saved.");
-        finishLogin();
+      if (signedIn?.error) {
+        setError("Account created but sign-in failed. Try logging in with your company email.");
         return;
       }
-      finishLogin();
+      await finishLogin();
       return;
     }
 
@@ -152,9 +147,9 @@ function LoginInner() {
       <h1 className="sr-only">{view === "login" ? "Login" : "Register"}</h1>
 
       {mode === "wholesale" ? (
-        <p className="mt-5 flex items-center justify-center gap-2 overflow-x-auto rounded-lg border border-[#C9A84C]/80 bg-[#FBF6E8] px-3 py-2.5 text-[11px] font-medium leading-snug tracking-[0.01em] text-navy-900 sm:whitespace-nowrap sm:px-4 sm:text-[13px]">
-          <ArrowRight className="h-3.5 w-3.5 shrink-0 text-[#8C6E28]" strokeWidth={2.25} aria-hidden />
-          <span className="min-w-0 shrink-0 sm:whitespace-nowrap">{t("login.wholesaleIntro")}</span>
+        <p className="mt-5 flex items-start justify-center gap-2 rounded-lg border border-[#C9A84C]/80 bg-[#FBF6E8] px-3 py-2 text-[10px] font-medium leading-snug text-navy-900 sm:items-center sm:px-4 sm:text-xs">
+          <ArrowRight className="mt-0.5 h-3 w-3 shrink-0 text-[#8C6E28] sm:mt-0 sm:h-3.5 sm:w-3.5" strokeWidth={2.25} aria-hidden />
+          <span className="min-w-0 text-center">{t("login.wholesaleIntro")}</span>
         </p>
       ) : null}
 
@@ -208,13 +203,27 @@ function LoginInner() {
           <>
             <p className="md:col-span-2 font-serif text-lg text-navy-900">{t("login.wholesaleRegisterTitle")}</p>
             <WholesaleApplicationFields />
-            <label className="block text-[13px]">
+            <label className="block text-[13px] md:col-span-2">
               <span className="mb-1.5 block text-navy-700">{t("login.password")}</span>
-              <input className="input" name="password" type="password" required minLength={8} />
+              <input
+                className="input"
+                name="password"
+                type="password"
+                required
+                minLength={8}
+                autoComplete="new-password"
+              />
             </label>
-            <label className="block text-[13px]">
+            <label className="block text-[13px] md:col-span-2">
               <span className="mb-1.5 block text-navy-700">{t("login.confirmPassword")}</span>
-              <input className="input" name="confirm" type="password" required minLength={8} />
+              <input
+                className="input"
+                name="confirm"
+                type="password"
+                required
+                minLength={8}
+                autoComplete="new-password"
+              />
             </label>
           </>
         ) : (
