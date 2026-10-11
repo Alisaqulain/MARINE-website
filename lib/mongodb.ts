@@ -9,6 +9,7 @@ import {
   shouldTryDirectShards,
 } from "@/lib/atlas-connect";
 import { mongoUriFromProcessEnv, parseMongoCredentials, sanitizeEnvValue } from "@/lib/env-mongo-uri";
+import { resolveMaxPoolSize } from "@/lib/mongodb-pool";
 
 /** Atlas on Windows + OpenSSL 3 often fails on IPv6 first — prefer IPv4. */
 if (process.env.MONGODB_PREFER_IPV4 !== "0") {
@@ -45,21 +46,15 @@ async function normalizedSrvFromEnv(): Promise<string> {
   return srv;
 }
 
-async function connectionUri(): Promise<string> {
-  if (cachedUri) return cachedUri;
-  if (!uriPromise) {
-    uriPromise = (async () => {
-      const srv = await normalizedSrvFromEnv();
-      cachedUri = srv;
-      return cachedUri;
-    })();
-  }
-  return uriPromise;
-}
-
 declare global {
   // eslint-disable-next-line no-var
   var _mongoClientPromise: Promise<MongoClient> | undefined;
+}
+
+function clearMongoClientCache() {
+  global._mongoClientPromise = undefined;
+  cachedUri = undefined;
+  uriPromise = undefined;
 }
 
 function clientOptions(): MongoClientOptions {
@@ -76,34 +71,58 @@ function clientOptions(): MongoClientOptions {
 
 async function tryConnect(uri: string): Promise<MongoClient> {
   const client = new MongoClient(uri, clientOptions());
-  await client.connect();
-  return client;
+  try {
+    await client.connect();
+    return client;
+  } catch (err) {
+    await client.close().catch(() => {});
+    throw err;
+  }
+}
+
+let shutdownHooksRegistered = false;
+
+function registerShutdownHooksOnce() {
+  if (shutdownHooksRegistered) return;
+  shutdownHooksRegistered = true;
+  const onSignal = () => {
+    void closeMongoClient();
+  };
+  process.once("SIGINT", onSignal);
+  process.once("SIGTERM", onSignal);
 }
 
 async function connectClient(): Promise<MongoClient> {
   const srv = await normalizedSrvFromEnv();
-  try {
-    const { client, uri } = await connectWithAtlasStrategy(srv, tryConnect);
-    cachedUri = uri;
-    return client;
-  } catch (err) {
-    if (process.env.NODE_ENV === "development") {
-      global._mongoClientPromise = undefined;
-    }
-    cachedUri = undefined;
-    uriPromise = undefined;
-    throw err instanceof Error ? err : new Error("Connection failed");
-  }
+  const { client, uri } = await connectWithAtlasStrategy(srv, tryConnect);
+  cachedUri = uri;
+  registerShutdownHooksOnce();
+  return client;
 }
 
+/** One MongoClient + pool per Node.js process (dev and production). */
 function getClientPromise(): Promise<MongoClient> {
-  if (process.env.NODE_ENV === "development") {
-    if (!global._mongoClientPromise) {
-      global._mongoClientPromise = connectClient();
-    }
+  if (global._mongoClientPromise) {
     return global._mongoClientPromise;
   }
-  return connectClient();
+  let pending!: Promise<MongoClient>;
+  pending = connectClient().catch((err) => {
+    if (global._mongoClientPromise === pending) {
+      clearMongoClientCache();
+    }
+    throw err;
+  });
+  global._mongoClientPromise = pending;
+  return pending;
+}
+
+/** Graceful shutdown — closes the shared client without dropping Atlas data. */
+export async function closeMongoClient(): Promise<void> {
+  const pending = global._mongoClientPromise;
+  clearMongoClientCache();
+  if (!pending) return;
+  const client = await pending.catch(() => null);
+  if (client) await client.close().catch(() => {});
 }
 
 export async function getDb(): Promise<Db> {
@@ -122,6 +141,10 @@ function describeConnectionMode(u: string): string {
       ? `direct (${shard}, MONGODB_DIRECT=1)`
       : `direct (${shard}, Windows)`;
   }
+  if (u.includes("replicaSet=atlas-")) {
+    const rs = u.match(/replicaSet=(atlas-[^&]+)/)?.[1] ?? "replica set";
+    return `replica set (${rs})`;
+  }
   return "standard replica set";
 }
 
@@ -131,10 +154,12 @@ function mongoEnvSummary(): {
   passwordLength?: number;
   usesStandardUri?: boolean;
   platform?: string;
+  maxPoolSize?: number;
 } {
   const usesStandardUri = Boolean(sanitizeEnvValue(process.env.MONGODB_URI_STANDARD));
   const raw = mongoUriFromProcessEnv();
-  if (!raw) return { usesStandardUri, platform: process.platform };
+  const base = { usesStandardUri, platform: process.platform, maxPoolSize: resolveMaxPoolSize() };
+  if (!raw) return base;
   const normalized = normalizeMongoUri(raw) ?? raw;
   const parsed = parseSrvCredentials(normalized);
   if (parsed) {
@@ -142,11 +167,10 @@ function mongoEnvSummary(): {
       dbUser: parsed.user,
       clusterHost: parsed.host,
       passwordLength: parsed.pass.length,
-      usesStandardUri,
-      platform: process.platform,
+      ...base,
     };
   }
-  return { usesStandardUri, platform: process.platform };
+  return base;
 }
 
 export type PingResult = {
@@ -163,31 +187,29 @@ export type PingResult = {
   platform?: string;
   connectorVersion?: string;
   mongodbDirectEnv?: string;
+  maxPoolSize?: number;
 };
 
+/** Health check — reuses the shared client; does not open a second pool or close production connections. */
 export async function pingDatabase(): Promise<PingResult> {
   const hints: string[] = [];
   const nodeVersion = process.version;
   const envSummary = mongoEnvSummary();
-  const { dbUser, clusterHost, passwordLength, usesStandardUri, platform } = envSummary;
+  const { dbUser, clusterHost, passwordLength, usesStandardUri, platform, maxPoolSize } = envSummary;
   const runtimeEnv = process.env.NODE_ENV ?? "unknown";
   const connectorVersion = ATLAS_CONNECTOR_VERSION;
   const mongodbDirectEnv = process.env.MONGODB_DIRECT ?? "(not set, direct shards enabled)";
   let connectionMode = "unknown";
 
   try {
-    global._mongoClientPromise = undefined;
-    cachedUri = undefined;
-    uriPromise = undefined;
-    const client = await connectClient();
-    connectionMode = describeConnectionMode(cachedUri ?? (await connectionUri()));
-    await client.db(dbName).command({ ping: 1 });
-
-    if (process.env.NODE_ENV === "development") {
-      global._mongoClientPromise = Promise.resolve(client);
+    const client = await getClientPromise();
+    if (cachedUri) {
+      connectionMode = describeConnectionMode(cachedUri);
     } else {
-      await client.close();
+      const srv = await normalizedSrvFromEnv();
+      connectionMode = describeConnectionMode(srv);
     }
+    await client.db(dbName).command({ ping: 1 });
 
     return {
       ok: true,
@@ -202,8 +224,10 @@ export async function pingDatabase(): Promise<PingResult> {
       platform,
       connectorVersion,
       mongodbDirectEnv,
+      maxPoolSize,
     };
   } catch (e) {
+    clearMongoClientCache();
     const message = e instanceof Error ? e.message : "Connection failed";
     if (connectionMode === "unknown") {
       try {
@@ -220,21 +244,43 @@ export async function pingDatabase(): Promise<PingResult> {
       }
     }
     if (isTlsError(message)) {
-      if (connectionMode.startsWith("SRV") || connectionMode.includes("then SRV")) {
+      if (/SSL alert number 80|alert internal error/i.test(message)) {
         hints.push(
-          `/test must show Connector: ${ATLAS_CONNECTOR_VERSION}. If you still see old Windows/Node 24 hints, the server is running an OLD build — git pull, npm run build, pm2 restart.`
+          "SSL alert 80 means Atlas closed TLS before login — usually your IP is not on the Atlas Network Access list, OR the free-tier connection limit is full (see Atlas Overview → Connections)."
         );
       }
-      if (process.env.MONGODB_DIRECT === "0") {
-        hints.push("Remove MONGODB_DIRECT=0 from production env — it disables direct shard connections.");
+      if (/connection.*limit|too many connections|blocked/i.test(message)) {
+        hints.push(
+          "Atlas M0 connection limit: set MONGODB_NODE_PROCESSES to the number of PM2 Node apps sharing this cluster, use one PM2 instance per app (fork mode), deploy this build, then pause/resume the cluster if needed."
+        );
       }
-      hints.push(
-        "Deploy the latest app build — production must try direct Atlas shard hosts before mongodb+srv."
-      );
-      hints.push(
-        "Atlas → Network Access → add your KVM public IP (or 0.0.0.0/0 for testing). SSL alert 80 often means IP not allowed."
-      );
-      hints.push("On the server: npm run check:mongo (must OK), then pm2 restart excelpro --update-env.");
+      if (platform === "win32" && runtimeEnv === "development") {
+        hints.push(
+          "Fix on your PC: MongoDB Atlas → Network Access → Add IP Address → Add Current IP Address (or 0.0.0.0/0 for testing). Wait 1–2 minutes."
+        );
+        hints.push(
+          "Atlas → Database → ensure the cluster is Running (not Paused). Then in the project folder run npm run check:mongo until it prints OK."
+        );
+        hints.push(
+          "Restart dev after .env changes: stop the old server on port 3000, then npm run dev (use the port it prints)."
+        );
+        hints.push(
+          "Optional: Atlas → Connect → Drivers → copy the Standard connection string into MONGODB_URI_STANDARD in .env.local."
+        );
+        if (nodeMajor() >= 24) {
+          hints.push(
+            "Optional on Windows: install Node 20 LTS (fnm-windows or nvm-windows) if your IP is already allowed and it still fails."
+          );
+        }
+      } else {
+        if (process.env.MONGODB_DIRECT === "0") {
+          hints.push("Remove MONGODB_DIRECT=0 from production env — it disables direct shard connections.");
+        }
+        hints.push("Atlas → Network Access → add your server public IP (or 0.0.0.0/0 for testing).");
+        hints.push(
+          "On the KVM: set MONGODB_NODE_PROCESSES in .env.production.local, npm run check:mongo (must OK), pm2 restart excelpro --update-env (instances: 1, fork mode)."
+        );
+      }
     }
     if (/bad auth|Authentication failed|auth failed/i.test(message)) {
       hints.push(
@@ -267,6 +313,7 @@ export async function pingDatabase(): Promise<PingResult> {
       platform,
       connectorVersion,
       mongodbDirectEnv,
+      maxPoolSize,
     };
   }
 }

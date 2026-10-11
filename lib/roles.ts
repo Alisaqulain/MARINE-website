@@ -1,7 +1,7 @@
 import type { UserRole } from "@/lib/db/types";
 
 export const adminEmailsList = () =>
-  (process.env.ADMIN_EMAILS ?? "")
+  (process.env.ADMIN_EMAILS ?? "admin@marinamuseinternational.com")
     .split(",")
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);

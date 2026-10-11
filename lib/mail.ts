@@ -11,7 +11,7 @@ export async function sendPasswordOtp(to: string, otp: string) {
 
   if (!pass) {
     throw new Error(
-      "SMTP_PASS is not set. Use a Gmail App Password for ibrahiminternational3112026@gmail.com (Google Account → Security → App passwords)."
+      "SMTP_PASS is not set. Configure SMTP for admin@marinamuseinternational.com (or set SMTP_USER / SMTP_PASS in .env)."
     );
   }
 

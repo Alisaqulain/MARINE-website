@@ -4,7 +4,7 @@ import { CatalogCard } from "@/components/CatalogCard";
 import { getProductCategory } from "@/lib/catalog";
 import { findShopNowLabel, shopNowSubtree, shopNowTree } from "@/lib/shop-now-data";
 import { products } from "@/lib/products";
-import { ChevronDown, ChevronRight, LayoutGrid, LayoutList } from "lucide-react";
+import { ChevronDown, ChevronRight, LayoutGrid, LayoutList, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 const PAGE_SIZE = 24;
@@ -16,9 +16,13 @@ export function ShopNowCatalog({ retail = false }: { retail?: boolean }) {
   const [sort, setSort] = useState("new");
   const [grid, setGrid] = useState(true);
   const [limit, setLimit] = useState(PAGE_SIZE);
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
-    const slug = new URLSearchParams(window.location.search).get("category");
+    const params = new URLSearchParams(window.location.search);
+    const slug = params.get("category");
+    const q = params.get("q");
+    if (q) setQuery(q);
     const node = shopNowTree.find((c) => c.slug === slug);
     if (!node) return;
     setParent(node.slug);
@@ -28,7 +32,7 @@ export function ShopNowCatalog({ retail = false }: { retail?: boolean }) {
 
   useEffect(() => {
     setLimit(PAGE_SIZE);
-  }, [parent, sub, sort]);
+  }, [parent, sub, sort, query]);
 
   const list = useMemo(() => {
     let next = [...products];
@@ -38,12 +42,24 @@ export function ShopNowCatalog({ retail = false }: { retail?: boolean }) {
     }
     else if (parent) next = next.filter((p) => getProductCategory(p) === parent);
 
+    const q = query.trim().toLowerCase();
+    if (q) {
+      next = next.filter(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          p.sku.toLowerCase().includes(q) ||
+          p.description.toLowerCase().includes(q) ||
+          p.material.toLowerCase().includes(q) ||
+          p.finish.toLowerCase().includes(q)
+      );
+    }
+
     if (sort === "price-asc") next.sort((a, b) => (a.wholesaleFrom ?? a.price) - (b.wholesaleFrom ?? b.price));
     if (sort === "price-desc") next.sort((a, b) => b.price - a.price);
     if (sort === "rating") next.sort((a, b) => b.rating - a.rating);
     if (sort === "new") next.reverse();
     return next;
-  }, [parent, sub, sort]);
+  }, [parent, sub, sort, query]);
 
   const filtered = Boolean(sub || parent);
   const title = filtered ? findShopNowLabel(sub || parent) : "All products";
@@ -211,12 +227,23 @@ export function ShopNowCatalog({ retail = false }: { retail?: boolean }) {
         </aside>
 
         <div className="min-w-0 flex-1 px-4 py-4 md:py-6 lg:px-6">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 md:mb-4 md:gap-3">
-            <Title className="min-w-0 flex-1 font-serif text-lg leading-tight text-navy-900 sm:text-2xl">
+          <div className="mb-3 flex flex-col gap-3 md:mb-4 lg:flex-row lg:items-center lg:gap-4">
+            <Title className="min-w-0 shrink-0 font-serif text-lg leading-tight text-navy-900 sm:text-2xl lg:max-w-[38%]">
               {title}
               <span className="ml-1.5 text-[11px] font-normal text-[#999] sm:ml-2 sm:text-[13px]">({list.length})</span>
             </Title>
-            <div className="flex items-center gap-2 sm:gap-3">
+            <label className="relative min-w-0 flex-1 lg:mx-2">
+              <span className="sr-only">{retail ? "Search B2C products" : "Search B2B products"}</span>
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#999]" />
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={retail ? "Search retail products…" : "Search wholesale products…"}
+                className="w-full rounded-full border border-[#ddd] bg-white py-2 pl-9 pr-4 text-sm text-[#222] placeholder:text-[#aaa] focus:border-[#C9A84C] focus:outline-none focus:ring-1 focus:ring-[#C9A84C]/40"
+              />
+            </label>
+            <div className="flex shrink-0 items-center justify-end gap-2 sm:gap-3">
               <select
                 value={sort}
                 onChange={(e) => setSort(e.target.value)}
@@ -263,7 +290,9 @@ export function ShopNowCatalog({ retail = false }: { retail?: boolean }) {
             ))}
           </div>
           {list.length === 0 ? (
-            <p className="py-10 text-center text-sm text-[#666]">No products in this category yet.</p>
+            <p className="py-10 text-center text-sm text-[#666]">
+              {query.trim() ? "No products match your search." : "No products in this category yet."}
+            </p>
           ) : null}
           {list.length > limit ? (
             <div className="mt-8 flex flex-col items-center gap-2">

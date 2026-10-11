@@ -97,30 +97,40 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const expected = process.env.ADMIN_PASSWORD;
         if (!expected || password !== expected) return null;
 
-        let user = await findUserByEmail(email);
-        if (!user) {
-          user = await createUser({
+        try {
+          let user = await findUserByEmail(email);
+          if (!user) {
+            user = await createUser({
+              email,
+              name: email.split("@")[0],
+              role: "admin",
+              password,
+            });
+          } else if (user.role !== "admin") {
+            const { getDb } = await import("@/lib/mongodb");
+            const db = await getDb();
+            await db.collection("users").updateOne(
+              { _id: user._id },
+              { $set: { role: "admin", updatedAt: new Date() } }
+            );
+          }
+
+          return {
+            id: String(user!._id),
+            email: user!.email,
+            name: user!.name,
+            role: "admin" as const,
+            wholesaleProfileComplete: user!.wholesaleProfileComplete,
+          };
+        } catch (err) {
+          console.error("[admin-portal] MongoDB unavailable — limited env-only session", err);
+          return {
+            id: `env-admin:${email}`,
             email,
             name: email.split("@")[0],
-            role: "admin",
-            password,
-          });
-        } else if (user.role !== "admin") {
-          const { getDb } = await import("@/lib/mongodb");
-          const db = await getDb();
-          await db.collection("users").updateOne(
-            { _id: user._id },
-            { $set: { role: "admin", updatedAt: new Date() } }
-          );
+            role: "admin" as const,
+          };
         }
-
-        return {
-          id: String(user!._id),
-          email: user!.email,
-          name: user!.name,
-          role: "admin" as const,
-          wholesaleProfileComplete: user!.wholesaleProfileComplete,
-        };
       },
     }),
   ],

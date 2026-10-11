@@ -7,12 +7,14 @@ import { useEffect, useState } from "react";
 type Saved = { id: string; token: string };
 type OrderView = {
   id: string;
+  name?: string;
   status: string;
   amount: number;
   currency: string;
   createdAt?: string;
   estimatedDelivery: string;
   items: { name: string; qty: number }[];
+  tracking?: { trackingNumber?: string; trackingUrl?: string; carrier?: string };
 };
 
 const KEY = "marina-muse-orders";
@@ -84,11 +86,36 @@ export default function AccountOrdersPage() {
           {orders.map((o) => (
             <li key={o.id} className="rounded-2xl bg-white p-5 shadow-soft">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <p className="font-serif text-xl">{o.id}</p>
+                <p className="font-serif text-xl text-navy-900">
+                  {o.name ? `${o.name} · ` : null}
+                  <Link
+                    href={`/track-order?orderId=${encodeURIComponent(o.id)}`}
+                    className="text-[#8C6E28] underline"
+                  >
+                    {o.id}
+                  </Link>
+                </p>
                 <p className="text-sm capitalize text-[#2F7D4A]">{o.status}</p>
               </div>
               <p className="mt-1 text-sm text-navy-600">
                 {formatPrice(o.amount)} · Delivery {o.estimatedDelivery}
+              </p>
+              <p className="mt-2 text-sm">
+                <Link href={`/track-order?orderId=${encodeURIComponent(o.id)}`} className="text-[#8C6E28] underline">
+                  Track shipment
+                </Link>
+                {o.tracking?.trackingNumber ? (
+                  <>
+                    {" · "}
+                    {o.tracking.trackingUrl ? (
+                      <a href={o.tracking.trackingUrl} className="underline" target="_blank" rel="noreferrer">
+                        {o.tracking.trackingNumber}
+                      </a>
+                    ) : (
+                      o.tracking.trackingNumber
+                    )}
+                  </>
+                ) : null}
               </p>
               <ul className="mt-3 text-sm text-navy-800">
                 {o.items.map((i) => (

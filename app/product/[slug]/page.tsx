@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { B2B_MIN_ORDER_QTY, getCollection, getProduct, products, showsFreeShipping } from "@/lib/products";
 import { getProductCategory } from "@/lib/catalog";
@@ -29,6 +29,7 @@ import { ShopTabs } from "@/components/ShopTabs";
 import { companyWhatsApp } from "@/lib/company";
 import { FreeShippingTag } from "@/components/FreeShippingTag";
 import { PriceRow } from "@/components/PriceRow";
+import { ProductGalleryViewer } from "@/components/ProductGalleryViewer";
 
 export default function ProductPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -124,13 +125,12 @@ export default function ProductPage() {
         <div className="mt-0 grid items-start gap-6 lg:mt-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-stretch lg:gap-10">
           <div>
             <div className="-mx-5 lg:mx-0">
-            <div className="relative aspect-square overflow-hidden rounded-none bg-[#f5f5f5] lg:aspect-[5/4] lg:rounded-2xl lg:bg-[#2a2118]">
-              <Image
-                src={product.gallery[active] || product.image}
+            <div className="relative">
+              <ProductGalleryViewer
+                images={product.gallery.length ? product.gallery : [product.image]}
                 alt={product.name}
-                fill
-                className="object-contain p-4 lg:object-cover lg:p-0"
-                priority
+                active={active}
+                onActiveChange={setActive}
               />
               <button
                 type="button"
@@ -142,12 +142,6 @@ export default function ProductPage() {
                   className={`h-5 w-5 ${has(product.slug) ? "fill-red-500 text-red-500" : "text-navy-800"}`}
                 />
               </button>
-              <span className="absolute bottom-4 left-4 hidden rounded-md bg-black/70 px-2.5 py-1 text-[10px] uppercase tracking-widest text-white lg:inline">
-                360°
-              </span>
-              <span className="absolute bottom-4 left-20 hidden rounded-md bg-white/90 px-2.5 py-1 text-[10px] uppercase tracking-widest text-navy-900 lg:inline">
-                3D view
-              </span>
             </div>
             </div>
             <div className="mt-3 hidden grid-cols-4 gap-2.5 lg:grid">

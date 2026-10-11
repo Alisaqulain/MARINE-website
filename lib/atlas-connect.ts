@@ -1,20 +1,57 @@
 import dns from "node:dns";
 import { MongoClient, type MongoClientOptions } from "mongodb";
 import { parseMongoCredentials } from "@/lib/env-mongo-uri";
+import { resolveMaxPoolSize } from "@/lib/mongodb-pool";
 
 /** Bump when deploy verification is needed — shown on /test */
-export const ATLAS_CONNECTOR_VERSION = "direct-shards-v2";
+export const ATLAS_CONNECTOR_VERSION = "direct-shards-v6";
 
 export function nodeMajor(): number {
   const m = /^v(\d+)/.exec(process.version);
   return m ? Number(m[1]) : 0;
 }
 
-/** Node 24 + Windows: mongodb+srv TLS is broken; only direct shard URIs work. */
+/** Node 24 + Windows: mongodb+srv TLS is broken; prefer direct / replica-set URIs. */
 export function atlasDirectOnlyOnThisRuntime(): boolean {
   if (process.env.MONGODB_SKIP_SRV_FALLBACK === "1") return true;
   if (process.env.MONGODB_SKIP_SRV_FALLBACK === "0") return false;
   return process.platform === "win32" && nodeMajor() >= 24;
+}
+
+function replicaSetNameFromShardHost(shardHost: string): string | null {
+  const m = /^ac-([a-z0-9]+)-shard-00-\d+\./i.exec(shardHost);
+  if (!m) return null;
+  return `atlas-${m[1]}-shard-0`;
+}
+
+/** Atlas publishes replicaSet / authSource on the cluster TXT record. */
+export async function atlasSrvTxtParams(clusterHost: string): Promise<Record<string, string>> {
+  try {
+    const chunks = await dns.promises.resolveTxt(`_mongodb._tcp.${clusterHost}`);
+    const merged = chunks.map((part) => part.join("")).join("&");
+    return Object.fromEntries(new URLSearchParams(merged));
+  } catch {
+    return {};
+  }
+}
+
+/** Multi-host replica set URI (no directConnection) — works when single-shard direct TLS fails. */
+export async function replicaSetUriFromSrv(srvUri: string): Promise<string | null> {
+  const parsed = parseMongoCredentials(srvUri);
+  if (!parsed) return null;
+  const records = await dns.promises.resolveSrv(`_mongodb._tcp.${parsed.host}`);
+  if (!records.length) return null;
+  const txt = await atlasSrvTxtParams(parsed.host);
+  const replicaSet =
+    txt.replicaSet ?? replicaSetNameFromShardHost(records[0].name);
+  if (!replicaSet) return null;
+  const auth = `${encodeURIComponent(parsed.user)}:${encodeURIComponent(parsed.pass)}`;
+  const hosts = records.map((r) => `${r.name}:${r.port}`).join(",");
+  const url = new URL(srvUri.replace(/^mongodb\+srv:/, "mongodb:"));
+  const dbPath = url.pathname && url.pathname !== "/" ? url.pathname : "";
+  const authSource = txt.authSource ?? "admin";
+  const qs = `tls=true&authSource=${encodeURIComponent(authSource)}&replicaSet=${encodeURIComponent(replicaSet)}&retryWrites=true&w=majority`;
+  return `mongodb://${auth}@${hosts}${dbPath}?${qs}`;
 }
 
 /** Direct shard URIs fix srv TLS on Windows Node 24 and many Linux VPS hosts (SSL alert 80). */
@@ -54,10 +91,14 @@ export function clientOptionsForAtlas(): MongoClientOptions {
           ? false
           : undefined;
 
+  const maxPoolSize = resolveMaxPoolSize();
+
   const opts: MongoClientOptions = {
     connectTimeoutMS: 20_000,
     serverSelectionTimeoutMS: 15_000,
-    maxPoolSize: 10,
+    maxPoolSize,
+    minPoolSize: 0,
+    maxIdleTimeMS: 60_000,
     ...(autoSelectFamily !== undefined ? { autoSelectFamily } : {}),
   };
 
@@ -99,6 +140,16 @@ export async function connectWithAtlasStrategy(
       } catch (err) {
         lastError = err;
       }
+    }
+
+    try {
+      const replicaUri = await replicaSetUriFromSrv(srvUri);
+      if (replicaUri) {
+        const client = await tryConnect(replicaUri);
+        return { client, uri: replicaUri };
+      }
+    } catch (err) {
+      lastError = err;
     }
   }
 

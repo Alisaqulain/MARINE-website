@@ -9,6 +9,16 @@ export type OrderItem = {
   b2b?: boolean;
 };
 
+export type OrderTrackingStage = "processing" | "in_transit" | "out_for_delivery" | "delivered";
+
+export type OrderTracking = {
+  stage: OrderTrackingStage;
+  carrier?: string;
+  trackingNumber?: string;
+  trackingUrl?: string;
+  updatedAt?: string;
+};
+
 export type OrderRecord = {
   id: string;
   token: string;
@@ -29,7 +39,27 @@ export type OrderRecord = {
   estimatedDelivery: string;
   createdAt: string;
   emailSent?: boolean;
+  tracking?: OrderTracking;
 };
+
+export function defaultTracking(): OrderTracking {
+  return {
+    stage: "in_transit",
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+export function trackingTimeline(tracking?: OrderTracking) {
+  const stage = tracking?.stage ?? "processing";
+  const order: OrderTrackingStage[] = ["processing", "in_transit", "out_for_delivery", "delivered"];
+  const idx = Math.max(0, order.indexOf(stage));
+  return [
+    { label: "Packed & inspected", done: idx >= 0 },
+    { label: "Collected by carrier", done: idx >= 1 },
+    { label: "Out for delivery", done: idx >= 2 },
+    { label: "Delivered", done: idx >= 3 },
+  ];
+}
 
 type GlobalOrders = typeof globalThis & { __marinaOrders?: Map<string, OrderRecord> };
 
@@ -71,6 +101,13 @@ export function getOrdersByEmail(email: string) {
   return [...store().values()]
     .filter((o) => o.email.toLowerCase() === q && o.status === "paid")
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+}
+
+export function trackOrderByEmail(orderId: string, email: string) {
+  const order = getOrder(orderId.trim());
+  if (!order || order.status !== "paid") return null;
+  if (order.email.trim().toLowerCase() !== email.trim().toLowerCase()) return null;
+  return order;
 }
 
 export function pricedItems(lines: { slug: string; qty: number; b2b?: boolean }[]) {

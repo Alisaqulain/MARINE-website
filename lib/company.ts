@@ -13,7 +13,7 @@ export const company = {
   country: "India",
   mapLat: 29.5463,
   mapLng: 77.5948,
-  email: "muaasiyainternational@gmail.com",
+  email: "info@marinamuseinternational.com",
   phone: "+91 74570 99540",
   phoneTel: "+917457099540",
   whatsapp: "917457099540",

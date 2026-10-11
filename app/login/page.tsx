@@ -152,9 +152,9 @@ function LoginInner() {
       <h1 className="sr-only">{view === "login" ? "Login" : "Register"}</h1>
 
       {mode === "wholesale" ? (
-        <p className="mt-5 flex items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-[#C9A84C]/80 bg-[#FBF6E8] px-4 py-2.5 text-[13px] font-medium tracking-[0.01em] text-navy-900">
+        <p className="mt-5 flex items-center justify-center gap-2 overflow-x-auto rounded-lg border border-[#C9A84C]/80 bg-[#FBF6E8] px-3 py-2.5 text-[11px] font-medium leading-snug tracking-[0.01em] text-navy-900 sm:whitespace-nowrap sm:px-4 sm:text-[13px]">
           <ArrowRight className="h-3.5 w-3.5 shrink-0 text-[#8C6E28]" strokeWidth={2.25} aria-hidden />
-          <span>{t("login.wholesaleIntro")}</span>
+          <span className="min-w-0 shrink-0 sm:whitespace-nowrap">{t("login.wholesaleIntro")}</span>
         </p>
       ) : null}
 

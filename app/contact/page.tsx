@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ExternalLink, Mail, MapPin, MessageCircle, Phone } from "lucide-react";
 import { BannerHero } from "@/components/BannerHero";
 import { ContactForm } from "@/components/ContactForm";
+import { WholesaleNavLink } from "@/components/WholesaleNavLink";
 import { company, companyDirections, companyMapSrc, companyTel, companyWhatsApp } from "@/lib/company";
 import { getContactEmails } from "@/lib/contact-emails";
 
@@ -85,13 +86,13 @@ export default function ContactPage() {
             </div>
             <p className="mt-8 text-sm text-navy-600">
               Looking for volume?{" "}
-              <Link href="/wholesale" className="text-[#8C6E28] underline">
+              <WholesaleNavLink callbackUrl="/wholesale" className="text-[#8C6E28] underline">
                 Open a wholesale account
-              </Link>{" "}
+              </WholesaleNavLink>{" "}
               or{" "}
-              <Link href="/wholesale/quote" className="text-[#8C6E28] underline">
+              <WholesaleNavLink callbackUrl="/wholesale/quote" className="text-[#8C6E28] underline">
                 request a bulk quote
-              </Link>
+              </WholesaleNavLink>
               .
             </p>
           </div>

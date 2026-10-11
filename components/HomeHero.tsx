@@ -162,8 +162,8 @@ export function HomeHero() {
             <div
               className={`${i === 0 ? "hidden sm:flex" : "flex"} ${
                 slide.at.center || slide.mobileDock
-                  ? "flex-row flex-wrap items-center justify-center gap-2 sm:gap-2 md:gap-3"
-                  : "flex-col gap-1 sm:gap-2 md:gap-3"
+                  ? "flex-row flex-nowrap items-center justify-center gap-2 sm:gap-2 md:gap-3"
+                  : "flex-row flex-nowrap items-center justify-center gap-1.5 sm:flex-col sm:gap-2 md:gap-3"
               } ${slide.mobileDock ? "sm:flex-col sm:items-stretch sm:justify-start" : ""}`}
             >
               <Link
@@ -259,26 +259,20 @@ export function HomeHero() {
         </Link>
       </div>
 
-      <div className="grid grid-cols-2 divide-x divide-[#C9A84C]/35 border-t border-[#C9A84C]/40 bg-[#031D38] text-[#F3E6C8] sm:hidden">
+      <div className="flex divide-x divide-[#C9A84C]/35 border-t border-[#C9A84C]/40 bg-[#031D38] text-[#F3E6C8] sm:hidden">
         <Link
           href="/shop"
-          className="flex items-center justify-center gap-2 px-2 py-2.5 transition hover:bg-[#0B1D36]"
+          className="flex min-w-0 flex-1 items-center justify-center gap-1.5 px-2 py-2.5 transition hover:bg-[#0B1D36]"
         >
-          <ShoppingBag className="h-5 w-5 shrink-0 text-[#C9A84C]" strokeWidth={1.7} />
-          <span className="min-w-0 text-left">
-            <span className="block text-[12px] font-semibold leading-tight">B2C Retail Collection</span>
-            <span className="mt-0.5 block text-[10px] leading-tight text-[#F3E6C8]/70">Shop handcrafted pieces</span>
-          </span>
+          <ShoppingBag className="h-4 w-4 shrink-0 text-[#C9A84C]" strokeWidth={1.7} />
+          <span className="truncate text-[10px] font-semibold leading-tight">B2C Retail</span>
         </Link>
         <WholesaleNavLink
           callbackUrl="/wholesale"
-          className="flex items-center justify-center gap-1.5 px-1.5 py-2.5 transition hover:bg-[#0B1D36]"
+          className="flex min-w-0 flex-1 items-center justify-center gap-1.5 px-2 py-2.5 transition hover:bg-[#0B1D36]"
         >
           <Briefcase className="h-4 w-4 shrink-0 text-[#C9A84C]" strokeWidth={1.7} />
-          <span className="min-w-0 text-left">
-            <span className="block whitespace-nowrap text-[10px] font-semibold leading-none tracking-tight">B2B Wholesale Collection</span>
-            <span className="mt-0.5 block text-[10px] leading-tight text-[#F3E6C8]/70">Volume pricing for business</span>
-          </span>
+          <span className="truncate text-[10px] font-semibold leading-tight">B2B Wholesale</span>
         </WholesaleNavLink>
       </div>
     </section>

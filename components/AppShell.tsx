@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, type ReactNode } from "react";
+import { PageViewBeacon } from "./PageViewBeacon";
 import { ChatWidget } from "./ChatWidget";
 import { Footer } from "./Footer";
 import { Header } from "./Header";
@@ -36,6 +37,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <TopBar />
         <Header />
       </div>
+      <PageViewBeacon />
       <main className="flex-1">{children}</main>
       <Footer />
       <ChatWidget />

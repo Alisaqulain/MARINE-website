@@ -1,15 +1,37 @@
 "use client";
 
 import { BrandLogo } from "@/components/Logo";
-import { ExternalLink, Menu, Package, Users, X, MessageSquare, FileText, RotateCcw, Star } from "lucide-react";
+import {
+  ExternalLink,
+  Eye,
+  LogOut,
+  Menu,
+  Package,
+  Users,
+  X,
+  MessageSquare,
+  FileText,
+  RotateCcw,
+  Star,
+} from "lucide-react";
 import Link from "next/link";
+import { signOut } from "next-auth/react";
 import { ProductImage } from "@/components/ProductImage";
 import { useCallback, useEffect, useState } from "react";
 import { AdminProductImageField } from "@/components/AdminProductImageField";
 
 type Panel = "customer" | "wholesale";
 
-type Tab = "overview" | "products" | "quotes" | "applications" | "contacts" | "returns" | "testimonials" | "users";
+type Tab =
+  | "overview"
+  | "products"
+  | "quotes"
+  | "applications"
+  | "contacts"
+  | "returns"
+  | "testimonials"
+  | "users"
+  | "visitors";
 
 export function AdminDashboard() {
   const [panel, setPanel] = useState<Panel>("customer");
@@ -45,6 +67,13 @@ export function AdminDashboard() {
   });
   const [productForm, setProductForm] = useState(emptyProductForm());
   const [editing, setEditing] = useState<{ mongoId: string | null; slug: string } | null>(null);
+  const [visitors, setVisitors] = useState<Record<string, unknown>[]>([]);
+  const [visitorPage, setVisitorPage] = useState(1);
+  const [visitorPagination, setVisitorPagination] = useState({
+    total: 0,
+    totalPages: 1,
+    pageSize: 25,
+  });
 
   const load = useCallback(async () => {
     const segment = panel === "wholesale" ? "wholesale" : "customer";
@@ -78,6 +107,18 @@ export function AdminDashboard() {
   }, [load]);
 
   useEffect(() => {
+    if (tab !== "visitors") return;
+    void (async () => {
+      const res = await fetch(`/api/admin/page-views?page=${visitorPage}&pageSize=25`);
+      const data = await res.json();
+      setVisitors(data.items ?? []);
+      setVisitorPagination(
+        data.pagination ?? { total: 0, totalPages: 1, pageSize: 25 }
+      );
+    })();
+  }, [tab, visitorPage]);
+
+  useEffect(() => {
     setProductPage(1);
   }, [panel, productSearch]);
 
@@ -98,6 +139,7 @@ export function AdminDashboard() {
           { id: "contacts", label: "Contact", icon: MessageSquare },
           { id: "returns", label: "Returns", icon: RotateCcw },
           { id: "testimonials", label: "Reviews", icon: Star },
+          { id: "visitors", label: "Page visitors", icon: Eye },
         ];
 
   function productPayload() {
@@ -174,11 +216,11 @@ export function AdminDashboard() {
         <button aria-label="Close menu" className="fixed inset-0 z-30 bg-black/40 lg:hidden" onClick={() => setOpen(false)} />
       ) : null}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-[260px] flex-col bg-[#031D38] text-white transition-transform lg:static lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 flex h-dvh max-h-dvh w-[260px] flex-col overflow-hidden bg-[#031D38] text-white transition-transform lg:sticky lg:top-0 lg:translate-x-0 ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="border-b border-white/10 px-5 py-5">
+        <div className="shrink-0 border-b border-white/10 px-5 py-5">
           <Link href="/" className="block">
             <BrandLogo size="admin" priority />
           </Link>
@@ -206,7 +248,7 @@ export function AdminDashboard() {
             </button>
           </div>
         </div>
-        <nav className="flex-1 space-y-1 p-3">
+        <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain p-3">
           {nav.map((item) => (
             <button
               key={item.id}
@@ -224,11 +266,19 @@ export function AdminDashboard() {
             </button>
           ))}
         </nav>
-        <div className="border-t border-white/10 p-4 text-xs text-white/60">
+        <div className="shrink-0 space-y-2 border-t border-white/10 bg-[#031D38] p-4 text-xs text-white/60">
           <Link href="/" className="inline-flex items-center gap-1.5 hover:text-[#C9A84C]">
             <ExternalLink className="h-3.5 w-3.5" />
             View storefront
           </Link>
+          <button
+            type="button"
+            onClick={() => void signOut({ callbackUrl: "/admin/login" })}
+            className="flex w-full items-center gap-1.5 rounded-lg px-2 py-2 text-left text-white/80 hover:bg-white/5 hover:text-[#C9A84C]"
+          >
+            <LogOut className="h-3.5 w-3.5" />
+            Logout
+          </button>
         </div>
       </aside>
 
@@ -240,9 +290,19 @@ export function AdminDashboard() {
           <h1 className="font-serif text-xl text-navy-900 capitalize">
             {panel} · {nav.find((n) => n.id === tab)?.label}
           </h1>
-          <button type="button" className="text-sm text-[#8C6E28] underline" onClick={() => void load()}>
-            Refresh
-          </button>
+          <div className="flex items-center gap-3">
+            <button type="button" className="text-sm text-[#8C6E28] underline" onClick={() => void load()}>
+              Refresh
+            </button>
+            <button
+              type="button"
+              onClick={() => void signOut({ callbackUrl: "/admin/login" })}
+              className="inline-flex items-center gap-1.5 rounded-full border border-navy-800/20 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-navy-900 hover:bg-navy-900 hover:text-white"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              Logout
+            </button>
+          </div>
         </header>
 
         <main className="flex-1 p-4 lg:p-8">
@@ -524,6 +584,62 @@ export function AdminDashboard() {
           {tab === "users" ? <DataTable rows={users} columns={["name", "email", "role", "createdAt"]} /> : null}
           {tab === "testimonials" ? (
             <AdminReviewsPanel rows={testimonials} onReload={() => void load()} />
+          ) : null}
+          {tab === "visitors" ? (
+            <div className="overflow-x-auto rounded-xl bg-white shadow-sm">
+              <div className="border-b bg-[#FAF7F2] px-4 py-3 text-xs text-navy-600">
+                Recent storefront page views ({visitorPagination.total} total).
+              </div>
+              <table className="min-w-full text-left text-sm">
+                <thead className="border-b bg-[#FAF7F2] text-xs uppercase tracking-wide text-navy-600">
+                  <tr>
+                    <th className="px-4 py-3">When</th>
+                    <th className="px-4 py-3">Path</th>
+                    <th className="px-4 py-3">User agent</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visitors.length === 0 ? (
+                    <tr>
+                      <td colSpan={3} className="px-4 py-8 text-center text-navy-600">
+                        No visits recorded yet.
+                      </td>
+                    </tr>
+                  ) : (
+                    visitors.map((v) => (
+                      <tr key={String(v.id)} className="border-b border-[#f0ebe3]">
+                        <td className="whitespace-nowrap px-4 py-3 text-navy-600">{String(v.at ?? "—")}</td>
+                        <td className="max-w-[280px] truncate px-4 py-3 font-medium">{String(v.path ?? "—")}</td>
+                        <td className="max-w-[360px] truncate px-4 py-3 text-xs text-navy-500">{String(v.userAgent ?? "—")}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3 text-xs text-navy-600">
+                <span>
+                  Page {visitorPage} of {visitorPagination.totalPages} · {visitorPagination.total} visits
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    className="btn-outline px-3 py-1 text-xs"
+                    disabled={visitorPage <= 1}
+                    onClick={() => setVisitorPage((p) => Math.max(1, p - 1))}
+                  >
+                    Previous
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-outline px-3 py-1 text-xs"
+                    disabled={visitorPage >= visitorPagination.totalPages}
+                    onClick={() => setVisitorPage((p) => p + 1)}
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            </div>
           ) : null}
         </main>
       </div>

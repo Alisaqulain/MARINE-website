@@ -7,6 +7,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { BannerHero } from "@/components/BannerHero";
+import { WholesaleNavLink } from "@/components/WholesaleNavLink";
 import { heroImg, img } from "@/lib/images";
 
 const pillars = [
@@ -129,9 +130,9 @@ export default function AboutPage() {
               <Link href="/shop" className="btn-gold w-full sm:w-auto">
                 B2C Retail Collection
               </Link>
-              <Link href="/wholesale" className="btn-navy w-full sm:w-auto">
+              <WholesaleNavLink callbackUrl="/wholesale" className="btn-navy w-full sm:w-auto">
                 B2B Wholesale Collection
-              </Link>
+              </WholesaleNavLink>
             </div>
           </div>
         </div>

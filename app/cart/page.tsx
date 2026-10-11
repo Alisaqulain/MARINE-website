@@ -4,6 +4,7 @@ import { B2B_MIN_ORDER_QTY, formatPrice } from "@/lib/products";
 import { useCart } from "@/lib/cart-context";
 import Image from "next/image";
 import Link from "next/link";
+import { WholesaleNavLink } from "@/components/WholesaleNavLink";
 
 export default function CartPage() {
   const { items, setQty, remove, subtotal } = useCart();
@@ -67,22 +68,31 @@ export default function CartPage() {
           ))}
         </ul>
       </div>
-      <aside className="h-fit rounded-2xl bg-white p-6 shadow-soft">
-        <h2 className="font-serif text-2xl">Summary</h2>
-        <div className="mt-4 flex justify-between text-sm">
-          <span>Subtotal</span>
+      <aside className="sticky top-[calc(var(--site-nav)+1rem)] h-fit rounded-2xl border border-cream-300/80 bg-white p-6 shadow-soft">
+        <h2 className="font-serif text-2xl text-navy-900">Summary</h2>
+        <dl className="mt-4 space-y-3 border-b border-cream-300 pb-4 text-sm">
+          <div className="flex justify-between gap-4">
+            <dt className="text-navy-600">Subtotal</dt>
+            <dd className="font-medium text-navy-900">{formatPrice(subtotal)}</dd>
+          </div>
+          <div className="flex justify-between gap-4">
+            <dt className="text-navy-600">Shipping</dt>
+            <dd className="text-navy-700">Calculated at checkout</dd>
+          </div>
+        </dl>
+        <div className="mt-4 flex justify-between font-serif text-lg">
+          <span>Total</span>
           <span>{formatPrice(subtotal)}</span>
         </div>
-        <div className="mt-2 flex justify-between text-sm text-navy-600">
-          <span>Shipping</span>
-          <span>Calculated at checkout</span>
-        </div>
-        <Link href="/checkout" className="btn-gold mt-6 w-full">
+        <Link href="/checkout" className="btn-gold mt-6 w-full text-center">
           Checkout
         </Link>
-        <Link href="/wholesale/quote" className="mt-3 block text-center text-sm text-navy-600 underline">
+        <WholesaleNavLink
+          callbackUrl="/wholesale/quote"
+          className="mt-3 block text-center text-sm text-navy-600 underline"
+        >
           Need a wholesale lot instead?
-        </Link>
+        </WholesaleNavLink>
       </aside>
     </div>
   );

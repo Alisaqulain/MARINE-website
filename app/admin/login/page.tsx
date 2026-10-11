@@ -57,7 +57,7 @@ function AdminLoginInner() {
               type="email"
               required
               autoComplete="username"
-              placeholder="muaasiyainternational@gmail.com"
+              placeholder="admin@marinamuseinternational.com"
             />
           </label>
           <label className="block text-sm">

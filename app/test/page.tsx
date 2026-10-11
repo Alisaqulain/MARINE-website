@@ -48,6 +48,9 @@ export default async function TestDbPage() {
           {result.mongodbDirectEnv ? (
             <> · MONGODB_DIRECT={result.mongodbDirectEnv}</>
           ) : null}
+          {result.maxPoolSize != null ? (
+            <> · maxPoolSize={result.maxPoolSize}</>
+          ) : null}
         </p>
       ) : (
         <p className="mt-1 text-xs font-semibold text-amber-800">
@@ -62,6 +65,33 @@ export default async function TestDbPage() {
         <p className="text-sm font-semibold uppercase tracking-wider">{result.ok ? "Connected" : "Not connected"}</p>
         <p className="mt-2 whitespace-pre-wrap break-words text-sm">{result.message}</p>
       </div>
+      {!result.ok && result.platform === "win32" ? (
+        <div className="mt-6 rounded-2xl border border-[#e6dfd2] bg-white p-5 text-sm text-navy-800">
+          <p className="font-semibold text-navy-900">Atlas checklist (local Windows)</p>
+          <ol className="mt-3 list-decimal space-y-2 pl-5">
+            <li>
+              <a
+                href="https://cloud.mongodb.com/v2#/security/network/accessList"
+                className="text-[#8C6E28] underline"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Network Access
+              </a>{" "}
+              → Add IP Address → <strong>Add Current IP Address</strong> (or 0.0.0.0/0 temporarily).
+            </li>
+            <li>Database → cluster must be <strong>Running</strong>, not Paused.</li>
+            <li>
+              In terminal: <code className="text-xs">npm run check:mongo</code> — must show <strong>OK</strong>.
+            </li>
+            <li>Restart <code className="text-xs">npm run dev</code> and reload this page.</li>
+            <li>
+              If Overview shows <strong>Connections at 100%</strong>: close extra terminals running the app, wait 2–3
+              minutes, or pause/resume Cluster0 in Atlas to clear stale connections.
+            </li>
+          </ol>
+        </div>
+      ) : null}
       {!result.ok && result.hints?.length ? (
         <ul className="mt-6 list-disc space-y-2 pl-5 text-sm text-navy-700">
           {result.hints.map((h) => (

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import { WholesaleNavLink } from "@/components/WholesaleNavLink";
 import {
   ArrowRight,
   BadgeCheck,
@@ -178,12 +179,12 @@ export default function CustomManufacturingPage() {
               Let’s grow together. We offer competitive pricing for bulk and long-term orders.
             </p>
             <div className="mx-auto mt-8 flex flex-wrap items-center justify-center gap-3">
-              <Link href="/wholesale" className="btn-gold whitespace-nowrap">
+              <WholesaleNavLink callbackUrl="/wholesale" className="btn-gold whitespace-nowrap">
                 Wholesale collection
-              </Link>
-              <Link href="/wholesale/quote" className="btn-navy whitespace-nowrap">
+              </WholesaleNavLink>
+              <WholesaleNavLink callbackUrl="/wholesale/quote" className="btn-navy whitespace-nowrap">
                 Request a Custom Quote
-              </Link>
+              </WholesaleNavLink>
             </div>
           </div>
         </div>
@@ -209,10 +210,10 @@ export default function CustomManufacturingPage() {
             Tell us what you need. Our team will review your requirements and provide a quotation.
           </p>
           <div className="mx-auto mt-8 flex flex-wrap items-center justify-center gap-3">
-            <Link href="/wholesale/quote" className="btn-gold gap-2 whitespace-nowrap px-5 sm:px-6">
+            <WholesaleNavLink callbackUrl="/wholesale/quote" className="btn-gold gap-2 whitespace-nowrap px-5 sm:px-6">
               Request a Custom Quote
               <ArrowRight className="h-4 w-4 shrink-0" />
-            </Link>
+            </WholesaleNavLink>
             <a
               href={WHATSAPP}
               target="_blank"

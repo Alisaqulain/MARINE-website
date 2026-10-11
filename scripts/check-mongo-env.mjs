@@ -88,7 +88,8 @@ async function main() {
 
   const nodeMajor = Number(/^v(\d+)/.exec(process.version)?.[1] ?? 0);
   const skipSrvAfterDirect =
-    (process.platform === "win32" && nodeMajor >= 24) || process.env.MONGODB_SKIP_SRV_FALLBACK === "1";
+    process.env.MONGODB_SKIP_SRV_FALLBACK === "1" ||
+    (process.env.MONGODB_SKIP_SRV_FALLBACK !== "0" && process.platform === "win32" && nodeMajor >= 24);
   const preferIpv4 =
     process.platform === "win32" ||
     process.env.MONGODB_PREFER_IPV4 === "1" ||
@@ -98,7 +99,17 @@ async function main() {
     autoSelectFamily: preferIpv4 ? false : undefined,
     ...(preferIpv4 ? { family: 4 } : {}),
   };
-  console.log("check-mongo script: direct-shards-v2 · Node", process.version, "·", process.platform);
+  const poolExplicit = Number(process.env.MONGODB_MAX_POOL_SIZE);
+  const nodeProcs = Number(process.env.MONGODB_NODE_PROCESSES);
+  const external = Number(process.env.MONGODB_EXTERNAL_CLIENTS) || 40;
+  const budget = Number(process.env.MONGODB_CONNECTION_BUDGET) || 320;
+  let poolHint = "default";
+  if (Number.isFinite(poolExplicit) && poolExplicit > 0) poolHint = String(poolExplicit);
+  else if (Number.isFinite(nodeProcs) && nodeProcs > 0) {
+    const per = Math.floor((budget - external) / nodeProcs);
+    poolHint = `~${Math.max(2, Math.min(5, per))} (MONGODB_NODE_PROCESSES=${nodeProcs})`;
+  }
+  console.log("check-mongo script: direct-shards-v6 · Node", process.version, "·", process.platform, "· pool", poolHint);
 
   async function tryPing(label, tryUri, tryOpts = opts) {
     const client = new MongoClient(tryUri, tryOpts);
@@ -127,6 +138,27 @@ async function main() {
       if (await tryPing(`direct ${r.name}`, direct)) return;
     }
     console.log("All direct shard attempts failed.");
+
+    const replicaSetFromHost = (shardHost) => {
+      const m = /^ac-([a-z0-9]+)-shard-00-\d+\./i.exec(shardHost);
+      return m ? `atlas-${m[1]}-shard-0` : null;
+    };
+    let replicaSet = null;
+    try {
+      const txtChunks = await dns.promises.resolveTxt(`_mongodb._tcp.${c.host}`);
+      const merged = txtChunks.map((part) => part.join("")).join("&");
+      replicaSet = new URLSearchParams(merged).get("replicaSet");
+    } catch {
+      /* ignore */
+    }
+    if (!replicaSet && sorted.length) replicaSet = replicaSetFromHost(sorted[0].name);
+    if (replicaSet && sorted.length) {
+      const hosts = sorted.map((r) => `${r.name}:${r.port}`).join(",");
+      const dbPath = new URL(uri.replace(/^mongodb\+srv:/, "mongodb:")).pathname || "";
+      const replica = `mongodb://${auth}@${hosts}${dbPath}?ssl=true&authSource=admin&replicaSet=${replicaSet}&retryWrites=true&w=majority`;
+      console.log("Trying replica-set URI (all shards, no directConnection)...");
+      if (await tryPing(`replica-set ${replicaSet}`, replica)) return;
+    }
   } else if (!uri.startsWith("mongodb+srv://")) {
     console.log("URI is not mongodb+srv — skipping direct shard step.");
   }
@@ -137,9 +169,17 @@ async function main() {
     console.log("Skipping mongodb+srv fallback.");
   }
 
-  console.error(
-    "\nIf every attempt shows SSL alert 80: MongoDB Atlas → Network Access → add this server's public IP (or 0.0.0.0/0)."
-  );
+  console.error(`
+All connection modes failed (direct shard, replica set, mongodb+srv).
+
+SSL alert 80 almost always means Atlas is rejecting the TCP connection:
+  1. Atlas → Network Access → Add IP Address → add YOUR current public IP (or 0.0.0.0/0 for testing).
+  2. Atlas → Database → confirm the cluster is not Paused.
+  3. Atlas → Database → Connect → copy a fresh connection string; update MONGODB_URI in .env.local (one line, no quotes).
+  4. On Windows with Node 24: install Node 20 LTS if IP is already allowed and it still fails.
+
+Then run: npm run check:mongo  (must print OK) and restart the dev server (stop old process on port 3000).
+`);
   process.exit(1);
 }
 

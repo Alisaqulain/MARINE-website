@@ -71,7 +71,9 @@ export function Header() {
         </nav>
 
         <div className="ml-auto flex shrink-0 items-center gap-0.5 text-white lg:ml-0">
-          <HeaderAuth />
+          <div className="hidden sm:block">
+            <HeaderAuth />
+          </div>
           <Link
             href="/admin/login"
             aria-label={t("nav.admin")}
@@ -122,7 +124,7 @@ export function Header() {
               </Link>
             );
           })}
-          <div className="border-t border-[#C9A84C]/20 py-2">
+          <div className="border-t border-[#C9A84C]/20 py-2 sm:hidden">
             <HeaderAuth />
           </div>
           <Link

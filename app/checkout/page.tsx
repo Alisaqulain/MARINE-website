@@ -4,6 +4,7 @@ import { formatPrice } from "@/lib/products";
 import { useCart } from "@/lib/cart-context";
 import { company } from "@/lib/company";
 import Link from "next/link";
+import { WholesaleNavLink } from "@/components/WholesaleNavLink";
 import Script from "next/script";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -146,19 +147,38 @@ export default function CheckoutPage() {
           SSL protection · Cards, UPI, netbanking and wallets at secure checkout
         </p>
       </form>
-      <aside className="h-fit self-start rounded-2xl bg-white px-6 pb-6 pt-4 shadow-soft">
-        {items.map(({ product, qty }) => (
-          <div key={product.slug} className="flex justify-between border-b border-cream-300 py-3 text-sm first:pt-0">
-            <span>
-              {product.name} × {qty}
-            </span>
-            <span>{formatPrice(product.price * qty)}</span>
+      <aside className="sticky top-[calc(var(--site-nav)+1rem)] h-fit self-start rounded-2xl border border-cream-300/80 bg-white p-6 shadow-soft">
+        <h2 className="font-serif text-2xl text-navy-900">Order summary</h2>
+        <ul className="mt-4 divide-y divide-cream-300 border-b border-cream-300 pb-4">
+          {items.map(({ product, qty }) => (
+            <li key={product.slug} className="flex justify-between gap-3 py-3 text-sm first:pt-0">
+              <span className="min-w-0 text-navy-800">
+                {product.name} × {qty}
+              </span>
+              <span className="shrink-0 font-medium">{formatPrice(product.price * qty)}</span>
+            </li>
+          ))}
+        </ul>
+        <dl className="mt-4 space-y-2 text-sm">
+          <div className="flex justify-between">
+            <dt className="text-navy-600">Subtotal</dt>
+            <dd>{formatPrice(subtotal)}</dd>
           </div>
-        ))}
-        <div className="mt-4 flex justify-between font-medium">
+          <div className="flex justify-between">
+            <dt className="text-navy-600">Shipping</dt>
+            <dd className="text-navy-700">Calculated at checkout</dd>
+          </div>
+        </dl>
+        <div className="mt-4 flex justify-between border-t border-cream-300 pt-4 font-serif text-lg">
           <span>Total</span>
           <span>{formatPrice(subtotal)}</span>
         </div>
+        <WholesaleNavLink
+          callbackUrl="/wholesale/quote"
+          className="mt-4 block text-center text-xs text-navy-600 underline"
+        >
+          Need a wholesale lot instead?
+        </WholesaleNavLink>
       </aside>
     </div>
   );

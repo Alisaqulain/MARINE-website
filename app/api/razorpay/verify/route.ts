@@ -1,6 +1,13 @@
 import { createHmac } from "crypto";
 import { NextResponse } from "next/server";
-import { getOrder, publicOrder, saveOrder, sendOrderConfirmation, whatsappConfirmUrl } from "@/lib/orders";
+import {
+  defaultTracking,
+  getOrder,
+  publicOrder,
+  saveOrder,
+  sendOrderConfirmation,
+  whatsappConfirmUrl,
+} from "@/lib/orders";
 
 export async function POST(req: Request) {
   const keySecret = process.env.RAZORPAY_KEY_SECRET;
@@ -35,6 +42,7 @@ export async function POST(req: Request) {
   order.status = "paid";
   order.razorpayPaymentId = razorpay_payment_id;
   order.paidAt = new Date().toISOString();
+  if (!order.tracking) order.tracking = defaultTracking();
   saveOrder(order);
 
   try {

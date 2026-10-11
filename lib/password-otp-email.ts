@@ -1,2 +1,3 @@
-/** Gmail account used for forgot-password OTP (see lib/mail.ts). */
-export const PASSWORD_OTP_FROM = "ibrahiminternational3112026@gmail.com";
+/** Shown on forgot-password page and used as SMTP from when configured. */
+export const PASSWORD_OTP_FROM =
+  process.env.SMTP_FROM?.trim() || "admin@marinamuseinternational.com";
