@@ -1,5 +1,11 @@
 import dns from "node:dns";
 import { MongoClient, ServerApiVersion, type Db, type MongoClientOptions } from "mongodb";
+import {
+  atlasDirectOnlyOnThisRuntime,
+  clientOptionsForAtlas,
+  connectWithAtlasStrategy,
+  nodeMajor,
+} from "@/lib/atlas-connect";
 import { mongoUriFromProcessEnv, parseMongoCredentials, sanitizeEnvValue } from "@/lib/env-mongo-uri";
 
 /** Atlas on Windows + OpenSSL 3 often fails on IPv6 first — prefer IPv4. */
@@ -22,42 +28,26 @@ function parseSrvCredentials(srvUri: string) {
   return parseMongoCredentials(srvUri);
 }
 
-/** Windows + Node 24 often breaks mongodb+srv TLS; direct to first SRV host works. */
-async function srvToDirectUri(srvUri: string): Promise<string> {
-  const parsed = parseSrvCredentials(srvUri);
-  if (!parsed) return srvUri;
-  const records = await dns.promises.resolveSrv(`_mongodb._tcp.${parsed.host}`);
-  const first = records[0]?.name;
-  if (!first) throw new Error("MongoDB SRV lookup returned no hosts");
-  const auth = `${encodeURIComponent(parsed.user)}:${encodeURIComponent(parsed.pass)}`;
-  return `mongodb://${auth}@${first}:27017/?ssl=true&authSource=admin&directConnection=true&retryWrites=true&w=majority`;
+function isTlsError(message: string): boolean {
+  return /SSL|tls|alert internal|ECONNRESET|ETIMEDOUT/i.test(message);
 }
 
 let cachedUri: string | undefined;
 let uriPromise: Promise<string> | undefined;
 
+async function normalizedSrvFromEnv(): Promise<string> {
+  const fromEnv = mongoUriFromProcessEnv();
+  if (!fromEnv) throw new Error("MONGODB_URI is not set");
+  const srv = normalizeMongoUri(fromEnv);
+  if (!srv) throw new Error("MONGODB_URI is not set");
+  return srv;
+}
+
 async function connectionUri(): Promise<string> {
   if (cachedUri) return cachedUri;
   if (!uriPromise) {
     uriPromise = (async () => {
-      const fromEnv = mongoUriFromProcessEnv();
-      if (!fromEnv) throw new Error("MONGODB_URI is not set");
-      const srv = normalizeMongoUri(fromEnv);
-      if (!srv) throw new Error("MONGODB_URI is not set");
-
-      const wantDirect =
-        process.env.MONGODB_DIRECT === "1" ||
-        (process.platform === "win32" && process.env.MONGODB_DIRECT !== "0");
-
-      if (wantDirect && srv.startsWith("mongodb+srv://")) {
-        try {
-          cachedUri = await srvToDirectUri(srv);
-          return cachedUri;
-        } catch {
-          cachedUri = srv;
-          return cachedUri;
-        }
-      }
+      const srv = await normalizedSrvFromEnv();
       cachedUri = srv;
       return cachedUri;
     })();
@@ -71,20 +61,7 @@ declare global {
 }
 
 function clientOptions(): MongoClientOptions {
-  const autoSelectFamily =
-    process.env.MONGODB_AUTO_SELECT_FAMILY === "1"
-      ? true
-      : process.env.MONGODB_AUTO_SELECT_FAMILY === "0"
-        ? false
-        : process.platform === "win32"
-          ? false
-          : undefined;
-  const opts: MongoClientOptions = {
-    connectTimeoutMS: 20_000,
-    serverSelectionTimeoutMS: 20_000,
-    maxPoolSize: 10,
-    ...(autoSelectFamily !== undefined ? { autoSelectFamily } : {}),
-  };
+  const opts = clientOptionsForAtlas();
   if (process.env.MONGODB_SERVER_API !== "0") {
     opts.serverApi = {
       version: ServerApiVersion.v1,
@@ -95,17 +72,26 @@ function clientOptions(): MongoClientOptions {
   return opts;
 }
 
+async function tryConnect(uri: string): Promise<MongoClient> {
+  const client = new MongoClient(uri, clientOptions());
+  await client.connect();
+  return client;
+}
+
 async function connectClient(): Promise<MongoClient> {
-  const u = await connectionUri();
-  const client = new MongoClient(u, clientOptions());
-  return client.connect().catch((err) => {
+  const srv = await normalizedSrvFromEnv();
+  try {
+    const { client, uri } = await connectWithAtlasStrategy(srv, tryConnect);
+    cachedUri = uri;
+    return client;
+  } catch (err) {
     if (process.env.NODE_ENV === "development") {
       global._mongoClientPromise = undefined;
     }
     cachedUri = undefined;
     uriPromise = undefined;
-    return Promise.reject(err);
-  });
+    throw err instanceof Error ? err : new Error("Connection failed");
+  }
 }
 
 function getClientPromise(): Promise<MongoClient> {
@@ -126,9 +112,13 @@ export async function getDb(): Promise<Db> {
 function describeConnectionMode(u: string): string {
   if (u.startsWith("mongodb+srv")) return "SRV (mongodb+srv)";
   if (u.includes("directConnection=true")) {
+    const shard = u.match(/@([^/?]+)/)?.[1] ?? "shard";
+    if (atlasDirectOnlyOnThisRuntime()) {
+      return `direct (${shard}, Node ${nodeMajor()} Windows)`;
+    }
     return process.env.MONGODB_DIRECT === "1"
-      ? "direct single-node (MONGODB_DIRECT=1)"
-      : "direct single-node (Windows TLS workaround)";
+      ? `direct (${shard}, MONGODB_DIRECT=1)`
+      : `direct (${shard}, Windows)`;
   }
   return "standard replica set";
 }
@@ -183,10 +173,8 @@ export async function pingDatabase(): Promise<PingResult> {
     global._mongoClientPromise = undefined;
     cachedUri = undefined;
     uriPromise = undefined;
-    const u = await connectionUri();
-    connectionMode = describeConnectionMode(u);
-
     const client = await connectClient();
+    connectionMode = describeConnectionMode(cachedUri ?? (await connectionUri()));
     await client.db(dbName).command({ ping: 1 });
 
     if (process.env.NODE_ENV === "development") {
@@ -211,21 +199,19 @@ export async function pingDatabase(): Promise<PingResult> {
     const message = e instanceof Error ? e.message : "Connection failed";
     if (connectionMode === "unknown") {
       try {
-        connectionMode = describeConnectionMode(await connectionUri());
+        connectionMode = describeConnectionMode(cachedUri ?? (await connectionUri()));
       } catch {
         connectionMode = "could not build URI (check MONGODB_URI)";
       }
     }
-    if (message.includes("SSL") || message.includes("tls") || message.includes("alert internal")) {
+    if (isTlsError(message)) {
       hints.push(
-        "Restart the dev server after changing .env.local. On Windows, MONGODB_DIRECT=1 should be set (auto unless MONGODB_DIRECT=0)."
+        "On Node 24 + Windows, mongodb+srv cannot be used (OpenSSL TLS bug). This app connects via direct Atlas shard hosts only — keep MONGODB_DIRECT=1."
       );
       hints.push(
-        "MongoDB Atlas → Network Access → Add IP Address → Allow access from anywhere (0.0.0.0/0), wait 2 minutes."
+        "Restart npm run dev after pulling updates. If it still fails, check Atlas → Network Access (0.0.0.0/0) and disable VPN/antivirus briefly."
       );
-      hints.push(
-        "Node 24 often breaks mongodb+srv TLS on Windows — use Node 20 LTS (https://nodejs.org/en/download) or keep MONGODB_DIRECT=1."
-      );
+      hints.push("Run npm run check:mongo — it tries each shard until one responds.");
     }
     if (/bad auth|Authentication failed|auth failed/i.test(message)) {
       hints.push(

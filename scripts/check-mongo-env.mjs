@@ -76,10 +76,14 @@ async function main() {
     process.env.MONGODB_DIRECT === "1" ||
     (process.platform === "win32" && process.env.MONGODB_DIRECT !== "0");
 
+  const nodeMajor = Number(/^v(\d+)/.exec(process.version)?.[1] ?? 0);
+  const directOnly = process.platform === "win32" && nodeMajor >= 24;
   const opts = {
-    serverSelectionTimeoutMS: 20_000,
+    serverSelectionTimeoutMS: 15_000,
     autoSelectFamily: process.platform === "win32" ? false : undefined,
+    ...(process.platform === "win32" ? { family: 4 } : {}),
   };
+  if (directOnly) console.log("Node", process.version, "— skipping mongodb+srv (Windows TLS); trying direct shards only.");
 
   async function tryPing(label, tryUri, tryOpts = opts) {
     const client = new MongoClient(tryUri, tryOpts);
@@ -103,13 +107,16 @@ async function main() {
   if (wantDirect && uri.startsWith("mongodb+srv://")) {
     const recs = await dns.promises.resolveSrv(`_mongodb._tcp.${c.host}`);
     const auth = `${encodeURIComponent(c.user)}:${encodeURIComponent(c.pass)}`;
-    for (const r of recs) {
+    const sortKey = (h) =>
+      h.includes("shard-00-01") ? 0 : h.includes("shard-00-00") ? 1 : h.includes("shard-00-02") ? 2 : 3;
+    const sorted = [...recs].sort((a, b) => sortKey(a.name) - sortKey(b.name));
+    for (const r of sorted) {
       const direct = `mongodb://${auth}@${r.name}:27017/?ssl=true&authSource=admin&directConnection=true`;
       if (await tryPing(`direct ${r.name}`, direct)) return;
     }
   }
 
-  if (await tryPing("mongodb+srv", uri)) return;
+  if (!directOnly && (await tryPing("mongodb+srv", uri))) return;
 
   process.exit(1);
 }
