@@ -206,12 +206,12 @@ export async function pingDatabase(): Promise<PingResult> {
     }
     if (isTlsError(message)) {
       hints.push(
-        "On Node 24 + Windows, mongodb+srv cannot be used (OpenSSL TLS bug). This app connects via direct Atlas shard hosts only — keep MONGODB_DIRECT=1."
+        "Deploy the latest app build — production must not stop at mongodb+srv only; it should try direct Atlas shard hosts first."
       );
       hints.push(
-        "Restart npm run dev after pulling updates. If it still fails, check Atlas → Network Access (0.0.0.0/0) and disable VPN/antivirus briefly."
+        "Atlas → Network Access → add your KVM public IP (or 0.0.0.0/0 for testing). SSL alert 80 often means IP not allowed."
       );
-      hints.push("Run npm run check:mongo — it tries each shard until one responds.");
+      hints.push("On the server: npm run check:mongo (must OK), then pm2 restart excelpro --update-env.");
     }
     if (/bad auth|Authentication failed|auth failed/i.test(message)) {
       hints.push(

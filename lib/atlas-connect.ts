@@ -14,10 +14,15 @@ export function atlasDirectOnlyOnThisRuntime(): boolean {
   return process.platform === "win32" && nodeMajor() >= 24;
 }
 
-export function wantDirectConnection(): boolean {
+/** Direct shard URIs fix srv TLS issues on Windows Node 24 and many Linux VPS hosts. */
+export function shouldTryDirectShards(srvUri: string): boolean {
   if (process.env.MONGODB_DIRECT === "0") return false;
-  if (process.env.MONGODB_DIRECT === "1") return true;
-  return process.platform === "win32";
+  return srvUri.startsWith("mongodb+srv://");
+}
+
+/** @deprecated use shouldTryDirectShards */
+export function wantDirectConnection(): boolean {
+  return shouldTryDirectShards("mongodb+srv://x");
 }
 
 function shardSortKey(host: string): number {
@@ -55,7 +60,11 @@ export function clientOptionsForAtlas(): MongoClientOptions {
     ...(autoSelectFamily !== undefined ? { autoSelectFamily } : {}),
   };
 
-  if (process.platform === "win32") {
+  const forceIpv4 =
+    process.platform === "win32" ||
+    process.env.MONGODB_FORCE_IPV4 === "1" ||
+    process.env.MONGODB_PREFER_IPV4 === "1";
+  if (forceIpv4) {
     (opts as MongoClientOptions & { family?: number }).family = 4;
   }
 
@@ -74,7 +83,7 @@ export async function connectWithAtlasStrategy(
   let lastError: unknown;
   const directOnly = atlasDirectOnlyOnThisRuntime();
 
-  if (wantDirectConnection() && srvUri.startsWith("mongodb+srv://")) {
+  if (shouldTryDirectShards(srvUri)) {
     const directUris = await directUrisFromSrv(srvUri);
     const preferred = global._mongoPreferredDirectUri;
     const ordered = preferred

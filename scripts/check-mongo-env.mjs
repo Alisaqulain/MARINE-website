@@ -72,9 +72,7 @@ async function main() {
   if (process.env.MONGODB_URI_STANDARD) console.log("(using MONGODB_URI_STANDARD)");
 
   let connectUri = uri;
-  const wantDirect =
-    process.env.MONGODB_DIRECT === "1" ||
-    (process.platform === "win32" && process.env.MONGODB_DIRECT !== "0");
+  const wantDirect = process.env.MONGODB_DIRECT !== "0";
 
   const nodeMajor = Number(/^v(\d+)/.exec(process.version)?.[1] ?? 0);
   const directOnly = process.platform === "win32" && nodeMajor >= 24;
@@ -98,10 +96,6 @@ async function main() {
       await client.close().catch(() => {});
       return false;
     }
-  }
-
-  if (process.platform !== "win32" && process.env.MONGODB_DIRECT !== "1") {
-    if (await tryPing("mongodb+srv (recommended on Linux Node 20)", uri)) return;
   }
 
   if (wantDirect && uri.startsWith("mongodb+srv://")) {
