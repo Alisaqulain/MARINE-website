@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { Camera, ImageIcon } from "lucide-react";
 import { ProductImage } from "@/components/ProductImage";
 import { resolveMediaUrl } from "@/lib/media-url";
 
@@ -14,6 +15,8 @@ export function AdminProductImageField({
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const galleryRef = useRef<HTMLInputElement>(null);
 
   async function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -51,17 +54,42 @@ export function AdminProductImageField({
   return (
     <div className="space-y-2">
       <span className="block text-xs font-semibold uppercase tracking-wide text-navy-600">Product image</span>
-      <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-[#C9A84C]/50 bg-[#FAF7F2] px-4 py-6 text-center transition hover:border-[#C9A84C]">
-        <input
-          type="file"
-          accept="image/jpeg,image/png,image/webp,image/gif"
-          capture="environment"
-          className="sr-only"
-          onChange={onPickFile}
-        />
-        <span className="text-sm font-medium text-navy-800">{uploading ? "Uploading…" : "Take photo or upload"}</span>
-        <span className="mt-1 text-[11px] text-navy-500">Camera, gallery, or JPG / PNG / WebP</span>
-      </label>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          disabled={uploading}
+          onClick={() => cameraRef.current?.click()}
+          className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-[#C9A84C]/50 bg-[#FAF7F2] px-3 py-3 text-sm font-medium text-navy-800 hover:border-[#C9A84C] sm:flex-none sm:px-4"
+        >
+          <Camera className="h-4 w-4 shrink-0" />
+          {uploading ? "Uploading…" : "Camera"}
+        </button>
+        <button
+          type="button"
+          disabled={uploading}
+          onClick={() => galleryRef.current?.click()}
+          className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-[#C9A84C]/50 bg-[#FAF7F2] px-3 py-3 text-sm font-medium text-navy-800 hover:border-[#C9A84C] sm:flex-none sm:px-4"
+        >
+          <ImageIcon className="h-4 w-4 shrink-0" />
+          Gallery / files
+        </button>
+      </div>
+      <input
+        ref={cameraRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif"
+        capture="environment"
+        className="hidden"
+        onChange={onPickFile}
+      />
+      <input
+        ref={galleryRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif"
+        className="hidden"
+        onChange={onPickFile}
+      />
+      <p className="text-[11px] text-navy-500">Use Gallery on phones to pick existing photos. JPG, PNG, or WebP.</p>
       {value ? (
         <div className="flex items-start gap-3">
           <div className="relative h-24 w-24 overflow-hidden rounded-lg border border-[#e6dfd2]">

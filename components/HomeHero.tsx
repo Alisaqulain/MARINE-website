@@ -155,8 +155,8 @@ export function HomeHero() {
             key={slide.src}
             className={`absolute z-20 animate-fadeIn flex-col gap-1.5 sm:gap-2 md:gap-3 ${
               slide.mobileDock
-                ? "hidden sm:flex sm:bottom-auto sm:left-[4.8%] sm:top-[52%] sm:w-auto sm:translate-x-0 sm:items-stretch sm:pt-8 md:pt-12 lg:pt-14"
-                : "left-1/2 top-[38%] flex -translate-x-1/2 items-center sm:top-[42%] md:top-[40%]"
+                ? "hidden sm:flex sm:bottom-auto sm:left-[4.8%] sm:top-[48%] sm:w-auto sm:translate-x-0 sm:items-stretch sm:pt-4 md:pt-6 lg:pt-8"
+                : "left-1/2 top-[28%] flex -translate-x-1/2 items-center sm:top-[36%] md:top-[32%]"
             }`}
           >
             <div
@@ -180,7 +180,7 @@ export function HomeHero() {
               </WholesaleNavLink>
             </div>
             {i === 0 ? (
-              <Link href="/about" className="group mt-1 flex flex-nowrap items-center gap-2 whitespace-nowrap sm:mt-2 sm:gap-3">
+              <Link href="/about" className="group -mt-1.5 flex flex-nowrap items-center gap-2 whitespace-nowrap sm:-mt-0.5 sm:gap-3">
                 <span className="relative grid h-8 w-8 shrink-0 place-items-center sm:h-11 sm:w-11 lg:h-14 lg:w-14">
                   <span className="absolute inset-0 rounded-full bg-[#F6BE52]/50 animate-story-ring group-hover:[animation-play-state:paused]" />
                   <span className="absolute inset-0 rounded-full bg-[#FFD56A]/40 animate-story-ring [animation-delay:1s] group-hover:[animation-play-state:paused]" />

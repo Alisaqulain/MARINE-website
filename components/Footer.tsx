@@ -10,15 +10,14 @@ import {
   Instagram,
   Linkedin,
   Lock,
-  Mail,
   MapPin,
+  Phone,
   ShieldCheck,
   Sparkles,
   Youtube,
 } from "lucide-react";
 import { BrandLogo } from "./Logo";
 import { company } from "@/lib/company";
-import { getContactEmails } from "@/lib/contact-emails";
 import { useT } from "@/lib/i18n/LocaleProvider";
 import { WholesaleNavLink } from "@/components/WholesaleNavLink";
 
@@ -98,7 +97,6 @@ function PaymentMarks() {
 }
 
 export function Footer() {
-  const contactEmails = getContactEmails();
   const t = useT();
   type FooterLink = { label: string; href?: string; wholesale?: string };
   const businessLinks: FooterLink[] = [
@@ -257,24 +255,15 @@ export function Footer() {
             </div>
           </div>
           <div className="flex min-w-0 gap-2 sm:gap-3 lg:max-w-md">
-            <Mail className="mt-0.5 h-4 w-4 shrink-0 text-[#C9A84C] sm:h-5 sm:w-5" />
+            <Phone className="mt-0.5 h-4 w-4 shrink-0 text-[#C9A84C] sm:h-5 sm:w-5" />
             <div className="min-w-0">
               <p className="text-[9px] uppercase tracking-[0.16em] text-[#C9A84C] sm:text-[11px] sm:tracking-[0.2em]">{t("footer.contact")}</p>
-              <ul className="mt-1 space-y-0.5">
-                {contactEmails.map((email) => (
-                  <li key={email}>
-                    <a
-                      href={`mailto:${email}`}
-                      className="break-all text-[11px] text-cream-100/75 transition hover:text-[#C9A84C] sm:text-sm"
-                    >
-                      {email}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-              <a href={`tel:${company.phoneTel}`} className="mt-1.5 block text-[11px] text-cream-100/65 hover:text-[#C9A84C] sm:text-sm">
+              <a href={`tel:${company.phoneTel}`} className="mt-1 block text-[11px] text-cream-100/75 hover:text-[#C9A84C] sm:text-sm">
                 {company.phone}
               </a>
+              <Link href="/contact" className="mt-1.5 block text-[11px] text-cream-100/65 underline hover:text-[#C9A84C] sm:text-sm">
+                Contact form
+              </Link>
             </div>
           </div>
           <div className="flex shrink-0 flex-wrap justify-end gap-1.5 sm:gap-2.5">

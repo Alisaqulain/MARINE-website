@@ -26,3 +26,20 @@ export async function PATCH(req: Request, ctx: Ctx) {
   await db.collection<Testimonial>("testimonials").updateOne({ _id: new ObjectId(id) }, { $set: update });
   return NextResponse.json({ ok: true });
 }
+
+export async function DELETE(_req: Request, ctx: Ctx) {
+  const session = await auth();
+  if (session?.user?.role !== "admin") {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const { id } = await ctx.params;
+  if (!ObjectId.isValid(id)) {
+    return NextResponse.json({ error: "Invalid id" }, { status: 400 });
+  }
+  const db = await getDb();
+  const result = await db.collection("testimonials").deleteOne({ _id: new ObjectId(id) });
+  if (result.deletedCount === 0) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+  return NextResponse.json({ ok: true });
+}

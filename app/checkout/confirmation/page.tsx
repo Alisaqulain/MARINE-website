@@ -119,7 +119,10 @@ function ConfirmationBody() {
         </p>
 
         <p className="mt-6 text-sm text-navy-600">
-          Customer support: {company.email} · {company.phone}
+          Customer support: {company.phone} ·{" "}
+          <Link href="/contact" className="text-[#8C6E28] underline">
+            Contact us
+          </Link>
         </p>
       </div>
 
@@ -133,10 +136,10 @@ function ConfirmationBody() {
             WhatsApp confirmation
           </a>
         ) : null}
-        <a href={`mailto:${company.email}`} className="inline-flex items-center gap-2 text-sm text-navy-600 underline">
+        <Link href="/contact" className="inline-flex items-center gap-2 text-sm text-navy-600 underline">
           <Mail className="h-4 w-4" />
-          Email support
-        </a>
+          Contact support
+        </Link>
       </div>
     </div>
   );

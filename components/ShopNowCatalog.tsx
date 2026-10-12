@@ -4,8 +4,8 @@ import { CatalogCard } from "@/components/CatalogCard";
 import { getProductCategory } from "@/lib/catalog";
 import { findShopNowLabel, shopNowSubtree, shopNowTree } from "@/lib/shop-now-data";
 import { products as staticProducts, type Product } from "@/lib/products";
-import { ChevronDown, ChevronRight, LayoutGrid, LayoutList, Search } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Camera, ChevronDown, ChevronRight, LayoutGrid, LayoutList, Search } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 const PAGE_SIZE = 24;
 
@@ -18,6 +18,7 @@ export function ShopNowCatalog({ retail = false }: { retail?: boolean }) {
   const [grid, setGrid] = useState(true);
   const [limit, setLimit] = useState(PAGE_SIZE);
   const [query, setQuery] = useState("");
+  const visualSearchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const channel = retail ? "retail" : "wholesale";
@@ -238,52 +239,74 @@ export function ShopNowCatalog({ retail = false }: { retail?: boolean }) {
         </aside>
 
         <div className="min-w-0 flex-1 px-4 py-4 md:py-6 lg:px-6">
-          <div className="mb-3 flex flex-col gap-3 md:mb-4 lg:flex-row lg:items-center lg:gap-4">
+          <div className="mb-2 flex flex-col gap-2 md:mb-4 lg:flex-row lg:items-center lg:gap-4">
             <Title className="min-w-0 shrink-0 font-serif text-lg leading-tight text-navy-900 sm:text-2xl lg:max-w-[38%]">
               {title}
               <span className="ml-1.5 text-[11px] font-normal text-[#999] sm:ml-2 sm:text-[13px]">({list.length})</span>
             </Title>
-            <label className="relative min-w-0 flex-1 lg:mx-2">
-              <span className="sr-only">{retail ? "Search B2C products" : "Search B2B products"}</span>
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#999]" />
+            <div className="flex min-w-0 flex-1 items-center gap-1.5 lg:mx-2 lg:gap-2">
+              <label className="relative min-w-0 flex-1">
+                <span className="sr-only">{retail ? "Search B2C products" : "Search B2B products"}</span>
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#999] md:left-3 md:h-4 md:w-4" />
+                <input
+                  type="search"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder={retail ? "Search retail…" : "Search wholesale…"}
+                  className="w-full rounded-full border border-[#ddd] bg-white py-1.5 pl-8 pr-2 text-xs text-[#222] placeholder:text-[#aaa] focus:border-[#C9A84C] focus:outline-none focus:ring-1 focus:ring-[#C9A84C]/40 md:py-2 md:pl-9 md:pr-4 md:text-sm"
+                />
+              </label>
               <input
-                type="search"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder={retail ? "Search retail products…" : "Search wholesale products…"}
-                className="w-full rounded-full border border-[#ddd] bg-white py-2 pl-9 pr-4 text-sm text-[#222] placeholder:text-[#aaa] focus:border-[#C9A84C] focus:outline-none focus:ring-1 focus:ring-[#C9A84C]/40"
+                ref={visualSearchRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = "";
+                  if (!file) return;
+                  const base = file.name.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ");
+                  if (base.length > 2) setQuery(base);
+                }}
               />
-            </label>
-            <div className="flex shrink-0 items-center justify-end gap-2 sm:gap-3">
+              <button
+                type="button"
+                aria-label="Search by photo name"
+                title="Pick a photo — we match products from the file name (use a clear product photo name when possible)"
+                onClick={() => visualSearchRef.current?.click()}
+                className="shrink-0 rounded-full border border-[#ddd] bg-white p-1.5 text-[#666] hover:border-[#C9A84C] md:p-2"
+              >
+                <Camera className="h-3.5 w-3.5 md:h-4 md:w-4" />
+              </button>
               <select
                 value={sort}
                 onChange={(e) => setSort(e.target.value)}
                 aria-label="Sort products"
-                className="min-w-0 rounded-full border border-[#ddd] bg-white px-3 py-1 text-[12px] sm:px-4 sm:py-1.5 sm:text-sm"
+                className="max-w-[5.5rem] shrink-0 rounded-full border border-[#ddd] bg-white px-2 py-1.5 text-[11px] sm:max-w-none sm:px-3 sm:text-[12px] md:py-1.5 md:text-sm"
               >
                 <option value="new">New</option>
-                <option value="price-asc">Price: Low to high</option>
-                <option value="price-desc">Price: High to low</option>
+                <option value="price-asc">Price ↑</option>
+                <option value="price-desc">Price ↓</option>
                 <option value="rating">Top rated</option>
               </select>
-              <div className="flex shrink-0 items-center gap-1.5 text-[#888] sm:gap-2">
+              <div className="flex shrink-0 items-center gap-0.5 text-[#888] sm:gap-1.5">
                 <button
                   type="button"
                   aria-label="Grid view"
                   aria-pressed={grid}
                   onClick={() => setGrid(true)}
-                  className={grid ? "text-[#222]" : ""}
+                  className={`p-0.5 ${grid ? "text-[#222]" : ""}`}
                 >
-                  <LayoutGrid className="h-[18px] w-[18px] sm:h-5 sm:w-5" />
+                  <LayoutGrid className="h-4 w-4 sm:h-[18px] sm:w-[18px] md:h-5 md:w-5" />
                 </button>
                 <button
                   type="button"
                   aria-label="List view"
                   aria-pressed={!grid}
                   onClick={() => setGrid(false)}
-                  className={!grid ? "text-[#222]" : ""}
+                  className={`p-0.5 ${!grid ? "text-[#222]" : ""}`}
                 >
-                  <LayoutList className="h-[18px] w-[18px] sm:h-5 sm:w-5" />
+                  <LayoutList className="h-4 w-4 sm:h-[18px] sm:w-[18px] md:h-5 md:w-5" />
                 </button>
               </div>
             </div>

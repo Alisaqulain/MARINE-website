@@ -37,6 +37,10 @@ export function AdminDashboard() {
   const [panel, setPanel] = useState<Panel>("customer");
   const [tab, setTab] = useState<Tab>("overview");
   const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    setOpen(window.innerWidth >= 1024);
+  }, []);
   const [quotes, setQuotes] = useState<Record<string, unknown>[]>([]);
   const [applications, setApplications] = useState<Record<string, unknown>[]>([]);
   const [contacts, setContacts] = useState<Record<string, unknown>[]>([]);
@@ -108,17 +112,17 @@ export function AdminDashboard() {
     void load();
   }, [load]);
 
+  const loadVisitors = useCallback(async () => {
+    const res = await fetch(`/api/admin/page-views?page=${visitorPage}&pageSize=25`);
+    const data = await res.json();
+    setVisitors(data.items ?? []);
+    setVisitorPagination(data.pagination ?? { total: 0, totalPages: 1, pageSize: 25 });
+  }, [visitorPage]);
+
   useEffect(() => {
     if (tab !== "visitors") return;
-    void (async () => {
-      const res = await fetch(`/api/admin/page-views?page=${visitorPage}&pageSize=25`);
-      const data = await res.json();
-      setVisitors(data.items ?? []);
-      setVisitorPagination(
-        data.pagination ?? { total: 0, totalPages: 1, pageSize: 25 }
-      );
-    })();
-  }, [tab, visitorPage]);
+    void loadVisitors();
+  }, [tab, loadVisitors]);
 
   useEffect(() => {
     setProductPage(1);
@@ -139,6 +143,7 @@ export function AdminDashboard() {
       ? [
           { id: "overview", label: "Overview", icon: Package },
           { id: "products", label: "Products", icon: Package },
+          { id: "users", label: "Customers", icon: Users },
           { id: "quotes", label: "Bulk quotes", icon: FileText },
           { id: "applications", label: "Trade accounts", icon: Users },
           { id: "contacts", label: "Contact", icon: MessageSquare },
@@ -223,16 +228,29 @@ export function AdminDashboard() {
   }
 
   return (
-    <div className="flex min-h-screen bg-[#F4F1EA]">
+    <div className="min-h-screen bg-[#F4F1EA]">
       {open ? (
-        <button aria-label="Close menu" className="fixed inset-0 z-30 bg-black/40 lg:hidden" onClick={() => setOpen(false)} />
+        <button
+          type="button"
+          aria-label="Close menu"
+          className="fixed inset-0 z-30 bg-black/45 lg:hidden"
+          onClick={() => setOpen(false)}
+        />
       ) : null}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex h-dvh max-h-dvh w-[260px] flex-col overflow-hidden bg-[#031D38] text-white transition-transform lg:sticky lg:top-0 lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 flex h-dvh max-h-dvh w-[260px] flex-col overflow-hidden bg-[#031D38] text-white transition-transform duration-300 ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="shrink-0 border-b border-white/10 px-5 py-5">
+        <div className="relative shrink-0 border-b border-white/10 px-5 py-5 pr-12">
+          <button
+            type="button"
+            aria-label="Close menu"
+            className="absolute right-3 top-3 rounded-lg p-1.5 text-white/80 hover:bg-white/10"
+            onClick={() => setOpen(false)}
+          >
+            <X className="h-5 w-5" />
+          </button>
           <Link href="/" className="block">
             <BrandLogo size="admin" priority />
           </Link>
@@ -267,7 +285,7 @@ export function AdminDashboard() {
               type="button"
               onClick={() => {
                 setTab(item.id);
-                setOpen(false);
+                if (window.innerWidth < 1024) setOpen(false);
               }}
               className={`flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm ${
                 tab === item.id ? "bg-white/10 text-[#C9A84C]" : "text-white/80 hover:bg-white/5"
@@ -294,14 +312,20 @@ export function AdminDashboard() {
         </div>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-between border-b border-[#e6dfd2] bg-white px-4 py-3 lg:px-8">
-          <button type="button" className="lg:hidden" onClick={() => setOpen(true)} aria-label="Open menu">
-            <Menu className="h-6 w-6 text-navy-900" />
-          </button>
-          <h1 className="font-serif text-xl text-navy-900 capitalize">
-            {panel} · {nav.find((n) => n.id === tab)?.label}
-          </h1>
+      <div
+        className={`flex min-h-screen min-w-0 flex-col transition-[padding] duration-300 ${open ? "lg:pl-[260px]" : ""}`}
+      >
+        <header className="flex items-center justify-between gap-3 border-b border-[#e6dfd2] bg-white px-4 py-3 lg:px-8">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            {!open ? (
+              <button type="button" onClick={() => setOpen(true)} aria-label="Open menu">
+                <Menu className="h-6 w-6 shrink-0 text-navy-900" />
+              </button>
+            ) : null}
+            <h1 className="min-w-0 font-serif text-xl text-navy-900 capitalize">
+              {panel} · {nav.find((n) => n.id === tab)?.label}
+            </h1>
+          </div>
           <div className="flex items-center gap-3">
             <button type="button" className="text-sm text-[#8C6E28] underline" onClick={() => void load()}>
               Refresh
@@ -577,16 +601,44 @@ export function AdminDashboard() {
             </div>
           ) : null}
 
-          {tab === "quotes" ? <DataTable rows={quotes} columns={["email", "product", "quantity", "requiredDeliveryDate", "status", "createdAt"]} /> : null}
-          {tab === "applications" ? <DataTable rows={applications} columns={["company", "contact", "email", "businessType", "status", "createdAt"]} /> : null}
-          {tab === "contacts" ? <DataTable rows={contacts} columns={["kind", "name", "email", "subject", "createdAt"]} /> : null}
-          {tab === "returns" ? <DataTable rows={returns} columns={["orderNumber", "customerName", "productName", "status", "createdAt"]} /> : null}
+          {tab === "quotes" ? (
+            <AdminDataTable
+              rows={quotes}
+              columns={["email", "product", "quantity", "requiredDeliveryDate", "status", "createdAt"]}
+              deletePath={(id) => `/api/quotes/${id}`}
+              onReload={load}
+            />
+          ) : null}
+          {tab === "applications" ? (
+            <TradeAccountsPanel rows={applications} onReload={load} />
+          ) : null}
+          {tab === "contacts" ? (
+            <AdminDataTable
+              rows={contacts}
+              columns={["kind", "name", "email", "subject", "createdAt"]}
+              deletePath={(id) => `/api/contact/${id}`}
+              onReload={load}
+            />
+          ) : null}
+          {tab === "returns" ? (
+            <AdminDataTable
+              rows={returns}
+              columns={["orderNumber", "customerName", "productName", "status", "createdAt"]}
+              deletePath={(id) => `/api/returns/${id}`}
+              onReload={load}
+            />
+          ) : null}
           {tab === "users" ? (
             <div className="overflow-x-auto rounded-xl bg-white shadow-sm">
               <div className="border-b bg-[#FAF7F2] px-4 py-3 text-xs text-navy-600">
-                Customers ({users.length} total)
+                {panel === "wholesale" ? "Wholesale customers" : "Retail customers"} ({users.length} total)
               </div>
-              <DataTable rows={pagedCustomers} columns={["name", "email", "role", "createdAt"]} />
+              <AdminDataTable
+                rows={pagedCustomers}
+                columns={["name", "email", "role", "createdAt"]}
+                deletePath={(id) => `/api/admin/customers/${id}`}
+                onReload={load}
+              />
               <AdminListPagination
                 className="border-t px-4 py-3"
                 page={customerPage}
@@ -602,7 +654,11 @@ export function AdminDashboard() {
             </div>
           ) : null}
           {tab === "testimonials" ? (
-            <AdminReviewsPanel rows={testimonials} onReload={() => void load()} />
+            <AdminReviewsPanel
+              rows={testimonials}
+              onReload={() => void load()}
+              onDelete={(id) => void deleteRow(`/api/testimonials/${id}`, load)}
+            />
           ) : null}
           {tab === "visitors" ? (
             <div className="overflow-x-auto rounded-xl bg-white shadow-sm">
@@ -615,12 +671,13 @@ export function AdminDashboard() {
                     <th className="px-4 py-3">When</th>
                     <th className="px-4 py-3">Path</th>
                     <th className="px-4 py-3">User agent</th>
+                    <th className="px-4 py-3">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {visitors.length === 0 ? (
                     <tr>
-                      <td colSpan={3} className="px-4 py-8 text-center text-navy-600">
+                      <td colSpan={4} className="px-4 py-8 text-center text-navy-600">
                         No visits recorded yet.
                       </td>
                     </tr>
@@ -630,6 +687,15 @@ export function AdminDashboard() {
                         <td className="whitespace-nowrap px-4 py-3 text-navy-600">{String(v.at ?? "—")}</td>
                         <td className="max-w-[280px] truncate px-4 py-3 font-medium">{String(v.path ?? "—")}</td>
                         <td className="max-w-[360px] truncate px-4 py-3 text-xs text-navy-500">{String(v.userAgent ?? "—")}</td>
+                        <td className="px-4 py-3">
+                          <button
+                            type="button"
+                            className="text-xs font-semibold text-red-700 underline"
+                            onClick={() => void deleteRow(`/api/admin/page-views/${v.id}`, loadVisitors)}
+                          >
+                            Delete
+                          </button>
+                        </td>
                       </tr>
                     ))
                   )}
@@ -745,9 +811,11 @@ function Stat({ label, value }: { label: string; value: string }) {
 function AdminReviewsPanel({
   rows,
   onReload,
+  onDelete,
 }: {
   rows: Record<string, unknown>[];
   onReload: () => void;
+  onDelete: (id: string) => void;
 }) {
   if (!rows.length) return <p className="text-sm text-navy-600">No reviews yet.</p>;
 
@@ -773,6 +841,7 @@ function AdminReviewsPanel({
             <th className="px-4 py-3">Product</th>
             <th className="px-4 py-3">Show on home</th>
             <th className="px-4 py-3">Published</th>
+            <th className="px-4 py-3">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -808,6 +877,15 @@ function AdminReviewsPanel({
                     {published ? "Yes" : "No"}
                   </label>
                 </td>
+                <td className="px-4 py-3">
+                  <button
+                    type="button"
+                    className="text-xs font-semibold text-red-700 underline"
+                    onClick={() => onDelete(id)}
+                  >
+                    Delete
+                  </button>
+                </td>
               </tr>
             );
           })}
@@ -817,7 +895,28 @@ function AdminReviewsPanel({
   );
 }
 
-function DataTable({ rows, columns }: { rows: Record<string, unknown>[]; columns: string[] }) {
+async function deleteRow(url: string, onDone: () => void) {
+  if (!confirm("Delete this record permanently?")) return;
+  const res = await fetch(url, { method: "DELETE" });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    alert(typeof data.error === "string" ? data.error : "Delete failed");
+    return;
+  }
+  onDone();
+}
+
+function AdminDataTable({
+  rows,
+  columns,
+  deletePath,
+  onReload,
+}: {
+  rows: Record<string, unknown>[];
+  columns: string[];
+  deletePath?: (id: string) => string;
+  onReload: () => void;
+}) {
   if (!rows.length) return <p className="text-sm text-navy-600">No records yet.</p>;
   return (
     <div className="overflow-x-auto rounded-xl bg-white shadow-sm">
@@ -829,6 +928,7 @@ function DataTable({ rows, columns }: { rows: Record<string, unknown>[]; columns
                 {c}
               </th>
             ))}
+            {deletePath ? <th className="px-4 py-3">Actions</th> : null}
           </tr>
         </thead>
         <tbody>
@@ -839,8 +939,81 @@ function DataTable({ rows, columns }: { rows: Record<string, unknown>[]; columns
                   {String(row[c] ?? "")}
                 </td>
               ))}
+              {deletePath ? (
+                <td className="px-4 py-3">
+                  <button
+                    type="button"
+                    className="text-xs font-semibold text-red-700 underline"
+                    onClick={() => void deleteRow(deletePath(String(row.id)), onReload)}
+                  >
+                    Delete
+                  </button>
+                </td>
+              ) : null}
             </tr>
           ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function TradeAccountsPanel({
+  rows,
+  onReload,
+}: {
+  rows: Record<string, unknown>[];
+  onReload: () => void;
+}) {
+  if (!rows.length) return <p className="text-sm text-navy-600">No trade applications yet.</p>;
+
+  return (
+    <div className="overflow-x-auto rounded-xl bg-white shadow-sm">
+      <table className="min-w-full text-left text-sm">
+        <thead className="border-b bg-[#FAF7F2] text-xs uppercase tracking-wide text-navy-600">
+          <tr>
+            {[
+              "company",
+              "contact",
+              "email",
+              "phone",
+              "businessType",
+              "taxId",
+              "productInterest",
+              "createdAt",
+            ].map((c) => (
+              <th key={c} className="whitespace-nowrap px-3 py-3">
+                {c}
+              </th>
+            ))}
+            <th className="px-3 py-3">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => {
+            const id = String(row.id);
+            return (
+              <tr key={id} className="border-b border-[#f0ebe3] align-top">
+                <td className="max-w-[140px] px-3 py-3">{String(row.company ?? "")}</td>
+                <td className="px-3 py-3">{String(row.contact ?? "")}</td>
+                <td className="max-w-[160px] truncate px-3 py-3">{String(row.email ?? "")}</td>
+                <td className="whitespace-nowrap px-3 py-3">{String(row.phone ?? "")}</td>
+                <td className="px-3 py-3">{String(row.businessType ?? "")}</td>
+                <td className="px-3 py-3">{String(row.taxId ?? "")}</td>
+                <td className="max-w-[180px] px-3 py-3 text-xs">{String(row.productInterest ?? "")}</td>
+                <td className="whitespace-nowrap px-3 py-3 text-xs text-navy-600">{String(row.createdAt ?? "")}</td>
+                <td className="px-3 py-3">
+                  <button
+                    type="button"
+                    className="text-xs font-semibold text-red-700 underline"
+                    onClick={() => void deleteRow(`/api/wholesale/application/${id}`, onReload)}
+                  >
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

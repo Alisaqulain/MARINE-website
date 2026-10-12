@@ -74,7 +74,7 @@ function CategoryTile({
           />
         </div>
       </div>
-      <p className="mt-1.5 min-h-[2.5em] text-[10px] font-medium leading-tight text-[#3A6EA5] sm:text-[12px] lg:mt-2.5 lg:min-h-0 lg:text-[13px]">{name}</p>
+      <p className="mt-1.5 min-h-[2.5em] text-[10px] font-medium leading-tight text-[#111] sm:text-[12px] lg:mt-2.5 lg:min-h-0 lg:text-[13px]">{name}</p>
     </Link>
   );
 }

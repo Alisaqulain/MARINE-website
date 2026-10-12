@@ -58,9 +58,17 @@ export async function GET() {
   return NextResponse.json({
     items: items.map((a) => ({
       id: String(a._id),
-      ...a,
-      _id: undefined,
       userId: String(a.userId),
+      email: a.email,
+      company: a.company,
+      contact: a.contact,
+      phone: a.phone,
+      website: a.website,
+      businessType: a.businessType,
+      taxId: a.taxId,
+      productInterest: a.productInterest,
+      productInterestOther: a.productInterestOther,
+      status: a.status,
       createdAt: a.createdAt.toISOString(),
     })),
   });

@@ -33,11 +33,11 @@ export function HeaderAuth() {
       <div className="flex items-center gap-0.5">
         <Link
           href="/account"
-          className="inline-flex max-w-[5.5rem] items-center gap-1.5 truncate px-2 py-2 text-[10px] font-medium uppercase tracking-[0.12em] text-white/85 hover:text-[#C9A84C] sm:max-w-[7rem]"
+          className="inline-flex max-w-[4rem] items-center gap-1 truncate px-1.5 py-2 text-[10px] font-medium uppercase tracking-[0.1em] text-white/85 hover:text-[#C9A84C] xl:max-w-[7rem] xl:gap-1.5 xl:px-2 xl:tracking-[0.12em]"
           title={session.user.email ?? undefined}
         >
           <User className="h-4 w-4 shrink-0" />
-          <span className="truncate">{label}</span>
+          <span className="hidden truncate xl:inline">{label}</span>
         </Link>
         <button
           type="button"
