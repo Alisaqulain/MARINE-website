@@ -74,7 +74,7 @@ export function LanguageSwitcher() {
                   >
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-medium">{l.name}</span>
-                      {l.code === "ar" || l.code === "zh" || l.code === "hi" ? (
+                      {l.code !== "en" ? (
                         <span className="block truncate text-[10px] text-white/45">{l.native}</span>
                       ) : null}
                     </span>

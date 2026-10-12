@@ -1,10 +1,12 @@
 "use client";
 
 import { showsFreeShipping, type Product } from "@/lib/products";
+import { imageAdjustStyle, lowStockMessage } from "@/lib/product-display";
 import { useWishlist } from "@/lib/wishlist-context";
 import { Heart } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import { ImageOverlayText } from "./ImageOverlayText";
 import { FreeShippingTag } from "./FreeShippingTag";
 import { PriceRow } from "./PriceRow";
 import { ProductName } from "./ProductName";
@@ -23,7 +25,9 @@ export function ProductCard({ product }: { product: Product }) {
             fill
             sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
             className="object-cover transition duration-300 group-hover:scale-[1.03]"
+            style={imageAdjustStyle(product.imageAdjust)}
           />
+          <ImageOverlayText text={product.listingImages?.[0]?.text} />
         </Link>
         <button
           type="button"
@@ -44,6 +48,9 @@ export function ProductCard({ product }: { product: Product }) {
         </h3>
       </Link>
       <PriceRow price={product.price} className="mt-1" />
+      {lowStockMessage(product.quantity) ? (
+        <p className="mt-1 text-[12px] font-medium text-[#9a3412]">{lowStockMessage(product.quantity)}</p>
+      ) : null}
       {showsFreeShipping(product) ? <FreeShippingTag /> : null}
     </article>
   );

@@ -12,7 +12,7 @@ export function TopBar() {
 
   return (
     <div className="relative z-50 bg-[#081525] text-[11px] text-[#d9c9a3]">
-      <div className="mx-auto flex max-w-[1320px] items-center justify-between gap-2 px-3 py-3 text-[12.5px] sm:gap-4 sm:px-5 md:py-[7px] md:text-[11px]">
+      <div className="mx-auto flex max-w-[1320px] items-center justify-between gap-2 px-3 py-3 text-[13px] sm:gap-4 sm:px-5 md:py-2.5 md:text-sm">
         <div className="hidden items-center gap-4 md:flex">
           <span className="inline-flex items-center gap-1.5">
             <ShieldCheck className="h-3 w-3 text-[#C9A84C]" />

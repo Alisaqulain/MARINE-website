@@ -150,12 +150,17 @@ export default function CheckoutPage() {
       <aside className="sticky top-[calc(var(--site-nav)+1rem)] h-fit self-start rounded-2xl border border-cream-300/80 bg-white p-6 shadow-soft">
         <h2 className="font-serif text-2xl text-navy-900">Order summary</h2>
         <ul className="mt-4 divide-y divide-cream-300 border-b border-cream-300 pb-4">
-          {items.map(({ product, qty }) => (
-            <li key={product.slug} className="flex justify-between gap-3 py-3 text-sm first:pt-0">
+          {items.map(({ product, qty, personalisation, message, unitPrice }) => (
+            <li key={`${product.slug}-${personalisation ?? ""}-${message ?? ""}`} className="flex justify-between gap-3 py-3 text-sm first:pt-0">
               <span className="min-w-0 text-navy-800">
                 {product.name} × {qty}
+                {personalisation === "yes" ? (
+                  <span className="mt-0.5 block text-xs text-navy-500">
+                    Personalisation{message ? `: ${message}` : ""}
+                  </span>
+                ) : null}
               </span>
-              <span className="shrink-0 font-medium">{formatPrice(product.price * qty)}</span>
+              <span className="shrink-0 font-medium">{formatPrice(unitPrice * qty)}</span>
             </li>
           ))}
         </ul>

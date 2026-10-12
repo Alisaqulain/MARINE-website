@@ -26,8 +26,8 @@ export default function CartPage() {
       <div className="min-w-0">
         <h1 className="font-serif text-3xl md:text-4xl">Cart</h1>
         <ul className="mt-8 divide-y divide-cream-300">
-          {items.map(({ product, qty, b2b }) => (
-            <li key={product.slug} className="flex gap-3 py-6 sm:gap-4">
+          {items.map(({ product, qty, b2b, personalisation, message, unitPrice }) => (
+            <li key={`${product.slug}-${personalisation ?? ""}-${message ?? ""}`} className="flex gap-3 py-6 sm:gap-4">
               <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-cream-200 sm:h-28 sm:w-28">
                 <Image src={product.image} alt="" fill className="object-cover" />
               </div>
@@ -35,7 +35,12 @@ export default function CartPage() {
                 <Link href={`/product/${product.slug}`} className="font-serif text-lg leading-snug sm:text-2xl">
                   {product.name}
                 </Link>
-                <p className="text-sm text-navy-600">{formatPrice(product.price)}</p>
+                <p className="text-sm text-navy-600">{formatPrice(unitPrice)}</p>
+                {personalisation === "yes" ? (
+                  <p className="text-xs text-navy-600">Personalisation{message ? `: ${message}` : ""}</p>
+                ) : personalisation === "no" ? (
+                  <p className="text-xs text-navy-600">No personalisation</p>
+                ) : null}
                 <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
                   <div className="flex items-center rounded-full border border-cream-300">
                     <button
@@ -63,7 +68,7 @@ export default function CartPage() {
                   </button>
                 </div>
               </div>
-              <p className="shrink-0 font-serif text-base sm:text-xl">{formatPrice(product.price * qty)}</p>
+              <p className="shrink-0 font-serif text-base sm:text-xl">{formatPrice(unitPrice * qty)}</p>
             </li>
           ))}
         </ul>

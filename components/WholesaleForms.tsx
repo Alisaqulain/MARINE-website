@@ -98,20 +98,11 @@ function ProductPicker({
           <option value="" disabled>
             Select a product
           </option>
-          <optgroup label="B2C Retail Collection">
-            {catalogProducts.map((p) => (
-              <option key={`${name}-b2c-${p.slug}`} value={`b2c:${p.slug}`}>
-                {p.name}
-              </option>
-            ))}
-          </optgroup>
-          <optgroup label="B2B Wholesale Collection">
-            {catalogProducts.map((p) => (
-              <option key={`${name}-b2b-${p.slug}`} value={`b2b:${p.slug}`}>
-                {p.name}
-              </option>
-            ))}
-          </optgroup>
+          {catalogProducts.map((p) => (
+            <option key={`${name}-${p.slug}`} value={p.slug}>
+              {p.name}
+            </option>
+          ))}
           <option value="other">Other</option>
         </select>
       </label>

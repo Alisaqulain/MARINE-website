@@ -8,6 +8,8 @@ export type OrderItem = {
   qty: number;
   unitPrice: number;
   b2b?: boolean;
+  personalisation?: "yes" | "no";
+  message?: string;
 };
 
 export type OrderTrackingStage = "processing" | "in_transit" | "out_for_delivery" | "delivered";
@@ -111,21 +113,32 @@ export function trackOrderByEmail(orderId: string, email: string) {
   return order;
 }
 
-export async function pricedItemsAsync(lines: { slug: string; qty: number; b2b?: boolean }[]) {
+export async function pricedItemsAsync(
+  lines: { slug: string; qty: number; b2b?: boolean; personalisation?: string; message?: string }[]
+) {
   const items: OrderItem[] = [];
   let amount = 0;
   for (const line of lines) {
     const product = (await getStorefrontProduct(line.slug)) ?? getProduct(line.slug);
     if (!product) continue;
     const qty = Math.max(1, Math.floor(Number(line.qty) || 1));
+    const personalisation = line.personalisation === "yes" || line.personalisation === "no" ? line.personalisation : undefined;
+    const charge =
+      personalisation === "yes" && product.personalisationPrice != null
+        ? Math.max(0, product.personalisationPrice)
+        : 0;
+    const message = personalisation === "yes" ? String(line.message ?? "").trim().slice(0, 300) : undefined;
+    const unitPrice = product.price + charge;
     items.push({
       slug: product.slug,
       name: product.name,
       qty,
-      unitPrice: product.price,
+      unitPrice,
       b2b: Boolean(line.b2b),
+      personalisation,
+      message,
     });
-    amount += product.price * qty;
+    amount += unitPrice * qty;
   }
   return { items, amount: Number(amount.toFixed(2)) };
 }
@@ -157,7 +170,10 @@ export function publicOrder(order: OrderRecord) {
 export async function sendOrderConfirmation(order: OrderRecord) {
   const support = `${company.email} · ${company.phone}`;
   const lines = order.items
-    .map((i) => `${i.name} × ${i.qty} — $${(i.unitPrice * i.qty).toFixed(2)}`)
+    .map((i) => {
+      const note = i.personalisation === "yes" ? ` · Personalisation${i.message ? `: ${i.message}` : ""}` : "";
+      return `${i.name} × ${i.qty} — $${(i.unitPrice * i.qty).toFixed(2)}${note}`;
+    })
     .join("\n");
   const text = [
     `Order confirmation — ${company.name}`,

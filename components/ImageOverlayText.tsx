@@ -1,0 +1,11 @@
+export function ImageOverlayText({ text, className }: { text?: string; className?: string }) {
+  const label = text?.trim();
+  if (!label) return null;
+  return (
+    <span
+      className={`pointer-events-none absolute inset-x-2 z-[2] text-center text-sm font-semibold leading-snug text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.9),0_0_8px_rgba(0,0,0,0.65)] ${className ?? "bottom-3"}`}
+    >
+      {label}
+    </span>
+  );
+}

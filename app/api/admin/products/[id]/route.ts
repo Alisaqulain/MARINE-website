@@ -3,6 +3,7 @@ import { ObjectId } from "mongodb";
 import { auth } from "@/auth";
 import { getDb } from "@/lib/mongodb";
 import type { AdminProduct } from "@/lib/db/types";
+import { parseProductExtras } from "@/lib/product-fields";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -38,7 +39,20 @@ export async function PATCH(req: Request, ctx: Ctx) {
 
   const body = await req.json();
   const fields = parseBody(body);
-  const update: Partial<AdminProduct> = { updatedAt: new Date() };
+  const extras = parseProductExtras(body);
+  const update: Partial<AdminProduct> = {
+    updatedAt: new Date(),
+    categories: extras.categories,
+    imageAdjust: extras.imageAdjust,
+    colors: extras.colors,
+    materials: extras.materials,
+    sizes: extras.sizes,
+    images: extras.images,
+    personalisationPrice: extras.personalisationPrice,
+    quantity: extras.quantity,
+    stock: extras.stock,
+    channel: "both",
+  };
   if (fields.name !== undefined) update.name = fields.name;
   if (fields.sku !== undefined) update.sku = fields.sku;
   if (fields.price !== undefined) update.price = fields.price;
@@ -47,7 +61,6 @@ export async function PATCH(req: Request, ctx: Ctx) {
   if (fields.quantity !== undefined) update.quantity = fields.quantity;
   if (fields.image !== undefined) update.image = fields.image;
   if (fields.description !== undefined) update.description = fields.description;
-  if (fields.channel !== undefined) update.channel = fields.channel;
   if (fields.active !== undefined) update.active = fields.active;
   if (fields.freeShipping !== undefined) update.freeShipping = fields.freeShipping;
 

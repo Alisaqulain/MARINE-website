@@ -2,6 +2,7 @@
 
 import {
   B2B_MIN_ORDER_QTY,
+  formatPrice,
   getCollection,
   getProduct,
   products,
@@ -37,6 +38,8 @@ import { companyWhatsApp } from "@/lib/company";
 import { FreeShippingTag } from "@/components/FreeShippingTag";
 import { PriceRow } from "@/components/PriceRow";
 import { ProductGalleryViewer } from "@/components/ProductGalleryViewer";
+import { imageAdjustStyle, lowStockMessage } from "@/lib/product-display";
+import { imageIndexForColor } from "@/lib/listing-images";
 
 export default function ProductPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -75,6 +78,11 @@ export default function ProductPage() {
   const { has, toggle } = useWishlist();
   const [active, setActive] = useState(0);
   const [added, setAdded] = useState(false);
+  const [color, setColor] = useState("");
+  const [material, setMaterial] = useState("");
+  const [size, setSize] = useState("");
+  const [personalisation, setPersonalisation] = useState<"" | "yes" | "no">("");
+  const [personalisationMessage, setPersonalisationMessage] = useState("");
 
   const category = useMemo(() => {
     if (!product) return null;
@@ -108,15 +116,31 @@ export default function ProductPage() {
     );
   }
 
-  const stockLabel =
-    product.stock === "in-stock"
+  const stockAlert = lowStockMessage(product.quantity);
+  const stockLabel = stockAlert
+    ? stockAlert
+    : product.stock === "in-stock"
       ? "In Stock"
       : product.stock === "low"
         ? "Low stock"
         : "Made to order";
 
+  const personalisationCharge =
+    product.personalisationPrice != null && Number.isFinite(product.personalisationPrice)
+      ? product.personalisationPrice
+      : null;
+  const displayPrice = product.price + (personalisation === "yes" && personalisationCharge != null ? personalisationCharge : 0);
+
   const handleAdd = () => {
-    add(product.slug, b2b ? B2B_MIN_ORDER_QTY : 1, { b2b });
+    add(product.slug, b2b ? B2B_MIN_ORDER_QTY : 1, {
+      b2b,
+      personalisation: personalisation === "yes" || personalisation === "no" ? personalisation : undefined,
+      message: personalisationMessage,
+      personalisationPrice: personalisationCharge ?? undefined,
+      name: product.name,
+      price: product.price,
+      image: product.image,
+    });
     setAdded(true);
     setTimeout(() => setAdded(false), 1800);
   };
@@ -146,9 +170,15 @@ export default function ProductPage() {
             <div className="relative">
               <ProductGalleryViewer
                 images={product.gallery.length ? product.gallery : [product.image]}
-                alt={product.name}
+                alt={product.listingImages?.[active]?.name || product.name}
                 active={active}
-                onActiveChange={setActive}
+                onActiveChange={(index) => {
+                  setActive(index);
+                  const nextColor = product.listingImages?.[index]?.color;
+                  if (nextColor) setColor(nextColor);
+                }}
+                imageStyle={imageAdjustStyle(product.imageAdjust)}
+                caption={product.listingImages?.[active]?.text}
               />
               <button
                 type="button"
@@ -162,11 +192,15 @@ export default function ProductPage() {
               </button>
             </div>
             </div>
-            <div className="mt-3 hidden grid-cols-4 gap-2.5 lg:grid">
-              {product.gallery.slice(0, 4).map((src, i) => (
+            <div className="mt-3 grid grid-cols-4 gap-2.5">
+              {product.gallery.map((src, i) => (
                 <button
                   key={src + i}
-                  onClick={() => setActive(i)}
+                  onClick={() => {
+                    setActive(i);
+                    const nextColor = product.listingImages?.[i]?.color;
+                    if (nextColor) setColor(nextColor);
+                  }}
                   className={`relative aspect-square overflow-hidden rounded-lg ${
                     active === i ? "ring-2 ring-[#C9A84C]" : "ring-1 ring-black/5"
                   }`}
@@ -192,13 +226,54 @@ export default function ProductPage() {
               <span className="text-navy-400">|</span>
               <span className="text-navy-500">{product.sku}</span>
             </div>
-            <PriceRow price={product.price} size="page" className="mt-3 md:mt-4" />
+            <PriceRow price={displayPrice} size="page" className="mt-3 md:mt-4" />
             {b2b && (
               <p className="mt-1 text-[13px] font-medium text-[#595959]">Min. Order: {B2B_MIN_ORDER_QTY}</p>
             )}
             {!b2b && showsFreeShipping(product) ? <FreeShippingTag /> : null}
+            <ColorSelect
+              options={product.colors}
+              value={color}
+              onChange={(next) => {
+                setColor(next);
+                const index = imageIndexForColor(product.listingImages, next);
+                if (index >= 0) setActive(index);
+              }}
+            />
+            <OptionRow label="Material" options={product.materials} value={material} onChange={setMaterial} />
+            <OptionRow label="Size" options={product.sizes} value={size} onChange={setSize} />
+            {personalisationCharge != null ? (
+              <div className="mt-4">
+                <label className="block text-[13px] font-medium text-navy-800">
+                  Personalisation
+                  <select
+                    className="input mt-2 font-normal"
+                    value={personalisation}
+                    onChange={(e) => setPersonalisation(e.target.value as "" | "yes" | "no")}
+                  >
+                    <option value="">Select an option</option>
+                    <option value="no">No Personalisation ({formatPrice(0)})</option>
+                    <option value="yes">Yes Personalisation ({formatPrice(personalisationCharge)})</option>
+                  </select>
+                </label>
+                {personalisation === "yes" ? (
+                  <label className="mt-3 block text-[13px] font-medium text-navy-800">
+                    Add your message
+                    <textarea
+                      className="input mt-2 min-h-20 font-normal"
+                      value={personalisationMessage}
+                      onChange={(e) => setPersonalisationMessage(e.target.value)}
+                      placeholder="Message to engrave or print"
+                      maxLength={300}
+                    />
+                  </label>
+                ) : null}
+              </div>
+            ) : null}
             <div className="mt-3 flex flex-wrap items-center gap-4 text-sm">
-              <span className="inline-flex items-center gap-1.5 text-emerald-700">
+              <span
+                className={`inline-flex items-center gap-1.5 ${stockAlert ? "font-medium text-[#9a3412]" : "text-emerald-700"}`}
+              >
                 <Check className="h-4 w-4" /> {stockLabel}
               </span>
               <span className="inline-flex items-center gap-1.5 text-navy-600">
@@ -316,6 +391,77 @@ export default function ProductPage() {
           currentProduct={product}
           wholesale={b2b}
         />
+      </div>
+    </div>
+  );
+}
+
+function ColorSelect({
+  options,
+  value,
+  onChange,
+}: {
+  options?: string[];
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  if (!options?.length) return null;
+  return (
+    <label className="mt-4 block text-[13px] font-medium text-navy-800">
+      Color
+      <select
+        className="input mt-2 font-normal"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        <option value="">Select a color</option>
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function OptionRow({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options?: string[];
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  if (!options?.length) return null;
+  return (
+    <div className="mt-4">
+      <p className="text-[13px] font-medium text-navy-800">
+        {label}
+        {value ? <span className="font-normal text-navy-600">: {value}</span> : null}
+      </p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {options.map((option) => {
+          const selected = value === option;
+          return (
+            <button
+              key={option}
+              type="button"
+              aria-pressed={selected}
+              onClick={() => onChange(option)}
+              className={`rounded-full border px-3 py-1.5 text-[13px] ${
+                selected
+                  ? "border-[#C9A84C] bg-[#C9A84C] text-[#1a1408]"
+                  : "border-[#e6dfd2] bg-white text-navy-800 hover:border-[#C9A84C]"
+              }`}
+            >
+              {option}
+            </button>
+          );
+        })}
       </div>
     </div>
   );

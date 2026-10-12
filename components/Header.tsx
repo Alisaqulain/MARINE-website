@@ -48,14 +48,14 @@ export function Header() {
 
   return (
     <header className="relative bg-[#031D38]">
-      <div className="mx-auto flex max-w-[1680px] items-center gap-3 px-3 py-1 sm:px-5 xl:px-6">
+      <div className="mx-auto flex max-w-[1680px] items-center gap-3 px-3 py-2 sm:px-5 sm:py-2.5 xl:px-6">
         <Link href="/" className="shrink-0" onClick={() => setOpen(false)}>
           <BrandLogo size="header" priority />
         </Link>
 
-        <nav className="hidden min-w-0 flex-1 items-center justify-center gap-x-1 lg:flex xl:gap-x-3 2xl:gap-x-4">
+        <nav className="hidden min-w-0 flex-1 items-center justify-center gap-x-1 lg:flex xl:gap-x-1.5 2xl:gap-x-3">
           {nav.map((item) => {
-            const cls = `whitespace-nowrap py-2 text-[9px] font-medium uppercase tracking-[0.06em] transition-colors lg:max-xl:text-[8px] xl:text-[10px] 2xl:text-[11px] ${
+            const cls = `whitespace-nowrap py-2 text-[11px] font-medium uppercase tracking-[0.02em] transition-colors 2xl:text-xs 2xl:tracking-[0.04em] ${
               isActive(pathname, item.href) ? "text-[#C9A84C]" : "text-white/80 hover:text-[#C9A84C]"
             }`;
             if (item.wholesale) {
@@ -73,7 +73,7 @@ export function Header() {
           })}
         </nav>
 
-        <div className="ml-auto flex shrink-0 items-center gap-0.5 text-white lg:ml-0">
+        <div className="relative z-10 ml-auto flex shrink-0 items-center gap-0.5 bg-[#031D38] pl-1 text-white lg:ml-0">
           <div className="hidden sm:block">
             <HeaderAuth />
           </div>

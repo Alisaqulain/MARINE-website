@@ -1,11 +1,9 @@
 /** Supported storefront languages only. */
 export const SITE_LOCALES = [
-  { code: "en", name: "English (common)", native: "English" },
-  { code: "en-GB", name: "Europe", native: "English" },
-  { code: "ar", name: "Middle East", native: "العربية" },
-  { code: "en-US", name: "US", native: "English (US)" },
-  { code: "zh", name: "China", native: "中文" },
-  { code: "hi", name: "Hindi", native: "हिन्दी" },
+  { code: "en", name: "English", native: "English" },
+  { code: "de", name: "German", native: "Deutsch" },
+  { code: "fr", name: "French", native: "Français" },
+  { code: "ar", name: "Arabic", native: "العربية" },
 ] as const;
 
 export type SiteLanguage = {

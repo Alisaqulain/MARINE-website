@@ -66,7 +66,7 @@ const slugMap: Record<string, string> = {
 };
 
 export function getProductCategory(p: Product) {
-  return p.category || slugMap[p.slug] || collectionMap[p.collection] || "ungrouped";
+  return p.categories?.[0] || p.category || slugMap[p.slug] || collectionMap[p.collection] || "ungrouped";
 }
 
 function compactUsd(n: number) {

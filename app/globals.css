@@ -23,19 +23,55 @@ html {
 
 @media (min-width: 1024px) {
   html {
-    --site-nav: 92px;
+    --site-nav: 108px;
   }
 }
 
 @media (min-width: 1280px) {
   html {
-    --site-nav: 104px;
+    --site-nav: 114px;
   }
 }
 
 @media (min-width: 1536px) {
   html {
-    --site-nav: 112px;
+    --site-nav: 124px;
+  }
+}
+
+/* Keep the desktop menu fully visible at 100% zoom. */
+@media (min-width: 1024px) {
+  header nav {
+    column-gap: 0.25rem;
+  }
+  header nav a {
+    font-size: 11px;
+    letter-spacing: 0.02em;
+  }
+  header a > span.relative.inline-block {
+    height: 4rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  header nav {
+    column-gap: 0.375rem;
+  }
+  header a > span.relative.inline-block {
+    height: 4.25rem;
+  }
+}
+
+@media (min-width: 1536px) {
+  header nav {
+    column-gap: 0.75rem;
+  }
+  header nav a {
+    font-size: 12px;
+    letter-spacing: 0.04em;
+  }
+  header a > span.relative.inline-block {
+    height: 4.75rem;
   }
 }
 

@@ -17,6 +17,13 @@ export type AdminProductRow = {
   stock: string;
   active: boolean;
   freeShipping?: boolean;
+  categories?: string[];
+  imageAdjust?: { zoom: number; brightness: number; contrast: number };
+  colors?: string[];
+  materials?: string[];
+  sizes?: string[];
+  images?: { url: string; name: string; color: string; text: string }[];
+  personalisationPrice?: number | null;
 };
 
 export function catalogProductsForAdmin(channel?: "retail" | "wholesale" | null): AdminProductRow[] {

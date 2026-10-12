@@ -1,6 +1,6 @@
-export type AppLocale = "en" | "en-GB" | "en-US" | "ar" | "zh" | "hi";
+export type AppLocale = "en" | "de" | "fr" | "ar";
 
-export const APP_LOCALES: AppLocale[] = ["en", "en-GB", "en-US", "ar", "zh", "hi"];
+export const APP_LOCALES: AppLocale[] = ["en", "de", "fr", "ar"];
 
 type Messages = Record<string, string>;
 
@@ -75,65 +75,64 @@ const en: Messages = {
   "admin.login.back": "Back to storefront",
 };
 
-const enGB: Messages = { ...en, "nav.about": "About us", "footer.link.collections": "Collections" };
-
-const enUS: Messages = { ...en, "nav.about": "About Us", "footer.link.shipping": "Shipping" };
-
-const hi: Messages = {
+const de: Messages = {
   ...en,
-  "nav.home": "होम",
-  "nav.shop": "B2C रिटेल संग्रह",
-  "nav.wholesale": "B2B थोक संग्रह",
-  "nav.custom": "कस्टम निर्माण",
-  "nav.shipping": "शिपिंग",
-  "nav.blog": "ब्लॉग",
-  "nav.about": "हमारे बारे में",
-  "nav.contact": "संपर्क",
-  "nav.login": "लॉगिन",
-  "nav.admin": "एडमिन डैशबोर्ड",
-  "top.premium": "प्रीमियम गुणवत्ता",
-  "top.handcrafted": "हस्तनिर्मित — अपनी फैक्ट्री में बना",
-  "top.wholesaleQuote": "थोक? कस्टम कोट प्राप्त करें",
-  "footer.shop": "खरीदारी",
-  "footer.business": "व्यापार",
-  "footer.company": "कंपनी",
-  "footer.contact": "संपर्क",
-  "home.reviews.title": "हमारे ग्राहक क्या कहते हैं",
-  "home.wholesale.title1": "व्यवसायों के लिए बना।",
-  "home.wholesale.title2": "मात्रा के लिए मूल्य।",
-  "login.tab.login": "लॉगिन",
-  "login.tab.register": "पंजीकरण",
-  "login.signIn": "साइन इन",
-  "login.tab.customer": "ग्राहक",
-  "login.tab.wholesale": "थोक",
+  "nav.home": "Startseite",
+  "nav.shop": "B2C Einzelhandel",
+  "nav.wholesale": "B2B Großhandel",
+  "nav.custom": "Sonderanfertigung",
+  "nav.shipping": "Versand",
+  "nav.blog": "Blog",
+  "nav.about": "Über uns",
+  "nav.contact": "Kontakt",
+  "nav.login": "Anmelden",
+  "nav.logout": "Abmelden",
+  "nav.admin": "Admin-Dashboard",
+  "top.premium": "Premium-Qualität",
+  "top.handcrafted": "Handgefertigt in unserer eigenen Fabrik",
+  "top.wholesaleQuote": "Großhandel? Individuelles Angebot",
+  "footer.shop": "Shop",
+  "footer.business": "Geschäft",
+  "footer.company": "Unternehmen",
+  "footer.contact": "Kontakt",
+  "home.reviews.title": "Das sagen unsere Kunden",
+  "home.wholesale.title1": "Für Unternehmen gemacht.",
+  "home.wholesale.title2": "Preise für Mengen.",
+  "login.tab.login": "Anmelden",
+  "login.tab.register": "Registrieren",
+  "login.signIn": "Anmelden",
+  "login.tab.customer": "Kunde",
+  "login.tab.wholesale": "Großhandel",
 };
 
-const zh: Messages = {
+const fr: Messages = {
   ...en,
-  "nav.home": "首页",
-  "nav.shop": "B2C 零售系列",
-  "nav.wholesale": "B2B 批发系列",
-  "nav.custom": "定制制造",
-  "nav.shipping": "运输",
-  "nav.blog": "博客",
-  "nav.about": "关于我们",
-  "nav.contact": "联系我们",
-  "nav.login": "登录",
-  "top.premium": "优质品质",
-  "top.handcrafted": "手工制作 · 自有工厂",
-  "top.wholesaleQuote": "批发？获取定制报价",
-  "footer.shop": "购物",
-  "footer.business": "商务合作",
-  "footer.company": "公司",
-  "footer.contact": "联系",
-  "home.reviews.title": "客户评价",
-  "home.wholesale.title1": "为商业而生。",
-  "home.wholesale.title2": "批量更优价。",
-  "login.tab.login": "登录",
-  "login.tab.register": "注册",
-  "login.signIn": "登录",
-  "login.tab.customer": "零售客户",
-  "login.tab.wholesale": "批发",
+  "nav.home": "Accueil",
+  "nav.shop": "Collection détail B2C",
+  "nav.wholesale": "Collection gros B2B",
+  "nav.custom": "Fabrication sur mesure",
+  "nav.shipping": "Livraison",
+  "nav.blog": "Blog",
+  "nav.about": "À propos",
+  "nav.contact": "Contact",
+  "nav.login": "Connexion",
+  "nav.logout": "Déconnexion",
+  "nav.admin": "Tableau de bord admin",
+  "top.premium": "Qualité premium",
+  "top.handcrafted": "Fait main dans notre propre usine",
+  "top.wholesaleQuote": "Gros ? Demandez un devis",
+  "footer.shop": "Boutique",
+  "footer.business": "Entreprise",
+  "footer.company": "Société",
+  "footer.contact": "Contact",
+  "home.reviews.title": "Ce que disent nos clients",
+  "home.wholesale.title1": "Conçu pour les entreprises.",
+  "home.wholesale.title2": "Des prix pour le volume.",
+  "login.tab.login": "Connexion",
+  "login.tab.register": "Inscription",
+  "login.signIn": "Connexion",
+  "login.tab.customer": "Client",
+  "login.tab.wholesale": "Gros",
 };
 
 const ar: Messages = {
@@ -166,10 +165,8 @@ const ar: Messages = {
 
 export const messageCatalog: Record<AppLocale, Messages> = {
   en,
-  "en-GB": enGB,
-  "en-US": enUS,
-  hi,
-  zh,
+  de,
+  fr,
   ar,
 };
 
@@ -180,10 +177,8 @@ export function translate(locale: AppLocale, key: string): string {
 
 export function normalizeLocale(code: string): AppLocale {
   if (APP_LOCALES.includes(code as AppLocale)) return code as AppLocale;
-  if (code.startsWith("hi")) return "hi";
-  if (code.startsWith("zh")) return "zh";
+  if (code.startsWith("de")) return "de";
+  if (code.startsWith("fr")) return "fr";
   if (code.startsWith("ar")) return "ar";
-  if (code === "en-US") return "en-US";
-  if (code === "en-GB") return "en-GB";
   return "en";
 }

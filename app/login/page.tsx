@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState, Suspense } from "react";
 import { signIn, useSession } from "next-auth/react";
 import { ArrowRight } from "lucide-react";
 import { BrandLogo } from "@/components/Logo";
+import { PasswordInput } from "@/components/PasswordInput";
 import { GoogleAuthButton } from "@/components/GoogleAuthButton";
 import { WholesaleApplicationFields, wholesaleApplicationPayload } from "@/components/WholesaleForms";
 import { useT } from "@/lib/i18n/LocaleProvider";
@@ -205,25 +206,11 @@ function LoginInner() {
             <WholesaleApplicationFields />
             <label className="block text-[13px] md:col-span-2">
               <span className="mb-1.5 block text-navy-700">{t("login.password")}</span>
-              <input
-                className="input"
-                name="password"
-                type="password"
-                required
-                minLength={8}
-                autoComplete="new-password"
-              />
+              <PasswordInput name="password" required minLength={8} autoComplete="new-password" />
             </label>
             <label className="block text-[13px] md:col-span-2">
               <span className="mb-1.5 block text-navy-700">{t("login.confirmPassword")}</span>
-              <input
-                className="input"
-                name="confirm"
-                type="password"
-                required
-                minLength={8}
-                autoComplete="new-password"
-              />
+              <PasswordInput name="confirm" required minLength={8} autoComplete="new-password" />
             </label>
           </>
         ) : (
@@ -232,22 +219,20 @@ function LoginInner() {
               <input className="input" name="name" required placeholder={t("login.fullName")} />
             ) : null}
             <input className="input" name="email" type="email" required placeholder={t("login.email")} />
-            <input
-              className="input"
+            <PasswordInput
               name="password"
-              type="password"
               required
               minLength={8}
               placeholder={t("login.password")}
+              autoComplete={view === "login" ? "current-password" : "new-password"}
             />
             {view === "register" ? (
-              <input
-                className="input"
+              <PasswordInput
                 name="confirm"
-                type="password"
                 required
                 minLength={8}
                 placeholder={t("login.confirmPassword")}
+                autoComplete="new-password"
               />
             ) : null}
           </>

@@ -8,6 +8,7 @@ import {
 import { getDb } from "@/lib/mongodb";
 import type { AdminProduct } from "@/lib/db/types";
 import { slugify } from "@/lib/slugify";
+import { parseProductExtras } from "@/lib/product-fields";
 
 export async function GET(req: Request) {
   const session = await auth();
@@ -49,6 +50,13 @@ export async function GET(req: Request) {
     stock: p.stock,
     active: p.active,
     freeShipping: p.freeShipping !== false,
+    categories: p.categories,
+    imageAdjust: p.imageAdjust,
+    colors: p.colors,
+    materials: p.materials,
+    sizes: p.sizes,
+    images: p.images,
+    personalisationPrice: p.personalisationPrice,
   }));
 
   const allItems = mergeAdminProducts(catalog, mongo);
@@ -87,6 +95,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Product name is required." }, { status: 400 });
   }
 
+  const extras = parseProductExtras(body);
   const doc: Omit<AdminProduct, "_id"> = {
     slug,
     name,
@@ -96,14 +105,20 @@ export async function POST(req: Request) {
       body.compareAt != null && body.compareAt !== "" ? Number(body.compareAt) : undefined,
     wholesaleFrom:
       body.wholesaleFrom != null && body.wholesaleFrom !== "" ? Number(body.wholesaleFrom) : undefined,
-    quantity: body.quantity != null && body.quantity !== "" ? Number(body.quantity) : undefined,
-    image: String(body.image ?? ""),
+    quantity: extras.quantity,
+    image: extras.images?.[0]?.url || String(body.image ?? ""),
+    images: extras.images,
+    personalisationPrice: extras.personalisationPrice,
     description: String(body.description ?? ""),
-    channel: body.channel === "wholesale" || body.channel === "retail" ? body.channel : "both",
-    stock:
-      body.stock === "low" || body.stock === "made-to-order" ? body.stock : "in-stock",
+    channel: "both",
+    stock: extras.stock,
     active: body.active !== false,
     freeShipping: body.freeShipping !== false,
+    categories: extras.categories,
+    imageAdjust: extras.imageAdjust,
+    colors: extras.colors,
+    materials: extras.materials,
+    sizes: extras.sizes,
     createdAt: now,
     updatedAt: now,
   };

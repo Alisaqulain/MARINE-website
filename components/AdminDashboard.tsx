@@ -18,7 +18,10 @@ import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { ProductImage } from "@/components/ProductImage";
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { AdminProductImageField } from "@/components/AdminProductImageField";
+import { AdminProductImagesField } from "@/components/AdminProductImageField";
+import { listingCategories } from "@/lib/listing-categories";
+import type { ListingImage } from "@/lib/listing-images";
+import { imageAdjustStyle } from "@/lib/product-display";
 
 type Panel = "customer" | "wholesale";
 
@@ -65,14 +68,25 @@ export function AdminDashboard() {
     wholesaleFrom: "",
     quantity: "",
     image: "",
+    images: [] as ListingImage[],
     description: "",
     channel: "both" as const,
     freeShipping: true,
+    categories: [] as string[],
+    zoom: "100",
+    brightness: "100",
+    contrast: "100",
+    colors: "",
+    materials: "",
+    sizes: "",
+    personalisationPrice: "",
   });
   const [productForm, setProductForm] = useState(emptyProductForm());
+  const [categoryQuery, setCategoryQuery] = useState("");
   const [editing, setEditing] = useState<{ mongoId: string | null; slug: string } | null>(null);
   const [visitors, setVisitors] = useState<Record<string, unknown>[]>([]);
   const [visitorPage, setVisitorPage] = useState(1);
+  const [visitorSummary, setVisitorSummary] = useState({ totalVisitors: 0, today: 0, last7Days: 0 });
   const [visitorPagination, setVisitorPagination] = useState({
     total: 0,
     totalPages: 1,
@@ -116,13 +130,13 @@ export function AdminDashboard() {
     const res = await fetch(`/api/admin/page-views?page=${visitorPage}&pageSize=25`);
     const data = await res.json();
     setVisitors(data.items ?? []);
+    setVisitorSummary(data.summary ?? { totalVisitors: 0, today: 0, last7Days: 0 });
     setVisitorPagination(data.pagination ?? { total: 0, totalPages: 1, pageSize: 25 });
   }, [visitorPage]);
 
   useEffect(() => {
-    if (tab !== "visitors") return;
     void loadVisitors();
-  }, [tab, loadVisitors]);
+  }, [loadVisitors]);
 
   useEffect(() => {
     setProductPage(1);
@@ -156,7 +170,7 @@ export function AdminDashboard() {
           { id: "contacts", label: "Contact", icon: MessageSquare },
           { id: "returns", label: "Returns", icon: RotateCcw },
           { id: "testimonials", label: "Reviews", icon: Star },
-          { id: "visitors", label: "Page visitors", icon: Eye },
+          { id: "visitors", label: "Website visitors", icon: Eye },
         ];
 
   function productPayload() {
@@ -168,7 +182,17 @@ export function AdminDashboard() {
       compareAt: productForm.compareAt,
       wholesaleFrom: productForm.wholesaleFrom,
       quantity: productForm.quantity,
+      image: productForm.images[0]?.url ?? productForm.image,
+      images: productForm.images,
       freeShipping: productForm.freeShipping,
+      categories: productForm.categories,
+      zoom: productForm.zoom,
+      brightness: productForm.brightness,
+      contrast: productForm.contrast,
+      colors: productForm.colors,
+      materials: productForm.materials,
+      sizes: productForm.sizes,
+      personalisationPrice: productForm.personalisationPrice,
     };
   }
 
@@ -207,9 +231,30 @@ export function AdminDashboard() {
       wholesaleFrom: p.wholesaleFrom != null ? String(p.wholesaleFrom) : "",
       quantity: p.quantity != null ? String(p.quantity) : "",
       image: String(p.image ?? ""),
+      images: Array.isArray(p.images)
+        ? (p.images as ListingImage[]).map((image) => ({
+            url: String(image?.url ?? ""),
+            name: String(image?.name ?? ""),
+            color: String(image?.color ?? ""),
+            text: String(image?.text ?? ""),
+          })).filter((image) => image.url)
+        : p.image
+          ? [{ url: String(p.image), name: "", color: "", text: "" }]
+          : [],
       description: String(p.description ?? ""),
       channel: "both",
       freeShipping: p.freeShipping !== false,
+      categories: Array.isArray(p.categories) ? p.categories.map(String) : [],
+      zoom: String((p.imageAdjust as { zoom?: number } | undefined)?.zoom ?? 100),
+      brightness: String((p.imageAdjust as { brightness?: number } | undefined)?.brightness ?? 100),
+      contrast: String((p.imageAdjust as { contrast?: number } | undefined)?.contrast ?? 100),
+      colors: Array.isArray(p.colors) ? p.colors.join(", ") : "",
+      materials: Array.isArray(p.materials) ? p.materials.join(", ") : "",
+      sizes: Array.isArray(p.sizes) ? p.sizes.join(", ") : "",
+      personalisationPrice:
+        p.personalisationPrice != null && p.personalisationPrice !== ""
+          ? String(p.personalisationPrice)
+          : "",
     });
   }
 
@@ -345,6 +390,7 @@ export function AdminDashboard() {
           {tab === "overview" ? (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <Stat label="Products" value={String(productCatalogTotal)} />
+              <Stat label="Website visitors" value={String(visitorSummary.totalVisitors)} />
               <Stat label="Contacts" value={String(contacts.length)} />
               {panel === "wholesale" ? (
                 <>
@@ -498,9 +544,11 @@ export function AdminDashboard() {
                       : "Saving will store your changes in MongoDB (overrides catalogue item)."}
                   </p>
                 ) : null}
-                <AdminProductImageField
-                  value={productForm.image}
-                  onChange={(image) => setProductForm((f) => ({ ...f, image }))}
+                <AdminProductImagesField
+                  images={productForm.images}
+                  onChange={(images) =>
+                    setProductForm((form) => ({ ...form, images, image: images[0]?.url ?? "" }))
+                  }
                 />
                 <input
                   className="input"
@@ -565,7 +613,155 @@ export function AdminDashboard() {
                     value={productForm.quantity}
                     onChange={(e) => setProductForm({ ...productForm, quantity: e.target.value })}
                   />
+                  <span className="mt-1 block text-[10px] text-navy-500">
+                    5 or fewer shows “Low in stock, only 2 left” on the shop.
+                  </span>
                 </label>
+                <fieldset className="space-y-2">
+                  <legend className="text-xs font-semibold uppercase tracking-wide text-navy-600">
+                    Categories
+                  </legend>
+                  <p className="text-[10px] text-navy-500">
+                    Every category and subcategory. Tag the ones this product should appear in, for both customer and wholesale.
+                  </p>
+                  <input
+                    className="input text-sm"
+                    placeholder="Search categories"
+                    value={categoryQuery}
+                    onChange={(e) => setCategoryQuery(e.target.value)}
+                  />
+                  <div className="max-h-96 space-y-1 overflow-y-auto rounded-lg border border-[#e6dfd2] p-2">
+                    {listingCategories()
+                      .filter((category) => {
+                        const q = categoryQuery.trim().toLowerCase();
+                        if (!q) return true;
+                        return category.name.toLowerCase().includes(q) || category.slug.includes(q);
+                      })
+                      .map((category) => {
+                      const checked = productForm.categories.includes(category.slug);
+                      return (
+                        <label key={category.slug} className="flex items-start gap-2 text-xs text-navy-800">
+                          <input
+                            type="checkbox"
+                            className="mt-0.5"
+                            checked={checked}
+                            onChange={() =>
+                              setProductForm((form) => ({
+                                ...form,
+                                categories: checked
+                                  ? form.categories.filter((slug) => slug !== category.slug)
+                                  : [...form.categories, category.slug],
+                              }))
+                            }
+                          />
+                          <span>{category.name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[10px] text-navy-500">{listingCategories().length} categories</p>
+                </fieldset>
+                <fieldset className="space-y-2">
+                  <legend className="text-xs font-semibold uppercase tracking-wide text-navy-600">
+                    Listing image
+                  </legend>
+                  {(
+                    [
+                      ["zoom", "Zoom", 50, 160],
+                      ["brightness", "Brightness", 40, 160],
+                      ["contrast", "Contrast", 40, 160],
+                    ] as const
+                  ).map(([key, label, min, max]) => (
+                    <label key={key} className="block text-xs text-navy-700">
+                      <span className="mb-1 flex justify-between">
+                        {label}
+                        <span>{productForm[key]}%</span>
+                      </span>
+                      <input
+                        type="range"
+                        min={min}
+                        max={max}
+                        value={productForm[key]}
+                        onChange={(e) => setProductForm({ ...productForm, [key]: e.target.value })}
+                        className="w-full"
+                      />
+                    </label>
+                  ))}
+                  {(productForm.images.length
+                    ? productForm.images
+                    : productForm.image
+                      ? [{ url: productForm.image, name: "", color: "", text: "" }]
+                      : []
+                  ).length ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      {(productForm.images.length
+                        ? productForm.images
+                        : [{ url: productForm.image, name: "", color: "", text: "" }]
+                      ).map((image, index) => (
+                        <div key={`${image.url}-${index}`} className="space-y-1">
+                          <div className="relative h-24 overflow-hidden rounded-lg bg-[#f5f5f5]">
+                            <img
+                              src={image.url}
+                              alt={image.name || `Image ${index + 1}`}
+                              className="h-full w-full object-cover"
+                              style={imageAdjustStyle({
+                                zoom: Number(productForm.zoom),
+                                brightness: Number(productForm.brightness),
+                                contrast: Number(productForm.contrast),
+                              })}
+                            />
+                            {image.text ? (
+                              <span className="pointer-events-none absolute inset-x-1 top-1 text-center text-[11px] font-semibold text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.85)]">
+                                {image.text}
+                              </span>
+                            ) : null}
+                          </div>
+                          <p className="truncate text-[10px] text-navy-600">
+                            {image.name || `Image ${index + 1}`}
+                            {image.color ? ` · ${image.color}` : ""}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </fieldset>
+                <label className="block text-xs">
+                  <span className="mb-1 block text-navy-600">Personalisation charge ($)</span>
+                  <input
+                    className="input"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    placeholder="e.g. 5"
+                    value={productForm.personalisationPrice}
+                    onChange={(e) => setProductForm({ ...productForm, personalisationPrice: e.target.value })}
+                  />
+                  <span className="mt-1 block text-[10px] text-navy-500">
+                    Buyers choose No Personalisation or Yes Personalisation. Yes adds this amount and asks for a message. Leave blank to hide it.
+                  </span>
+                </label>
+                {(
+                  [
+                    ["colors", "Primary colors", "Antique brass, Black, Gold"],
+                    ["materials", "Materials", "Brass, Leather, Wood"],
+                    ["sizes", "Sizes", "Small, Medium, Large"],
+                  ] as const
+                ).map(([key, label, placeholder]) => (
+                  <label key={key} className="block text-xs">
+                    <span className="mb-1 block text-navy-600">{label}</span>
+                    <input
+                      className="input"
+                      placeholder={placeholder}
+                      value={productForm[key]}
+                      onChange={(e) => setProductForm({ ...productForm, [key]: e.target.value })}
+                    />
+                    <span className="mt-1 block text-[10px] text-navy-500">
+                      {key === "colors"
+                        ? "Extra colors, separated by commas. A color typed on an image also appears here and shows that photo."
+                        : "Separate choices with commas. Buyers pick one on the product page."}
+                    </span>
+                  </label>
+                ))}
                 <label className="flex cursor-pointer items-center gap-2 text-sm text-navy-800">
                   <input
                     type="checkbox"
@@ -661,58 +857,73 @@ export function AdminDashboard() {
             />
           ) : null}
           {tab === "visitors" ? (
-            <div className="overflow-x-auto rounded-xl bg-white shadow-sm">
-              <div className="border-b bg-[#FAF7F2] px-4 py-3 text-xs text-navy-600">
-                Recent storefront page views ({visitorPagination.total} total).
+            <div className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-3">
+                <Stat label="Website visitors" value={String(visitorSummary.totalVisitors)} />
+                <Stat label="Today" value={String(visitorSummary.today)} />
+                <Stat label="Last 7 days" value={String(visitorSummary.last7Days)} />
               </div>
-              <table className="min-w-full text-left text-sm">
-                <thead className="border-b bg-[#FAF7F2] text-xs uppercase tracking-wide text-navy-600">
-                  <tr>
-                    <th className="px-4 py-3">When</th>
-                    <th className="px-4 py-3">Path</th>
-                    <th className="px-4 py-3">User agent</th>
-                    <th className="px-4 py-3">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {visitors.length === 0 ? (
+              <div className="overflow-x-auto rounded-xl bg-white shadow-sm">
+                <div className="border-b bg-[#FAF7F2] px-4 py-3 text-xs text-navy-600">
+                  Each row is one website visitor. Repeat page opens from the same browser are counted together.
+                </div>
+                <table className="min-w-full text-left text-sm">
+                  <thead className="border-b bg-[#FAF7F2] text-xs uppercase tracking-wide text-navy-600">
                     <tr>
-                      <td colSpan={4} className="px-4 py-8 text-center text-navy-600">
-                        No visits recorded yet.
-                      </td>
+                      <th className="px-4 py-3">Last visit</th>
+                      <th className="px-4 py-3">First visit</th>
+                      <th className="px-4 py-3">Visits</th>
+                      <th className="px-4 py-3">Pages</th>
+                      <th className="px-4 py-3">Last page</th>
+                      <th className="px-4 py-3">Device</th>
+                      <th className="px-4 py-3">Actions</th>
                     </tr>
-                  ) : (
-                    visitors.map((v) => (
-                      <tr key={String(v.id)} className="border-b border-[#f0ebe3]">
-                        <td className="whitespace-nowrap px-4 py-3 text-navy-600">{String(v.at ?? "—")}</td>
-                        <td className="max-w-[280px] truncate px-4 py-3 font-medium">{String(v.path ?? "—")}</td>
-                        <td className="max-w-[360px] truncate px-4 py-3 text-xs text-navy-500">{String(v.userAgent ?? "—")}</td>
-                        <td className="px-4 py-3">
-                          <button
-                            type="button"
-                            className="text-xs font-semibold text-red-700 underline"
-                            onClick={() => void deleteRow(`/api/admin/page-views/${v.id}`, loadVisitors)}
-                          >
-                            Delete
-                          </button>
+                  </thead>
+                  <tbody>
+                    {visitors.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="px-4 py-8 text-center text-navy-600">
+                          No website visitors recorded yet.
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-              <AdminListPagination
-                className="border-t px-4 py-3"
-                page={visitorPage}
-                totalPages={visitorPagination.totalPages}
-                summary={
-                  <>
-                    Page {visitorPage} of {visitorPagination.totalPages} · {visitorPagination.total} visits
-                  </>
-                }
-                onPageChange={setVisitorPage}
-                compact
-              />
+                    ) : (
+                      visitors.map((v) => (
+                        <tr key={String(v.id)} className="border-b border-[#f0ebe3]">
+                          <td className="whitespace-nowrap px-4 py-3 text-navy-600">{formatVisit(v.lastAt)}</td>
+                          <td className="whitespace-nowrap px-4 py-3 text-navy-600">{formatVisit(v.firstAt)}</td>
+                          <td className="px-4 py-3 font-medium">{String(v.visits ?? 0)}</td>
+                          <td className="px-4 py-3">{String(v.pages ?? 0)}</td>
+                          <td className="max-w-[220px] truncate px-4 py-3">{String(v.lastPath ?? "—")}</td>
+                          <td className="whitespace-nowrap px-4 py-3 text-navy-600">{String(v.device ?? "Unknown")}</td>
+                          <td className="px-4 py-3">
+                            <button
+                              type="button"
+                              className="text-xs font-semibold text-red-700 underline"
+                              onClick={() =>
+                                void deleteRow(`/api/admin/page-views/${encodeURIComponent(String(v.id))}`, loadVisitors)
+                              }
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+                <AdminListPagination
+                  className="border-t px-4 py-3"
+                  page={visitorPage}
+                  totalPages={visitorPagination.totalPages}
+                  summary={
+                    <>
+                      Page {visitorPage} of {visitorPagination.totalPages} · {visitorPagination.total} visitors
+                    </>
+                  }
+                  onPageChange={setVisitorPage}
+                  compact
+                />
+              </div>
             </div>
           ) : null}
         </main>
@@ -797,6 +1008,19 @@ function AdminListPagination({
       </div>
     </div>
   );
+}
+
+function formatVisit(value: unknown) {
+  const raw = String(value ?? "");
+  const date = new Date(raw);
+  if (!raw || Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function Stat({ label, value }: { label: string; value: string }) {

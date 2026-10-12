@@ -1,9 +1,11 @@
 import type { AdminProduct } from "@/lib/db/types";
+import { colorsFromImages } from "@/lib/listing-images";
 import { getDb } from "@/lib/mongodb";
 import { products, type Product } from "@/lib/products";
 
 function adminToProduct(doc: AdminProduct): Product {
-  const img = doc.image || "/newlogo.png";
+  const listingImages = (doc.images ?? []).filter((image) => image.url);
+  const img = listingImages[0]?.url || doc.image || "/newlogo.png";
   return {
     slug: doc.slug,
     name: doc.name,
@@ -13,13 +15,24 @@ function adminToProduct(doc: AdminProduct): Product {
     rating: 5,
     reviews: 0,
     stock: doc.stock,
-    collection: "new-arrivals",
-    category: "new-arrivals",
+    collection: doc.categories?.[0] || "new-arrivals",
     badge: "New",
     image: img,
-    gallery: img ? [img] : [],
+    gallery: listingImages.length ? listingImages.map((image) => image.url) : img ? [img] : [],
+    listingImages,
     finish: "Handcrafted",
-    material: "Brass",
+    material: doc.materials?.[0] || "Brass",
+    materials: doc.materials,
+    colors: colorsFromImages(listingImages, doc.colors),
+    sizes: doc.sizes,
+    quantity: doc.quantity,
+    categories: doc.categories,
+    category: doc.categories?.[0] || "new-arrivals",
+    imageAdjust: doc.imageAdjust,
+    personalisationPrice:
+      doc.personalisationPrice != null && Number.isFinite(doc.personalisationPrice)
+        ? doc.personalisationPrice
+        : undefined,
     dimensions: "See product description",
     weight: "—",
     packaging: "Export-safe packing",

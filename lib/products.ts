@@ -36,6 +36,18 @@ export type Product = {
   freeShipping?: boolean;
   moq?: number;
   featured?: boolean;
+  /** Units on hand. When 1–5, the shop shows a low-stock alert. */
+  quantity?: number;
+  /** Shop-now category slugs this product is listed under. */
+  categories?: string[];
+  imageAdjust?: { zoom: number; brightness: number; contrast: number };
+  colors?: string[];
+  materials?: string[];
+  sizes?: string[];
+  /** Named photos. Each color opens that photo; text is drawn on the image. */
+  listingImages?: { url: string; name: string; color: string; text: string }[];
+  /** Extra charge when the buyer chooses personalisation. Hidden when unset. */
+  personalisationPrice?: number;
 };
 
 export const collections: Collection[] = [

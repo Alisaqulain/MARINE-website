@@ -258,14 +258,14 @@ export function Footer() {
             <Phone className="mt-0.5 h-4 w-4 shrink-0 text-[#C9A84C] sm:h-5 sm:w-5" />
             <div className="min-w-0">
               <p className="text-[9px] uppercase tracking-[0.16em] text-[#C9A84C] sm:text-[11px] sm:tracking-[0.2em]">{t("footer.contact")}</p>
-              <a href={`tel:${company.phoneTel}`} className="mt-1 block text-[11px] text-cream-100/75 hover:text-[#C9A84C] sm:text-sm">
-                {company.phone}
-              </a>
               <a
                 href={`mailto:${company.email}`}
-                className="mt-0.5 block break-all text-[11px] text-cream-100/75 hover:text-[#C9A84C] sm:text-sm"
+                className="mt-1 block break-all text-[11px] text-cream-100/75 hover:text-[#C9A84C] sm:text-sm"
               >
                 {company.email}
+              </a>
+              <a href={`tel:${company.phoneTel}`} className="mt-0.5 block text-[11px] text-cream-100/75 hover:text-[#C9A84C] sm:text-sm">
+                {company.phone}
               </a>
             </div>
           </div>

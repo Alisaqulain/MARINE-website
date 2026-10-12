@@ -14,21 +14,83 @@ export type CartLine = {
   slug: string;
   qty: number;
   b2b?: boolean;
+  personalisation?: "yes" | "no";
+  message?: string;
+  personalisationPrice?: number;
+  name?: string;
+  price?: number;
+  image?: string;
 };
 
 const minQty = (line: Pick<CartLine, "b2b">) => (line.b2b ? B2B_MIN_ORDER_QTY : 1);
 const normalize = (line: CartLine): CartLine => ({ ...line, qty: Math.max(minQty(line), line.qty) });
 
+type CartItem = {
+  product: Product;
+  qty: number;
+  b2b: boolean;
+  personalisation?: "yes" | "no";
+  message?: string;
+  unitPrice: number;
+};
+
 type CartContextValue = {
   lines: CartLine[];
-  add: (slug: string, qty?: number, opts?: { b2b?: boolean }) => void;
+  add: (
+    slug: string,
+    qty?: number,
+    opts?: {
+      b2b?: boolean;
+      personalisation?: "yes" | "no";
+      message?: string;
+      personalisationPrice?: number;
+      name?: string;
+      price?: number;
+      image?: string;
+    }
+  ) => void;
   remove: (slug: string) => void;
   setQty: (slug: string, qty: number) => void;
   clear: () => void;
   count: number;
-  items: { product: Product; qty: number; b2b: boolean }[];
+  items: CartItem[];
   subtotal: number;
 };
+
+function productFromLine(line: CartLine): Product | undefined {
+  const found = products.find((p) => p.slug === line.slug);
+  if (found) return found;
+  if (!line.name || line.price == null) return undefined;
+  return {
+    slug: line.slug,
+    name: line.name,
+    sku: line.slug,
+    price: line.price,
+    rating: 0,
+    reviews: 0,
+    stock: "in-stock",
+    collection: "new-arrivals",
+    image: line.image || "/newlogo.png",
+    gallery: line.image ? [line.image] : [],
+    finish: "",
+    material: "",
+    dimensions: "",
+    weight: "",
+    packaging: "",
+    included: [],
+    description: line.name,
+    story: "",
+    personalisationPrice: line.personalisationPrice,
+  };
+}
+
+function unitPrice(product: Product, line: CartLine) {
+  const charge =
+    line.personalisation === "yes"
+      ? Number(line.personalisationPrice ?? product.personalisationPrice ?? 0) || 0
+      : 0;
+  return product.price + charge;
+}
 
 const CartContext = createContext<CartContextValue | null>(null);
 const KEY = "marina-muse-cart";
@@ -52,24 +114,48 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, [lines, ready]);
 
   const value = useMemo<CartContextValue>(() => {
-    const items = lines
-      .map((l) => {
-        const product = products.find((p) => p.slug === l.slug);
-        return product ? { product, qty: l.qty, b2b: Boolean(l.b2b) } : null;
-      })
-      .filter((x): x is { product: Product; qty: number; b2b: boolean } => Boolean(x));
+    const items: CartItem[] = [];
+    for (const l of lines) {
+      const product = productFromLine(l);
+      if (!product) continue;
+      items.push({
+        product,
+        qty: l.qty,
+        b2b: Boolean(l.b2b),
+        personalisation: l.personalisation,
+        message: l.message,
+        unitPrice: unitPrice(product, l),
+      });
+    }
     return {
       lines,
       add: (slug, qty = 1, opts) =>
         setLines((prev) => {
           const b2b = Boolean(opts?.b2b);
-          const found = prev.find((l) => l.slug === slug);
+          const personalisation = opts?.personalisation === "yes" || opts?.personalisation === "no" ? opts.personalisation : undefined;
+          const message = personalisation === "yes" ? opts?.message?.trim().slice(0, 300) : undefined;
+          const found = prev.find(
+            (l) => l.slug === slug && l.personalisation === personalisation && (l.message ?? "") === (message ?? "")
+          );
           if (found) {
             return prev.map((l) =>
-              l.slug === slug ? normalize({ ...l, b2b: l.b2b || b2b, qty: l.qty + qty }) : l
+              l === found ? normalize({ ...l, b2b: l.b2b || b2b, qty: l.qty + qty }) : l
             );
           }
-          return [...prev, normalize({ slug, qty, b2b })];
+          return [
+            ...prev,
+            normalize({
+              slug,
+              qty,
+              b2b,
+              personalisation,
+              message,
+              personalisationPrice: opts?.personalisationPrice,
+              name: opts?.name,
+              price: opts?.price,
+              image: opts?.image,
+            }),
+          ];
         }),
       remove: (slug) => setLines((prev) => prev.filter((l) => l.slug !== slug)),
       setQty: (slug, qty) =>
@@ -81,7 +167,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       clear: () => setLines([]),
       count: items.reduce((n, i) => n + i.qty, 0),
       items,
-      subtotal: items.reduce((n, i) => n + i.product.price * i.qty, 0),
+      subtotal: items.reduce((n, i) => n + i.unitPrice * i.qty, 0),
     };
   }, [lines]);
 

@@ -11,6 +11,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, skipped: true });
   }
   const ua = req.headers.get("user-agent") ?? undefined;
-  await recordPageView(path, ua);
+  const visitorId =
+    typeof body?.visitorId === "string" && /^[a-zA-Z0-9-]{8,64}$/.test(body.visitorId) ? body.visitorId : undefined;
+  await recordPageView(path, ua, visitorId);
   return NextResponse.json({ ok: true });
 }

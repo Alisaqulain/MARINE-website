@@ -2,6 +2,7 @@
 
 import { CatalogCard } from "@/components/CatalogCard";
 import { getProductCategory } from "@/lib/catalog";
+import { productInCategory } from "@/lib/product-display";
 import { findShopNowLabel, shopNowSubtree, shopNowTree } from "@/lib/shop-now-data";
 import { products as staticProducts, type Product } from "@/lib/products";
 import { Camera, ChevronDown, ChevronRight, LayoutGrid, LayoutList, Search } from "lucide-react";
@@ -50,9 +51,14 @@ export function ShopNowCatalog({ retail = false }: { retail?: boolean }) {
     let next = [...catalogProducts];
     if (sub) {
       const slugs = shopNowSubtree(sub);
-      next = next.filter((p) => p.subcategory && slugs.includes(p.subcategory));
+      next = next.filter(
+        (p) =>
+          (p.subcategory && slugs.includes(p.subcategory)) ||
+          slugs.some((slug) => productInCategory(p, slug))
+      );
+    } else if (parent) {
+      next = next.filter((p) => productInCategory(p, parent) || getProductCategory(p) === parent);
     }
-    else if (parent) next = next.filter((p) => getProductCategory(p) === parent);
 
     const q = query.trim().toLowerCase();
     if (q) {

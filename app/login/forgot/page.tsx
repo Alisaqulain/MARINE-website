@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { BrandLogo } from "@/components/Logo";
+import { PasswordInput } from "@/components/PasswordInput";
 import { PASSWORD_OTP_FROM } from "@/lib/password-otp-email";
 
 export default function ForgotPasswordPage() {
@@ -93,23 +94,21 @@ export default function ForgotPasswordPage() {
         >
           {message ? <p className="text-sm text-navy-600">{message}</p> : null}
           <input className="input" placeholder="6-digit code" value={otp} onChange={(e) => setOtp(e.target.value)} required />
-          <input
-            className="input"
-            type="password"
+          <PasswordInput
             placeholder="New password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
             minLength={8}
+            autoComplete="new-password"
           />
-          <input
-            className="input"
-            type="password"
+          <PasswordInput
             placeholder="Confirm password"
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
             required
             minLength={8}
+            autoComplete="new-password"
           />
           {error ? <p className="text-sm text-red-700">{error}</p> : null}
           <button type="submit" className="btn-gold w-full" disabled={loading}>

@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { ObjectId } from "mongodb";
 import { requireAdminSession } from "@/lib/admin-auth";
-import { getDb } from "@/lib/mongodb";
+import { deleteWebsiteVisitor } from "@/lib/page-views";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -10,13 +9,13 @@ export async function DELETE(_req: Request, ctx: Ctx) {
   if (error) return error;
 
   const { id } = await ctx.params;
-  if (!ObjectId.isValid(id)) {
+  const visitorId = decodeURIComponent(id);
+  if (!visitorId || visitorId.length > 512) {
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   }
 
-  const db = await getDb();
-  const result = await db.collection("page_views").deleteOne({ _id: new ObjectId(id) });
-  if (result.deletedCount === 0) {
+  const removed = await deleteWebsiteVisitor(visitorId);
+  if (!removed) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   return NextResponse.json({ ok: true });
