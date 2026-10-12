@@ -261,9 +261,12 @@ export function Footer() {
               <a href={`tel:${company.phoneTel}`} className="mt-1 block text-[11px] text-cream-100/75 hover:text-[#C9A84C] sm:text-sm">
                 {company.phone}
               </a>
-              <Link href="/contact" className="mt-1.5 block text-[11px] text-cream-100/65 underline hover:text-[#C9A84C] sm:text-sm">
-                Contact form
-              </Link>
+              <a
+                href={`mailto:${company.email}`}
+                className="mt-0.5 block break-all text-[11px] text-cream-100/75 hover:text-[#C9A84C] sm:text-sm"
+              >
+                {company.email}
+              </a>
             </div>
           </div>
           <div className="flex shrink-0 flex-wrap justify-end gap-1.5 sm:gap-2.5">
