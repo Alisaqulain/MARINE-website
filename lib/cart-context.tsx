@@ -49,8 +49,8 @@ type CartContextValue = {
       image?: string;
     }
   ) => void;
-  remove: (slug: string) => void;
-  setQty: (slug: string, qty: number) => void;
+  remove: (slug: string, line?: { personalisation?: "yes" | "no"; message?: string }) => void;
+  setQty: (slug: string, qty: number, line?: { personalisation?: "yes" | "no"; message?: string }) => void;
   clear: () => void;
   count: number;
   items: CartItem[];
@@ -82,6 +82,16 @@ function productFromLine(line: CartLine): Product | undefined {
     story: "",
     personalisationPrice: line.personalisationPrice,
   };
+}
+
+function sameLine(
+  item: CartLine,
+  slug: string,
+  line?: { personalisation?: "yes" | "no"; message?: string }
+) {
+  if (item.slug !== slug) return false;
+  if (!line) return true;
+  return item.personalisation === line.personalisation && (item.message ?? "") === (line.message ?? "");
 }
 
 function unitPrice(product: Product, line: CartLine) {
@@ -157,12 +167,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
             }),
           ];
         }),
-      remove: (slug) => setLines((prev) => prev.filter((l) => l.slug !== slug)),
-      setQty: (slug, qty) =>
+      remove: (slug, line) =>
+        setLines((prev) => prev.filter((item) => !sameLine(item, slug, line))),
+      setQty: (slug, qty, line) =>
         setLines((prev) =>
           qty <= 0
-            ? prev.filter((l) => l.slug !== slug)
-            : prev.map((l) => (l.slug === slug ? normalize({ ...l, qty }) : l))
+            ? prev.filter((item) => !sameLine(item, slug, line))
+            : prev.map((item) => (sameLine(item, slug, line) ? normalize({ ...item, qty }) : item))
         ),
       clear: () => setLines([]),
       count: items.reduce((n, i) => n + i.qty, 0),

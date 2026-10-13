@@ -156,7 +156,12 @@ export default function CheckoutPage() {
                 {product.name} × {qty}
                 {personalisation === "yes" ? (
                   <span className="mt-0.5 block text-xs text-navy-500">
-                    Personalisation{message ? `: ${message}` : ""}
+                    Personalisation {formatPrice(Math.max(0, unitPrice - product.price))}
+                    {message ? `: ${message}` : ""}
+                  </span>
+                ) : personalisation === "no" ? (
+                  <span className="mt-0.5 block text-xs text-navy-500">
+                    No personalisation · {formatPrice(product.price)}
                   </span>
                 ) : null}
               </span>

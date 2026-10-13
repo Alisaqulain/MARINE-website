@@ -45,7 +45,7 @@ export type Product = {
   materials?: string[];
   sizes?: string[];
   /** Named photos. Each color opens that photo; text is drawn on the image. */
-  listingImages?: { url: string; name: string; color: string; text: string }[];
+  listingImages?: { url: string; name: string; color: string; text: string; textX?: number; textY?: number }[];
   /** Extra charge when the buyer chooses personalisation. Hidden when unset. */
   personalisationPrice?: number;
 };

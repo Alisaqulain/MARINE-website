@@ -35,7 +35,7 @@ export function Header() {
   const [open, setOpen] = useState(false);
   const t = useT();
   const { data: session } = useSession();
-  const hideAdminLink = session?.user?.role === "admin";
+  const hideAdminLink = session?.user?.role === "admin" || session?.user?.role === "staff";
   const nav = navKeys.map((item) => ({
     href: item.href,
     label: t(item.key),

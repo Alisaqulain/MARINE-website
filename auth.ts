@@ -14,6 +14,7 @@ import {
   verifyPassword,
 } from "@/lib/auth-helpers";
 import { adminEmailsList } from "@/lib/roles";
+import { accessForUser } from "@/lib/staff-access";
 
 declare module "next-auth" {
   interface Session {
@@ -21,15 +22,22 @@ declare module "next-auth" {
       id: string;
       email: string;
       name: string;
-      role: "customer" | "wholesale" | "admin";
+      role: "customer" | "wholesale" | "admin" | "staff";
       wholesaleProfileComplete?: boolean;
+      canAddProduct?: boolean;
+      canDelete?: boolean;
+      manageTeam?: boolean;
     };
   }
   interface User {
-    role: "customer" | "wholesale" | "admin";
+    role: "customer" | "wholesale" | "admin" | "staff";
     wholesaleProfileComplete?: boolean;
+    canAddProduct?: boolean;
+    canDelete?: boolean;
+    manageTeam?: boolean;
   }
 }
+
 
 const googleEnabled =
   Boolean(process.env.GOOGLE_CLIENT_ID) && Boolean(process.env.GOOGLE_CLIENT_SECRET);
@@ -61,10 +69,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
         let user = await findUserByEmail(email);
         if (!user) return null;
+        if (user.restricted || user.permissions?.restricted) return null;
         const ok = await verifyPassword(user, password);
         if (!ok) return null;
 
-        const role = resolveRole(email, user.role === "admin" ? "admin" : mode);
+        const keepRole = user.role === "admin" || user.role === "staff" ? user.role : mode;
+        const role = resolveRole(email, keepRole);
         if (user.role !== role) {
           const { getDb } = await import("@/lib/mongodb");
           const db = await getDb();
@@ -74,12 +84,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           );
         }
 
+        const access = accessForUser(user);
         return {
           id: String(user._id),
           email: user.email,
           name: user.name,
           role,
           wholesaleProfileComplete: user.wholesaleProfileComplete,
+          canAddProduct: access.canAddProduct,
+          canDelete: access.canDelete,
+          manageTeam: access.manageTeam,
         };
       },
     }),
@@ -93,43 +107,73 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       async authorize(credentials) {
         const email = String(credentials?.email ?? "").trim().toLowerCase();
         const password = String(credentials?.password ?? "");
-        if (!adminEmailsList().includes(email)) return null;
-        const expected = process.env.ADMIN_PASSWORD;
-        if (!expected || password !== expected) return null;
+        if (adminEmailsList().includes(email)) {
+          const expected = process.env.ADMIN_PASSWORD;
+          if (!expected || password !== expected) return null;
 
-        try {
-          let user = await findUserByEmail(email);
-          if (!user) {
-            user = await createUser({
+          try {
+            let user = await findUserByEmail(email);
+            if (!user) {
+              user = await createUser({
+                email,
+                name: email.split("@")[0],
+                role: "admin",
+                password,
+              });
+            } else if (user.role !== "admin") {
+              const { getDb } = await import("@/lib/mongodb");
+              const db = await getDb();
+              await db.collection("users").updateOne(
+                { _id: user._id },
+                { $set: { role: "admin", updatedAt: new Date() } }
+              );
+            }
+
+            return {
+              id: String(user!._id),
+              email: user!.email,
+              name: user!.name,
+              role: "admin" as const,
+              wholesaleProfileComplete: user!.wholesaleProfileComplete,
+              canAddProduct: true,
+              canDelete: true,
+              manageTeam: true,
+            };
+          } catch (err) {
+            console.error("[admin-portal] MongoDB unavailable — limited env-only session", err);
+            return {
+              id: `env-admin:${email}`,
               email,
               name: email.split("@")[0],
-              role: "admin",
-              password,
-            });
-          } else if (user.role !== "admin") {
-            const { getDb } = await import("@/lib/mongodb");
-            const db = await getDb();
-            await db.collection("users").updateOne(
-              { _id: user._id },
-              { $set: { role: "admin", updatedAt: new Date() } }
-            );
+              role: "admin" as const,
+              canAddProduct: true,
+              canDelete: true,
+              manageTeam: true,
+            };
           }
+        }
 
+        try {
+          const user = await findUserByEmail(email);
+          if (!user || user.role !== "staff") return null;
+          if (user.restricted || user.permissions?.restricted) return null;
+          const ok = await verifyPassword(user, password);
+          if (!ok) return null;
+          const access = accessForUser(user);
+          if (access.restricted) return null;
           return {
-            id: String(user!._id),
-            email: user!.email,
-            name: user!.name,
-            role: "admin" as const,
-            wholesaleProfileComplete: user!.wholesaleProfileComplete,
+            id: String(user._id),
+            email: user.email,
+            name: user.name,
+            role: "staff" as const,
+            wholesaleProfileComplete: user.wholesaleProfileComplete,
+            canAddProduct: access.canAddProduct,
+            canDelete: access.canDelete,
+            manageTeam: false,
           };
         } catch (err) {
-          console.error("[admin-portal] MongoDB unavailable — limited env-only session", err);
-          return {
-            id: `env-admin:${email}`,
-            email,
-            name: email.split("@")[0],
-            role: "admin" as const,
-          };
+          console.error("[admin-portal] staff login failed", err);
+          return null;
         }
       },
     }),
@@ -141,16 +185,33 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.sub = user.id;
         token.role = user.role;
         token.wholesaleProfileComplete = user.wholesaleProfileComplete;
+        token.canAddProduct = user.canAddProduct;
+        token.canDelete = user.canDelete;
+        token.manageTeam = user.manageTeam;
       }
-      if (token.email) {
-        token.role = resolveRole(String(token.email), token.role as "customer" | "wholesale" | "admin" | undefined);
-      }
-      if (token.sub) {
+      if (token.sub && !String(token.sub).startsWith("env-admin:")) {
         const dbUser = await findUserById(token.sub);
         if (dbUser) {
+          if (dbUser.restricted || dbUser.permissions?.restricted) {
+            token.role = "customer";
+            token.canAddProduct = false;
+            token.canDelete = false;
+            token.manageTeam = false;
+            token.wholesaleProfileComplete = Boolean(dbUser.wholesaleProfileComplete);
+            return token;
+          }
+          const access = accessForUser(dbUser);
           token.wholesaleProfileComplete = Boolean(dbUser.wholesaleProfileComplete);
-          token.role = resolveRole(dbUser.email, dbUser.role);
+          token.role = access.role;
+          token.canAddProduct = access.canAddProduct;
+          token.canDelete = access.canDelete;
+          token.manageTeam = access.manageTeam;
         }
+      } else if (token.email) {
+        token.role = resolveRole(
+          String(token.email),
+          token.role as "customer" | "wholesale" | "admin" | "staff" | undefined
+        );
       }
       return token;
     },
@@ -173,6 +234,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             googleId: account.providerAccountId,
           });
         } else {
+          if (existing.restricted || existing.permissions?.restricted) return false;
           let requested: "customer" | "wholesale" | undefined;
           try {
             const jar = await cookies();
@@ -182,7 +244,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           }
           const role = resolveRole(
             existing.email,
-            requested ?? (existing.role === "admin" ? "admin" : existing.role)
+            existing.role === "admin" || existing.role === "staff" ? existing.role : requested ?? existing.role
           );
           if (existing.role !== role) {
             const { getDb } = await import("@/lib/mongodb");

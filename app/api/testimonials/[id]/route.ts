@@ -1,16 +1,14 @@
 import { NextResponse } from "next/server";
 import { ObjectId } from "mongodb";
-import { auth } from "@/auth";
+import { requireAdminSession } from "@/lib/admin-auth";
 import { getDb } from "@/lib/mongodb";
 import type { Testimonial } from "@/lib/db/types";
 
 type Ctx = { params: Promise<{ id: string }> };
 
 export async function PATCH(req: Request, ctx: Ctx) {
-  const session = await auth();
-  if (session?.user?.role !== "admin") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const { error } = await requireAdminSession();
+  if (error) return error;
   const { id } = await ctx.params;
   if (!ObjectId.isValid(id)) {
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
@@ -28,10 +26,8 @@ export async function PATCH(req: Request, ctx: Ctx) {
 }
 
 export async function DELETE(_req: Request, ctx: Ctx) {
-  const session = await auth();
-  if (session?.user?.role !== "admin") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const { error } = await requireAdminSession("delete");
+  if (error) return error;
   const { id } = await ctx.params;
   if (!ObjectId.isValid(id)) {
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });

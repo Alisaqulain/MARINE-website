@@ -8,7 +8,7 @@ import { useT } from "@/lib/i18n/LocaleProvider";
 export function HeaderAuth() {
   const { data: session, status } = useSession();
   const t = useT();
-  const isAdmin = session?.user?.role === "admin";
+  const isAdmin = session?.user?.role === "admin" || session?.user?.role === "staff";
 
   if (status === "loading") {
     return <span className="px-2 py-2 text-[10px] text-white/50">…</span>;

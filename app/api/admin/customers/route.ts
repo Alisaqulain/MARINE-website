@@ -1,13 +1,11 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { requireAdminSession } from "@/lib/admin-auth";
 import { getDb } from "@/lib/mongodb";
 import type { DbUser, UserRole } from "@/lib/db/types";
 
 export async function GET(req: Request) {
-  const session = await auth();
-  if (session?.user?.role !== "admin") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const { error } = await requireAdminSession();
+  if (error) return error;
   const { searchParams } = new URL(req.url);
   const segment = searchParams.get("segment");
   const db = await getDb();
@@ -31,6 +29,7 @@ export async function GET(req: Request) {
       name: u.name,
       email: u.email,
       role: u.role,
+      restricted: Boolean(u.restricted),
       wholesaleProfileComplete: u.wholesaleProfileComplete,
       createdAt: u.createdAt.toISOString(),
     })),

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { requireAdminSession } from "@/lib/admin-auth";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 import {
@@ -33,10 +33,8 @@ function absolutize(req: Request, relative: string): string {
 
 /** Upload product images — tries KVM POST /upload when configured, else (or on failure) public/uploads. */
 export async function POST(req: Request) {
-  const session = await auth();
-  if (session?.user?.role !== "admin") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const { error } = await requireAdminSession("addProduct");
+  if (error) return error;
 
   const kvmBase = getKvmUploadBase();
   const kvmToken = getKvmUploadToken();

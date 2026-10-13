@@ -10,6 +10,7 @@ const adminEmails = adminEmailsList;
 
 export function resolveRole(email: string, requested?: UserRole): UserRole {
   if (adminEmails().includes(email.toLowerCase())) return "admin";
+  if (requested === "staff") return "staff";
   if (requested === "wholesale") return "wholesale";
   return "customer";
 }

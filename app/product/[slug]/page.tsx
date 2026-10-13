@@ -83,6 +83,11 @@ export default function ProductPage() {
   const [size, setSize] = useState("");
   const [personalisation, setPersonalisation] = useState<"" | "yes" | "no">("");
   const [personalisationMessage, setPersonalisationMessage] = useState("");
+  const [qty, setQty] = useState(1);
+
+  useEffect(() => {
+    setQty(b2b ? B2B_MIN_ORDER_QTY : 1);
+  }, [slug, b2b]);
 
   const category = useMemo(() => {
     if (!product) return null;
@@ -130,9 +135,14 @@ export default function ProductPage() {
       ? product.personalisationPrice
       : null;
   const displayPrice = product.price + (personalisation === "yes" && personalisationCharge != null ? personalisationCharge : 0);
+  const minQty = b2b ? B2B_MIN_ORDER_QTY : 1;
+  const maxQty = product.quantity != null && product.quantity > 0 ? product.quantity : 99;
+  const outOfStock = product.quantity != null && product.quantity <= 0;
+  const orderQty = Math.min(maxQty, Math.max(minQty, qty));
 
   const handleAdd = () => {
-    add(product.slug, b2b ? B2B_MIN_ORDER_QTY : 1, {
+    if (outOfStock) return;
+    add(product.slug, orderQty, {
       b2b,
       personalisation: personalisation === "yes" || personalisation === "no" ? personalisation : undefined,
       message: personalisationMessage,
@@ -179,6 +189,10 @@ export default function ProductPage() {
                 }}
                 imageStyle={imageAdjustStyle(product.imageAdjust)}
                 caption={product.listingImages?.[active]?.text}
+                textX={product.listingImages?.[active]?.textX}
+                textY={product.listingImages?.[active]?.textY}
+                title={product.name}
+                priceLabel={formatPrice(displayPrice)}
               />
               <button
                 type="button"
@@ -227,6 +241,13 @@ export default function ProductPage() {
               <span className="text-navy-500">{product.sku}</span>
             </div>
             <PriceRow price={displayPrice} size="page" className="mt-3 md:mt-4" />
+            {personalisation === "no" ? (
+              <p className="mt-1 text-xs text-navy-600">No personalisation · {formatPrice(product.price)}</p>
+            ) : personalisation === "yes" && personalisationCharge != null ? (
+              <p className="mt-1 text-xs text-navy-600">
+                Personalisation {formatPrice(personalisationCharge)} added to {formatPrice(product.price)}
+              </p>
+            ) : null}
             {b2b && (
               <p className="mt-1 text-[13px] font-medium text-[#595959]">Min. Order: {B2B_MIN_ORDER_QTY}</p>
             )}
@@ -252,7 +273,7 @@ export default function ProductPage() {
                     onChange={(e) => setPersonalisation(e.target.value as "" | "yes" | "no")}
                   >
                     <option value="">Select an option</option>
-                    <option value="no">No Personalisation ({formatPrice(0)})</option>
+                    <option value="no">No Personalisation ({formatPrice(product.price)})</option>
                     <option value="yes">Yes Personalisation ({formatPrice(personalisationCharge)})</option>
                   </select>
                 </label>
@@ -282,13 +303,58 @@ export default function ProductPage() {
               </span>
             </div>
 
+            <div className="mt-5">
+              <p className="text-[13px] font-medium text-navy-800">Quantity</p>
+              <div className="mt-2 flex w-fit items-center rounded-full border border-[#e6dfd2]">
+                <button
+                  type="button"
+                  className="px-4 py-2 text-lg disabled:opacity-30"
+                  aria-label="Decrease quantity"
+                  disabled={orderQty <= minQty || outOfStock}
+                  onClick={() => setQty(Math.max(minQty, orderQty - 1))}
+                >
+                  −
+                </button>
+                <input
+                  type="number"
+                  min={minQty}
+                  max={maxQty}
+                  value={orderQty}
+                  aria-label="Quantity"
+                  disabled={outOfStock}
+                  onChange={(e) => {
+                    const next = Number.parseInt(e.target.value, 10);
+                    if (!Number.isFinite(next)) return;
+                    setQty(Math.min(maxQty, Math.max(minQty, next)));
+                  }}
+                  className="w-14 border-0 bg-transparent text-center text-sm outline-none"
+                />
+                <button
+                  type="button"
+                  className="px-4 py-2 text-lg disabled:opacity-30"
+                  aria-label="Increase quantity"
+                  disabled={orderQty >= maxQty || outOfStock}
+                  onClick={() => setQty(Math.min(maxQty, orderQty + 1))}
+                >
+                  +
+                </button>
+              </div>
+              {product.quantity != null && product.quantity > 0 ? (
+                <p className="mt-1 text-[11px] text-navy-500">{product.quantity} available</p>
+              ) : null}
+            </div>
+
             <div className="mt-5 grid grid-cols-2 gap-3">
-              <button onClick={handleAdd} className="btn-navy">
-                {added ? "Added to Cart" : "Add to Cart"}
+              <button onClick={handleAdd} className="btn-navy" disabled={outOfStock}>
+                {outOfStock ? "Out of stock" : added ? "Added to Cart" : "Add to Cart"}
               </button>
-              <Link href="/checkout" onClick={handleAdd} className="btn-gold text-center">
-                Buy Now
-              </Link>
+              {outOfStock ? (
+                <span className="btn-gold text-center opacity-50">Buy Now</span>
+              ) : (
+                <Link href="/checkout" onClick={handleAdd} className="btn-gold text-center">
+                  Buy Now
+                </Link>
+              )}
             </div>
 
             <div className="mt-3 grid grid-cols-2 gap-2 sm:gap-3">

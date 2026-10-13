@@ -3,7 +3,17 @@ export type ListingImage = {
   name: string;
   color: string;
   text: string;
+  /** Horizontal placement of the text, 0–100. */
+  textX?: number;
+  /** Vertical placement of the text, 0–100. */
+  textY?: number;
 };
+
+function textPercent(value: unknown) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return undefined;
+  return Math.min(100, Math.max(0, Math.round(n)));
+}
 
 export function colorsFromImages(images?: ListingImage[], extra?: string[]) {
   const seen = new Set<string>();
@@ -39,6 +49,8 @@ export function parseListingImages(value: unknown): ListingImage[] | undefined {
         name: String(row.name ?? "").trim(),
         color: String(row.color ?? "").trim(),
         text: String(row.text ?? "").trim(),
+        textX: textPercent(row.textX),
+        textY: textPercent(row.textY),
       },
     ];
   });

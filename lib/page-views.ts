@@ -221,6 +221,19 @@ export async function listWebsiteVisitors(page: number, pageSize: number) {
   }
 }
 
+export async function deleteAllWebsiteVisitors() {
+  try {
+    const db = await getDb();
+    const result = await db.collection("page_views").deleteMany({});
+    return result.deletedCount;
+  } catch {
+    const list = memoryStore();
+    const count = list.length;
+    list.length = 0;
+    return count;
+  }
+}
+
 export async function deleteWebsiteVisitor(id: string) {
   try {
     const db = await getDb();

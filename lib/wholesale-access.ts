@@ -1,7 +1,7 @@
 /** Can open /wholesale and /wholesale/quote (logged-in retail customers cannot). */
 export function canAccessWholesale(user?: { role?: string } | null): boolean {
   if (!user) return false;
-  return user.role === "wholesale" || user.role === "admin";
+  return user.role === "wholesale" || user.role === "admin" || user.role === "staff";
 }
 
 export function isRetailCustomer(user?: { role?: string } | null): boolean {

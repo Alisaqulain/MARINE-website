@@ -27,7 +27,11 @@ export function ProductCard({ product }: { product: Product }) {
             className="object-cover transition duration-300 group-hover:scale-[1.03]"
             style={imageAdjustStyle(product.imageAdjust)}
           />
-          <ImageOverlayText text={product.listingImages?.[0]?.text} />
+          <ImageOverlayText
+            text={product.listingImages?.[0]?.text}
+            x={product.listingImages?.[0]?.textX}
+            y={product.listingImages?.[0]?.textY}
+          />
         </Link>
         <button
           type="button"

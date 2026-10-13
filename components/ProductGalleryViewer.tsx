@@ -1,8 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { X } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import { ImageOverlayText } from "@/components/ImageOverlayText";
 
 export function ProductGalleryViewer({
@@ -12,6 +12,10 @@ export function ProductGalleryViewer({
   onActiveChange,
   imageStyle,
   caption,
+  textX,
+  textY,
+  title,
+  priceLabel,
 }: {
   images: string[];
   alt: string;
@@ -19,23 +23,49 @@ export function ProductGalleryViewer({
   onActiveChange: (i: number) => void;
   imageStyle?: CSSProperties;
   caption?: string;
+  textX?: number;
+  textY?: number;
+  title?: string;
+  priceLabel?: string;
 }) {
   const [mode, setMode] = useState<"photo" | "360" | "3d">("photo");
   const [zoomOpen, setZoomOpen] = useState(false);
-  const [tilt, setTilt] = useState({ x: 0, y: 0 });
+  const [magnified, setMagnified] = useState(false);
+  const [tilt, setTilt] = useState({ x: 8, y: -18 });
+  const [spin, setSpin] = useState(0);
+  const [dragging, setDragging] = useState(false);
   const frame = useRef<number | null>(null);
+  const activeRef = useRef(active);
+  const onActiveRef = useRef(onActiveChange);
+  const drag = useRef<{ x: number; y: number; active: number; spin: number; tiltX: number; tiltY: number } | null>(null);
 
+  activeRef.current = active;
+  onActiveRef.current = onActiveChange;
   const src = images[active] ?? images[0];
+  const interactive = mode !== "photo";
 
   useEffect(() => {
-    if (mode !== "360" || images.length < 2) return;
-    let idx = active;
+    if (mode !== "360" || images.length < 2 || dragging) return;
     const id = window.setInterval(() => {
-      idx = (idx + 1) % images.length;
-      onActiveChange(idx);
-    }, 450);
+      const next = (activeRef.current + 1) % images.length;
+      onActiveRef.current(next);
+    }, 700);
     return () => window.clearInterval(id);
-  }, [mode, images.length, active, onActiveChange]);
+  }, [mode, images.length, dragging]);
+
+  useEffect(() => {
+    if (mode !== "360" || images.length > 1 || dragging) return;
+    const id = window.setInterval(() => setSpin((value) => value + 1.4), 30);
+    return () => window.clearInterval(id);
+  }, [mode, images.length, dragging]);
+
+  useEffect(() => {
+    if (mode !== "3d" || dragging) return;
+    const id = window.setInterval(() => {
+      setTilt((value) => ({ x: value.x, y: value.y + 0.6 }));
+    }, 30);
+    return () => window.clearInterval(id);
+  }, [mode, dragging]);
 
   useEffect(() => {
     return () => {
@@ -48,133 +78,268 @@ export function ProductGalleryViewer({
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setZoomOpen(false);
-      if (e.key === "ArrowRight") onActiveChange((active + 1) % images.length);
-      if (e.key === "ArrowLeft") onActiveChange((active - 1 + images.length) % images.length);
+      if (e.key === "Escape") {
+        setZoomOpen(false);
+        setMagnified(false);
+      }
+      if (e.key === "ArrowRight") onActiveRef.current((activeRef.current + 1) % images.length);
+      if (e.key === "ArrowLeft") onActiveRef.current((activeRef.current - 1 + images.length) % images.length);
     }
     window.addEventListener("keydown", onKey);
     return () => {
       document.body.style.overflow = previous;
       window.removeEventListener("keydown", onKey);
     };
-  }, [zoomOpen, active, images.length, onActiveChange]);
+  }, [zoomOpen, images.length]);
 
-  const onMove = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
-      if (mode !== "3d") return;
-      const rect = e.currentTarget.getBoundingClientRect();
-      const px = (e.clientX - rect.left) / rect.width - 0.5;
-      const py = (e.clientY - rect.top) / rect.height - 0.5;
-      setTilt({ x: py * -18, y: px * 22 });
-    },
-    [mode]
-  );
+  function onPointerDown(e: PointerEvent<HTMLDivElement>) {
+    if (!interactive) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    drag.current = { x: e.clientX, y: e.clientY, active, spin, tiltX: tilt.x, tiltY: tilt.y };
+    setDragging(true);
+  }
+
+  function onPointerMove(e: PointerEvent<HTMLDivElement>) {
+    const start = drag.current;
+    if (!start) return;
+    const dx = e.clientX - start.x;
+    const dy = e.clientY - start.y;
+    if (mode === "360" && images.length > 1) {
+      const step = Math.trunc(dx / 36);
+      const next = (start.active + step + images.length * 20) % images.length;
+      if (next !== activeRef.current) onActiveRef.current(next);
+      return;
+    }
+    if (mode === "360") {
+      setSpin(start.spin + dx * 0.7);
+      return;
+    }
+    setTilt({
+      x: Math.max(-40, Math.min(40, start.tiltX + dy * -0.25)),
+      y: start.tiltY + dx * 0.45,
+    });
+  }
+
+  function endDrag() {
+    drag.current = null;
+    setDragging(false);
+  }
+
+  function closeZoom() {
+    setZoomOpen(false);
+    setMagnified(false);
+  }
+
+  function showImage(index: number) {
+    if (!images.length) return;
+    setMagnified(false);
+    onActiveChange((index + images.length) % images.length);
+  }
+
+  const transform =
+    mode === "3d"
+      ? `perspective(900px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg) scale(1.04)`
+      : mode === "360" && images.length < 2
+        ? `perspective(900px) rotateY(${spin}deg)`
+        : undefined;
 
   return (
     <>
-    <div
-      className="relative aspect-square overflow-hidden rounded-none bg-[#f5f5f5] lg:aspect-[5/4] lg:rounded-2xl lg:bg-[#2a2118]"
-      onMouseMove={onMove}
-      onMouseLeave={() => setTilt({ x: 0, y: 0 })}
-    >
-      <button
-        type="button"
-        aria-label="Zoom image"
-        onClick={() => setZoomOpen(true)}
-        className="relative block h-full w-full cursor-zoom-in"
-      >
       <div
-        className="relative h-full w-full transition-transform duration-150 ease-out"
-        style={
-          mode === "3d"
-            ? {
-                transform: `perspective(900px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg) scale(1.02)`,
-              }
-            : undefined
-        }
+        className="relative aspect-square overflow-hidden rounded-none bg-[#f5f5f5] lg:aspect-[5/4] lg:rounded-2xl lg:bg-[#2a2118]"
+        style={{ touchAction: interactive ? "none" : undefined }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
       >
-        <Image
-          src={src}
-          alt={alt}
-          fill
-          className="object-contain p-4 lg:object-cover lg:p-0"
-          style={imageStyle}
-          priority
-        />
-        <ImageOverlayText text={caption} className="top-4" />
-      </div>
-      </button>
-      <div className="absolute bottom-4 left-4 flex gap-2">
         <button
           type="button"
-          onClick={() => setMode(mode === "360" ? "photo" : "360")}
-          className={`rounded-md px-2.5 py-1 text-[10px] uppercase tracking-widest ${
-            mode === "360" ? "bg-[#C9A84C] text-[#031D38]" : "bg-black/70 text-white"
-          }`}
+          aria-label={interactive ? "Drag to rotate" : "Zoom image"}
+          onClick={() => {
+            if (!interactive) setZoomOpen(true);
+          }}
+          className={`relative block h-full w-full ${interactive ? "cursor-grab active:cursor-grabbing" : "cursor-zoom-in"}`}
         >
-          360°
+          <div className="relative h-full w-full transition-transform duration-150 ease-out" style={transform ? { transform } : undefined}>
+            <Image
+              src={src}
+              alt={alt}
+              fill
+              className="object-contain p-4 lg:object-cover lg:p-0"
+              style={imageStyle}
+              priority
+            />
+            <ImageOverlayText text={caption} x={textX} y={textY} className="top-4" />
+          </div>
         </button>
-        <button
-          type="button"
-          onClick={() => setMode(mode === "3d" ? "photo" : "3d")}
-          className={`rounded-md px-2.5 py-1 text-[10px] uppercase tracking-widest ${
-            mode === "3d" ? "bg-[#C9A84C] text-[#031D38]" : "bg-white/90 text-navy-900"
-          }`}
-        >
-          3D view
-        </button>
-      </div>
-    </div>
-      {zoomOpen ? (
+        {interactive ? (
+          <p className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-black/70 px-3 py-1 text-[10px] uppercase tracking-widest text-white">
+            {mode === "360" && images.length > 1 ? "Drag to spin the photos" : "Drag to rotate"}
+          </p>
+        ) : null}
         <div
-          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/65 p-3 sm:p-6"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Zoomed product image"
-          onClick={() => setZoomOpen(false)}
+          className="absolute bottom-4 left-4 z-10 flex gap-2"
+          onPointerDown={(e) => e.stopPropagation()}
         >
           <button
             type="button"
-            aria-label="Close zoom"
-            onClick={() => setZoomOpen(false)}
-            className="absolute right-3 top-3 z-10 grid h-11 w-11 place-items-center rounded-full bg-white text-[#222] shadow-lg sm:right-5 sm:top-5"
+            onClick={() => {
+              setMode(mode === "360" ? "photo" : "360");
+              setDragging(false);
+            }}
+            className={`rounded-md px-2.5 py-1 text-[10px] uppercase tracking-widest ${
+              mode === "360" ? "bg-[#C9A84C] text-[#031D38]" : "bg-black/70 text-white"
+            }`}
           >
-            <X className="h-5 w-5" />
+            360°
           </button>
-          <div
-            className="flex h-[min(88vh,820px)] w-full max-w-6xl items-stretch gap-3"
-            onClick={(e) => e.stopPropagation()}
+          <button
+            type="button"
+            onClick={() => {
+              setMode(mode === "3d" ? "photo" : "3d");
+              setDragging(false);
+              setTilt({ x: 8, y: -18 });
+            }}
+            className={`rounded-md px-2.5 py-1 text-[10px] uppercase tracking-widest ${
+              mode === "3d" ? "bg-[#C9A84C] text-[#031D38]" : "bg-white/90 text-navy-900"
+            }`}
           >
-            <div className="relative min-w-0 flex-1 overflow-hidden bg-white">
-              <Image
-                src={src}
-                alt={alt}
-                fill
-                className="object-contain"
-                style={imageStyle}
-                sizes="90vw"
-                priority
-              />
-              <ImageOverlayText text={caption} className="top-4" />
-            </div>
+            3D view
+          </button>
+        </div>
+      </div>
+      {zoomOpen ? (
+        <div
+          className="fixed inset-0 z-[120] flex bg-black/75"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Product photos"
+          onClick={closeZoom}
+        >
+          <div className="flex h-full w-full" onClick={(e) => e.stopPropagation()}>
             {images.length > 1 ? (
-              <div className="flex w-[72px] shrink-0 flex-col gap-2 overflow-y-auto sm:w-[92px]">
+              <div className="hidden w-[76px] shrink-0 flex-col gap-2 overflow-y-auto bg-black/50 p-2 sm:flex">
                 {images.map((image, index) => (
                   <button
-                    key={`${image}-${index}`}
+                    key={`rail-${image}-${index}`}
                     type="button"
                     aria-label={`Show image ${index + 1}`}
-                    onClick={() => onActiveChange(index)}
-                    className={`relative aspect-square overflow-hidden bg-white ${
-                      index === active ? "ring-2 ring-[#C9A84C]" : "ring-1 ring-white/40"
+                    onClick={() => showImage(index)}
+                    className={`relative aspect-square shrink-0 overflow-hidden rounded-md bg-white ${
+                      index === active ? "ring-2 ring-white" : "opacity-70 ring-1 ring-white/20"
                     }`}
                   >
-                    <Image src={image} alt="" fill className="object-cover" sizes="92px" />
+                    <Image src={image} alt="" fill className="object-cover" sizes="76px" />
                   </button>
                 ))}
               </div>
             ) : null}
+
+            <div className="relative min-w-0 flex-1 overflow-hidden bg-black">
+              {images.length > 1 ? (
+                <>
+                  <button
+                    type="button"
+                    aria-label="Previous photo"
+                    onClick={() => showImage(active - 1)}
+                    className="absolute left-3 top-1/2 z-10 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white text-[#222] shadow-lg"
+                  >
+                    <ChevronLeft className="h-6 w-6" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Next photo"
+                    onClick={() => showImage(active + 1)}
+                    className="absolute right-3 top-1/2 z-10 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white text-[#222] shadow-lg lg:right-6"
+                  >
+                    <ChevronRight className="h-6 w-6" />
+                  </button>
+                </>
+              ) : null}
+              <button
+                type="button"
+                aria-label={magnified ? "Zoom out" : "Zoom in"}
+                onClick={() => setMagnified((value) => !value)}
+                className="relative block h-full w-full cursor-zoom-in"
+              >
+                <Image
+                  src={src}
+                  alt={alt}
+                  fill
+                  className={`object-contain transition-transform duration-200 ${magnified ? "scale-150 cursor-zoom-out" : ""}`}
+                  style={imageStyle}
+                  sizes="80vw"
+                  priority
+                />
+                <ImageOverlayText text={caption} x={textX} y={textY} />
+              </button>
+              <p className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 text-xs text-white/90">
+                {magnified ? "Click to zoom out" : "Click to zoom"}
+              </p>
+              <button
+                type="button"
+                aria-label="Close"
+                onClick={closeZoom}
+                className="absolute right-3 top-3 z-10 grid h-10 w-10 place-items-center rounded-full bg-white text-[#222] shadow-lg lg:hidden"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <aside className="hidden w-[300px] shrink-0 flex-col overflow-y-auto bg-[#141414] p-4 text-white lg:flex xl:w-[340px]">
+              <button
+                type="button"
+                aria-label="Close"
+                onClick={closeZoom}
+                className="mb-3 grid h-10 w-10 place-items-center self-end rounded-full bg-white text-[#222]"
+              >
+                <X className="h-5 w-5" />
+              </button>
+              {title ? <h2 className="text-lg font-medium leading-snug">{title}</h2> : null}
+              {priceLabel ? <p className="mt-2 text-xl font-semibold">{priceLabel}</p> : null}
+              {images.length > 0 ? (
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                  {images.map((image, index) => (
+                    <button
+                      key={`side-${image}-${index}`}
+                      type="button"
+                      aria-label={`Show image ${index + 1}`}
+                      onClick={() => showImage(index)}
+                      className={`relative aspect-square overflow-hidden rounded-md bg-white ${
+                        index === active ? "ring-2 ring-[#C9A84C]" : "ring-1 ring-white/15"
+                      }`}
+                    >
+                      <Image src={image} alt="" fill className="object-cover" sizes="160px" />
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </aside>
           </div>
+          {images.length > 1 ? (
+            <div
+              className="absolute inset-x-0 bottom-0 z-20 flex gap-2 overflow-x-auto bg-black/70 p-2 sm:hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {images.map((image, index) => (
+                <button
+                  key={`mobile-${image}-${index}`}
+                  type="button"
+                  aria-label={`Show image ${index + 1}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    showImage(index);
+                  }}
+                  className={`relative h-14 w-14 shrink-0 overflow-hidden rounded-md ${
+                    index === active ? "ring-2 ring-white" : "opacity-70"
+                  }`}
+                >
+                  <Image src={image} alt="" fill className="object-cover" sizes="56px" />
+                </button>
+              ))}
+            </div>
+          ) : null}
         </div>
       ) : null}
     </>

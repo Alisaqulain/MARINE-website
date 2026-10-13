@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { isDashboardRole } from "@/lib/staff-access";
 import { ensureTestimonialsSeeded } from "@/lib/db/seed";
 import { getDb } from "@/lib/mongodb";
 import type { Testimonial } from "@/lib/db/types";
@@ -8,7 +9,7 @@ export async function GET(req: Request) {
   try {
     await ensureTestimonialsSeeded();
     const session = await auth();
-    const isAdmin = session?.user?.role === "admin";
+    const isAdmin = isDashboardRole(session?.user?.role);
     const homeOnly = new URL(req.url).searchParams.get("home") === "1";
     const db = await getDb();
     let filter: Record<string, unknown> = {};
@@ -49,7 +50,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   const session = await auth();
-  if (session?.user?.role !== "admin") {
+  if (!isDashboardRole(session?.user?.role)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const body = await req.json();

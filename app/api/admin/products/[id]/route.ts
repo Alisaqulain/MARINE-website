@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { ObjectId } from "mongodb";
-import { auth } from "@/auth";
+import { requireAdminSession } from "@/lib/admin-auth";
 import { getDb } from "@/lib/mongodb";
 import type { AdminProduct } from "@/lib/db/types";
 import { parseProductExtras } from "@/lib/product-fields";
@@ -28,10 +28,8 @@ function parseBody(body: Record<string, unknown>) {
 }
 
 export async function PATCH(req: Request, ctx: Ctx) {
-  const session = await auth();
-  if (session?.user?.role !== "admin") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const { error } = await requireAdminSession("addProduct");
+  if (error) return error;
   const { id } = await ctx.params;
   if (!ObjectId.isValid(id)) {
     return NextResponse.json({ error: "Invalid product id" }, { status: 400 });
@@ -76,10 +74,8 @@ export async function PATCH(req: Request, ctx: Ctx) {
 }
 
 export async function DELETE(_req: Request, ctx: Ctx) {
-  const session = await auth();
-  if (session?.user?.role !== "admin") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const { error } = await requireAdminSession("delete");
+  if (error) return error;
   const { id } = await ctx.params;
   if (!ObjectId.isValid(id)) {
     return NextResponse.json({ error: "Invalid product id" }, { status: 400 });

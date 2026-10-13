@@ -42,7 +42,7 @@ export default auth((req) => {
       login.searchParams.set("callbackUrl", pathname);
       return NextResponse.redirect(login);
     }
-    if (user.role !== "admin") {
+    if (user.role !== "admin" && user.role !== "staff") {
       return NextResponse.redirect(new URL("/account?error=admin-access", origin));
     }
   }

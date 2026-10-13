@@ -1,6 +1,13 @@
 import type { ObjectId } from "mongodb";
 
-export type UserRole = "customer" | "wholesale" | "admin";
+export type UserRole = "customer" | "wholesale" | "admin" | "staff";
+
+export type StaffPermissions = {
+  access: "full" | "limited";
+  canAddProduct: boolean;
+  canDelete: boolean;
+  restricted: boolean;
+};
 
 export type DbUser = {
   _id?: ObjectId;
@@ -10,6 +17,9 @@ export type DbUser = {
   role: UserRole;
   googleId?: string;
   wholesaleProfileComplete?: boolean;
+  /** Blocks storefront and admin sign-in. */
+  restricted?: boolean;
+  permissions?: StaffPermissions;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -106,8 +116,9 @@ export type AdminProduct = {
   colors?: string[];
   materials?: string[];
   sizes?: string[];
-  images?: { url: string; name: string; color: string; text: string }[];
+  images?: { url: string; name: string; color: string; text: string; textX?: number; textY?: number }[];
   personalisationPrice?: number | null;
+  listedBy?: { userId: string; name: string; email: string };
   createdAt: Date;
   updatedAt: Date;
 };

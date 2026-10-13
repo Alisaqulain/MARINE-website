@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { ObjectId } from "mongodb";
 import { auth } from "@/auth";
+import { isDashboardRole } from "@/lib/staff-access";
 import { getDb } from "@/lib/mongodb";
 import type { BulkQuote } from "@/lib/db/types";
 
@@ -39,7 +40,7 @@ export async function POST(req: Request) {
 
 export async function GET() {
   const session = await auth();
-  if (session?.user?.role !== "admin") {
+  if (!isDashboardRole(session?.user?.role)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const db = await getDb();

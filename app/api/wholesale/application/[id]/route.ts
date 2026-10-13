@@ -46,7 +46,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
 }
 
 export async function DELETE(_req: Request, ctx: Ctx) {
-  const { error } = await requireAdminSession();
+  const { error } = await requireAdminSession("delete");
   if (error) return error;
 
   const { id } = await ctx.params;

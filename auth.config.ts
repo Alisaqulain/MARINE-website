@@ -16,8 +16,11 @@ export const authConfig = {
     session({ session, token }) {
       if (session.user && token.sub) {
         session.user.id = token.sub;
-        session.user.role = (token.role as "customer" | "wholesale" | "admin") ?? "customer";
+        session.user.role = (token.role as "customer" | "wholesale" | "admin" | "staff") ?? "customer";
         session.user.wholesaleProfileComplete = Boolean(token.wholesaleProfileComplete);
+        session.user.canAddProduct = Boolean(token.canAddProduct);
+        session.user.canDelete = Boolean(token.canDelete);
+        session.user.manageTeam = Boolean(token.manageTeam);
       }
       return session;
     },

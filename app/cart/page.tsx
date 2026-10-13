@@ -37,9 +37,12 @@ export default function CartPage() {
                 </Link>
                 <p className="text-sm text-navy-600">{formatPrice(unitPrice)}</p>
                 {personalisation === "yes" ? (
-                  <p className="text-xs text-navy-600">Personalisation{message ? `: ${message}` : ""}</p>
+                  <p className="text-xs text-navy-600">
+                    Personalisation {formatPrice(Math.max(0, unitPrice - product.price))}
+                    {message ? `: ${message}` : ""}
+                  </p>
                 ) : personalisation === "no" ? (
-                  <p className="text-xs text-navy-600">No personalisation</p>
+                  <p className="text-xs text-navy-600">No personalisation · {formatPrice(product.price)}</p>
                 ) : null}
                 <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
                   <div className="flex items-center rounded-full border border-cream-300">
@@ -47,15 +50,16 @@ export default function CartPage() {
                       className="px-3 py-1 disabled:cursor-not-allowed disabled:opacity-30"
                       disabled={b2b && qty <= B2B_MIN_ORDER_QTY}
                       aria-label="Decrease quantity"
-                      onClick={() => setQty(product.slug, qty - 1)}
+                      onClick={() => setQty(product.slug, qty - 1, { personalisation, message })}
                     >
                       −
                     </button>
                     <span className="min-w-[1.5rem] text-center text-sm">{qty}</span>
                     <button
-                      className="px-3 py-1"
+                      className="px-3 py-1 disabled:cursor-not-allowed disabled:opacity-30"
                       aria-label="Increase quantity"
-                      onClick={() => setQty(product.slug, qty + 1)}
+                      disabled={product.quantity != null && product.quantity > 0 && qty >= product.quantity}
+                      onClick={() => setQty(product.slug, qty + 1, { personalisation, message })}
                     >
                       +
                     </button>
@@ -63,7 +67,10 @@ export default function CartPage() {
                   {b2b && (
                     <span className="whitespace-nowrap text-xs text-[#8C6E28]">Min. Order: {B2B_MIN_ORDER_QTY}</span>
                   )}
-                  <button className="text-sm text-navy-500 underline" onClick={() => remove(product.slug)}>
+                  <button
+                    className="text-sm text-navy-500 underline"
+                    onClick={() => remove(product.slug, { personalisation, message })}
+                  >
                     Remove
                   </button>
                 </div>

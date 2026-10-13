@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { requireAdminSession } from "@/lib/admin-auth";
+import { isDashboardRole } from "@/lib/staff-access";
 import {
   catalogProductsForAdmin,
   mergeAdminProducts,
@@ -12,7 +14,7 @@ import { parseProductExtras } from "@/lib/product-fields";
 
 export async function GET(req: Request) {
   const session = await auth();
-  if (session?.user?.role !== "admin") {
+  if (!isDashboardRole(session?.user?.role)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const { searchParams } = new URL(req.url);
@@ -57,6 +59,7 @@ export async function GET(req: Request) {
     sizes: p.sizes,
     images: p.images,
     personalisationPrice: p.personalisationPrice,
+    listedBy: p.listedBy,
   }));
 
   const allItems = mergeAdminProducts(catalog, mongo);
@@ -83,10 +86,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const session = await auth();
-  if (session?.user?.role !== "admin") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const { session, error } = await requireAdminSession("addProduct");
+  if (error || !session) return error;
   const body = await req.json();
   const now = new Date();
   const name = String(body.name ?? "").trim();
@@ -119,6 +120,11 @@ export async function POST(req: Request) {
     colors: extras.colors,
     materials: extras.materials,
     sizes: extras.sizes,
+    listedBy: {
+      userId: session.user.id,
+      name: session.user.name || session.user.email || "Admin",
+      email: session.user.email || "",
+    },
     createdAt: now,
     updatedAt: now,
   };
@@ -127,7 +133,10 @@ export async function POST(req: Request) {
   const col = db.collection<AdminProduct>("products");
   const existing = await col.findOne({ slug: doc.slug });
   if (existing) {
-    await col.updateOne({ _id: existing._id }, { $set: { ...doc, createdAt: existing.createdAt, updatedAt: now } });
+    await col.updateOne(
+      { _id: existing._id },
+      { $set: { ...doc, listedBy: existing.listedBy ?? doc.listedBy, createdAt: existing.createdAt, updatedAt: now } }
+    );
     return NextResponse.json({ id: String(existing._id), updated: true });
   }
   const result = await col.insertOne(doc);

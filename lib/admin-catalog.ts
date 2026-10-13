@@ -22,8 +22,9 @@ export type AdminProductRow = {
   colors?: string[];
   materials?: string[];
   sizes?: string[];
-  images?: { url: string; name: string; color: string; text: string }[];
+  images?: { url: string; name: string; color: string; text: string; textX?: number; textY?: number }[];
   personalisationPrice?: number | null;
+  listedBy?: { userId: string; name: string; email: string };
 };
 
 export function catalogProductsForAdmin(channel?: "retail" | "wholesale" | null): AdminProductRow[] {

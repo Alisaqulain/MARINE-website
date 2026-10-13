@@ -7,6 +7,7 @@ import {
   LogOut,
   Menu,
   Package,
+  Shield,
   Users,
   X,
   MessageSquare,
@@ -15,10 +16,13 @@ import {
   Star,
 } from "lucide-react";
 import Link from "next/link";
-import { signOut } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
+import { AdminTeamPanel } from "@/components/AdminTeamPanel";
+import { BulkActions, deleteUrls, useRowSelection } from "@/components/AdminSelection";
 import { ProductImage } from "@/components/ProductImage";
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { AdminProductImagesField } from "@/components/AdminProductImageField";
+import { ImageOverlayText } from "@/components/ImageOverlayText";
 import { listingCategories } from "@/lib/listing-categories";
 import type { ListingImage } from "@/lib/listing-images";
 import { imageAdjustStyle } from "@/lib/product-display";
@@ -34,11 +38,37 @@ type Tab =
   | "returns"
   | "testimonials"
   | "users"
-  | "visitors";
+  | "visitors"
+  | "team";
 
 export function AdminDashboard() {
+  const { data: session } = useSession();
+  const manageTeam = session?.user?.role === "admin" || session?.user?.manageTeam === true;
+  const canAddProduct = !session?.user || session.user.role === "admin" || session.user.canAddProduct === true;
+  const canDelete = !session?.user || session.user.role === "admin" || session.user.canDelete === true;
   const [panel, setPanel] = useState<Panel>("customer");
   const [tab, setTab] = useState<Tab>("overview");
+
+  useEffect(() => {
+    const saved = sessionStorage.getItem("marina-admin-tab");
+    const allowed: Tab[] = [
+      "overview",
+      "products",
+      "quotes",
+      "applications",
+      "contacts",
+      "returns",
+      "testimonials",
+      "users",
+      "visitors",
+      "team",
+    ];
+    if (saved && allowed.includes(saved as Tab)) setTab(saved as Tab);
+  }, []);
+
+  useEffect(() => {
+    sessionStorage.setItem("marina-admin-tab", tab);
+  }, [tab]);
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -94,6 +124,10 @@ export function AdminDashboard() {
   });
   const [customerPage, setCustomerPage] = useState(1);
   const customerPageSize = 15;
+  const pageProductIds = products.map((product) => String(product.id));
+  const productPick = useRowSelection(pageProductIds);
+  const visitorPick = useRowSelection(visitors.map((visitor) => String(visitor.id)));
+  const customerPick = useRowSelection(users.map((user) => String(user.id)));
 
   const load = useCallback(async () => {
     const segment = panel === "wholesale" ? "wholesale" : "customer";
@@ -152,6 +186,7 @@ export function AdminDashboard() {
     customerPage * customerPageSize
   );
 
+  const teamNav = manageTeam ? [{ id: "team" as const, label: "Team access", icon: Shield }] : [];
   const nav: { id: Tab; label: string; icon: typeof Package }[] =
     panel === "wholesale"
       ? [
@@ -162,6 +197,7 @@ export function AdminDashboard() {
           { id: "applications", label: "Trade accounts", icon: Users },
           { id: "contacts", label: "Contact", icon: MessageSquare },
           { id: "testimonials", label: "Reviews", icon: Star },
+          ...teamNav,
         ]
       : [
           { id: "overview", label: "Overview", icon: Package },
@@ -171,6 +207,7 @@ export function AdminDashboard() {
           { id: "returns", label: "Returns", icon: RotateCcw },
           { id: "testimonials", label: "Reviews", icon: Star },
           { id: "visitors", label: "Website visitors", icon: Eye },
+          ...teamNav,
         ];
 
   function productPayload() {
@@ -237,6 +274,8 @@ export function AdminDashboard() {
             name: String(image?.name ?? ""),
             color: String(image?.color ?? ""),
             text: String(image?.text ?? ""),
+            textX: Number.isFinite(Number(image?.textX)) ? Number(image.textX) : undefined,
+            textY: Number.isFinite(Number(image?.textY)) ? Number(image.textY) : undefined,
           })).filter((image) => image.url)
         : p.image
           ? [{ url: String(p.image), name: "", color: "", text: "" }]
@@ -263,12 +302,49 @@ export function AdminDashboard() {
       window.alert("Catalog items cannot be deleted. Edit and save to override, or remove the MongoDB copy only.");
       return;
     }
+    if (!canDelete) return;
     if (!window.confirm(`Delete “${p.name}” from the database?`)) return;
     await fetch(`/api/admin/products/${p.id}`, { method: "DELETE" });
     if (editing?.mongoId === String(p.id)) {
       setEditing(null);
       setProductForm(emptyProductForm());
     }
+    void load();
+  }
+
+  async function deleteProducts(ids: string[]) {
+    const chosen = products.filter((product) => ids.includes(String(product.id)));
+    const mongoIds = chosen.filter((product) => product.source === "mongodb").map((product) => String(product.id));
+    const catalogCount = chosen.length - mongoIds.length;
+    if (!canDelete || !chosen.length) return;
+    if (!mongoIds.length) {
+      window.alert("These are built-in catalogue items. Edit and save one first, then you can delete that saved copy.");
+      return;
+    }
+    const note = catalogCount
+      ? ` ${catalogCount} catalogue item${catalogCount === 1 ? "" : "s"} will stay.`
+      : "";
+    if (!window.confirm(`Delete ${mongoIds.length} saved product${mongoIds.length === 1 ? "" : "s"}?${note}`)) return;
+    const failed = await deleteUrls(mongoIds.map((id) => `/api/admin/products/${id}`));
+    if (failed) window.alert(`${failed} product${failed === 1 ? "" : "s"} could not be deleted.`);
+    productPick.clear();
+    void load();
+  }
+
+  async function restrictCustomers(ids: string[], restricted: boolean) {
+    if (!canDelete || !ids.length) return;
+    const verb = restricted ? "Restrict" : "Unrestrict";
+    if (!window.confirm(`${verb} ${ids.length} account${ids.length === 1 ? "" : "s"}?`)) return;
+    await Promise.all(
+      ids.map((id) =>
+        fetch(`/api/admin/customers/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ restricted }),
+        })
+      )
+    );
+    customerPick.clear();
     void load();
   }
 
@@ -443,15 +519,26 @@ export function AdminDashboard() {
                     ) : null}
                   </form>
                 </div>
+                <BulkActions
+                  canDelete={canDelete}
+                  allSelected={productPick.allSelected}
+                  selectedCount={productPick.selected.length}
+                  onToggleAll={productPick.toggleAll}
+                  deleteAllLabel="Delete all on this page"
+                  onDeleteSelected={() => void deleteProducts(productPick.selected)}
+                  onDeleteAll={() => void deleteProducts(pageProductIds)}
+                />
                 <table className="min-w-full text-left text-sm">
                   <thead className="border-b bg-[#FAF7F2] text-xs uppercase tracking-wide text-navy-600">
                     <tr>
+                      {canDelete ? <th className="sticky left-0 z-20 bg-[#FAF7F2] px-3 py-3"> </th> : null}
                       <th className="px-4 py-3">Image</th>
                       <th className="px-4 py-3">Name</th>
                       <th className="px-4 py-3">SKU</th>
                       <th className="px-4 py-3">Sale $</th>
                       <th className="px-4 py-3">Regular $</th>
                       <th className="px-4 py-3">Qty</th>
+                      <th className="px-4 py-3">Listed by</th>
                       <th className="px-4 py-3">Source</th>
                       <th className="px-4 py-3">Actions</th>
                     </tr>
@@ -459,13 +546,24 @@ export function AdminDashboard() {
                   <tbody>
                     {products.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="px-4 py-8 text-center text-navy-600">
+                        <td colSpan={canDelete ? 10 : 9} className="px-4 py-8 text-center text-navy-600">
                           No products loaded. Check MongoDB connection on /test
                         </td>
                       </tr>
                     ) : (
                       products.map((p) => (
                         <tr key={String(p.id)} className="border-b border-[#f0ebe3]">
+                          {canDelete ? (
+                            <td className="sticky left-0 z-10 bg-white px-3 py-3">
+                              <input
+                                type="checkbox"
+                                className="h-4 w-4"
+                                checked={productPick.selected.includes(String(p.id))}
+                                onChange={() => productPick.toggle(String(p.id))}
+                                aria-label={`Select ${String(p.name)}`}
+                              />
+                            </td>
+                          ) : null}
                           <td className="px-4 py-2">
                             {p.image ? (
                               <div className="relative h-10 w-10 overflow-hidden rounded bg-[#f4f1ea]">
@@ -488,6 +586,11 @@ export function AdminDashboard() {
                             {p.compareAt != null && p.compareAt !== "" ? `$${String(p.compareAt)}` : "—"}
                           </td>
                           <td className="px-4 py-3">{p.quantity != null && p.quantity !== "" ? String(p.quantity) : "—"}</td>
+                          <td className="max-w-[140px] truncate px-4 py-3 text-navy-600">
+                            {p.listedBy && typeof p.listedBy === "object"
+                              ? String((p.listedBy as { name?: string }).name || (p.listedBy as { email?: string }).email || "—")
+                              : "—"}
+                          </td>
                           <td className="px-4 py-3">
                             <span
                               className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${
@@ -501,20 +604,24 @@ export function AdminDashboard() {
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex gap-2">
-                              <button
-                                type="button"
-                                className="text-xs font-semibold text-[#8C6E28] underline"
-                                onClick={() => startEdit(p)}
-                              >
-                                Edit
-                              </button>
-                              <button
-                                type="button"
-                                className="text-xs font-semibold text-red-700 underline"
-                                onClick={() => void deleteProduct(p)}
-                              >
-                                Delete
-                              </button>
+                              {canAddProduct ? (
+                                <button
+                                  type="button"
+                                  className="text-xs font-semibold text-[#8C6E28] underline"
+                                  onClick={() => startEdit(p)}
+                                >
+                                  Edit
+                                </button>
+                              ) : null}
+                              {canDelete ? (
+                                <button
+                                  type="button"
+                                  className="text-xs font-semibold text-red-700 underline"
+                                  onClick={() => void deleteProduct(p)}
+                                >
+                                  Delete
+                                </button>
+                              ) : null}
                             </div>
                           </td>
                         </tr>
@@ -535,6 +642,7 @@ export function AdminDashboard() {
                   onPageChange={setProductPage}
                 />
               </div>
+              {canAddProduct ? (
               <form onSubmit={saveProduct} className="space-y-3 rounded-xl bg-white p-5 shadow-sm">
                 <h2 className="font-serif text-lg">{editing ? "Edit product" : "Add product"}</h2>
                 {editing ? (
@@ -710,11 +818,7 @@ export function AdminDashboard() {
                                 contrast: Number(productForm.contrast),
                               })}
                             />
-                            {image.text ? (
-                              <span className="pointer-events-none absolute inset-x-1 top-1 text-center text-[11px] font-semibold text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.85)]">
-                                {image.text}
-                              </span>
-                            ) : null}
+                            <ImageOverlayText text={image.text} x={image.textX} y={image.textY} />
                           </div>
                           <p className="truncate text-[10px] text-navy-600">
                             {image.name || `Image ${index + 1}`}
@@ -737,7 +841,7 @@ export function AdminDashboard() {
                     onChange={(e) => setProductForm({ ...productForm, personalisationPrice: e.target.value })}
                   />
                   <span className="mt-1 block text-[10px] text-navy-500">
-                    Buyers choose No Personalisation or Yes Personalisation. Yes adds this amount and asks for a message. Leave blank to hide it.
+                    No Personalisation shows the product price. Yes Personalisation shows this amount and adds it to the product price. Leave blank to hide it.
                   </span>
                 </label>
                 {(
@@ -794,6 +898,11 @@ export function AdminDashboard() {
                   </button>
                 </div>
               </form>
+              ) : (
+                <div className="rounded-xl bg-white p-5 text-sm text-navy-700 shadow-sm">
+                  Your account cannot add or edit products.
+                </div>
+              )}
             </div>
           ) : null}
 
@@ -803,10 +912,11 @@ export function AdminDashboard() {
               columns={["email", "product", "quantity", "requiredDeliveryDate", "status", "createdAt"]}
               deletePath={(id) => `/api/quotes/${id}`}
               onReload={load}
+              canDelete={canDelete}
             />
           ) : null}
           {tab === "applications" ? (
-            <TradeAccountsPanel rows={applications} onReload={load} />
+            <TradeAccountsPanel rows={applications} onReload={load} canDelete={canDelete} />
           ) : null}
           {tab === "contacts" ? (
             <AdminDataTable
@@ -814,6 +924,7 @@ export function AdminDashboard() {
               columns={["kind", "name", "email", "subject", "createdAt"]}
               deletePath={(id) => `/api/contact/${id}`}
               onReload={load}
+              canDelete={canDelete}
             />
           ) : null}
           {tab === "returns" ? (
@@ -822,18 +933,69 @@ export function AdminDashboard() {
               columns={["orderNumber", "customerName", "productName", "status", "createdAt"]}
               deletePath={(id) => `/api/returns/${id}`}
               onReload={load}
+              canDelete={canDelete}
             />
           ) : null}
           {tab === "users" ? (
             <div className="overflow-x-auto rounded-xl bg-white shadow-sm">
               <div className="border-b bg-[#FAF7F2] px-4 py-3 text-xs text-navy-600">
-                {panel === "wholesale" ? "Wholesale customers" : "Retail customers"} ({users.length} total)
+                {panel === "wholesale" ? "Wholesale customers" : "Retail customers"} ({users.length} total). Restrict blocks sign-in.
               </div>
+              <BulkActions
+                canDelete={canDelete}
+                allSelected={customerPick.allSelected}
+                selectedCount={customerPick.selected.length}
+                onToggleAll={customerPick.toggleAll}
+                onDeleteSelected={() =>
+                  void deleteMany(
+                    customerPick.selected.map((id) => `/api/admin/customers/${id}`),
+                    () => {
+                      customerPick.clear();
+                      void load();
+                    }
+                  )
+                }
+                onDeleteAll={() =>
+                  void deleteMany(
+                    users.map((user) => `/api/admin/customers/${String(user.id)}`),
+                    () => {
+                      customerPick.clear();
+                      void load();
+                    }
+                  )
+                }
+                extra={
+                  <button
+                    type="button"
+                    className="font-semibold text-amber-800 underline disabled:opacity-40"
+                    disabled={customerPick.selected.length === 0}
+                    onClick={() => void restrictCustomers(customerPick.selected, true)}
+                  >
+                    Restrict selected
+                  </button>
+                }
+              />
               <AdminDataTable
                 rows={pagedCustomers}
-                columns={["name", "email", "role", "createdAt"]}
+                columns={["name", "email", "role", "restricted", "createdAt"]}
                 deletePath={(id) => `/api/admin/customers/${id}`}
                 onReload={load}
+                canDelete={canDelete}
+                selected={customerPick.selected}
+                onToggle={customerPick.toggle}
+                renderExtra={
+                  canDelete
+                    ? (row) => (
+                        <button
+                          type="button"
+                          className="text-xs font-semibold text-amber-800 underline"
+                          onClick={() => void restrictCustomers([String(row.id)], row.restricted !== true)}
+                        >
+                          {row.restricted === true ? "Unrestrict" : "Restrict"}
+                        </button>
+                      )
+                    : undefined
+                }
               />
               <AdminListPagination
                 className="border-t px-4 py-3"
@@ -853,9 +1015,10 @@ export function AdminDashboard() {
             <AdminReviewsPanel
               rows={testimonials}
               onReload={() => void load()}
-              onDelete={(id) => void deleteRow(`/api/testimonials/${id}`, load)}
+              canDelete={canDelete}
             />
           ) : null}
+          {tab === "team" && manageTeam ? <AdminTeamPanel /> : null}
           {tab === "visitors" ? (
             <div className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-3">
@@ -867,9 +1030,27 @@ export function AdminDashboard() {
                 <div className="border-b bg-[#FAF7F2] px-4 py-3 text-xs text-navy-600">
                   Each row is one website visitor. Repeat page opens from the same browser are counted together.
                 </div>
+                <BulkActions
+                  canDelete={canDelete}
+                  allSelected={visitorPick.allSelected}
+                  selectedCount={visitorPick.selected.length}
+                  onToggleAll={visitorPick.toggleAll}
+                  deleteAllLabel="Delete all visitors"
+                  onDeleteSelected={() =>
+                    void deleteMany(
+                      visitorPick.selected.map((id) => `/api/admin/page-views/${encodeURIComponent(id)}`),
+                      () => {
+                        visitorPick.clear();
+                        void loadVisitors();
+                      }
+                    )
+                  }
+                  onDeleteAll={() => void deleteAllVisitors(loadVisitors)}
+                />
                 <table className="min-w-full text-left text-sm">
                   <thead className="border-b bg-[#FAF7F2] text-xs uppercase tracking-wide text-navy-600">
                     <tr>
+                      {canDelete ? <th className="px-4 py-3"> </th> : null}
                       <th className="px-4 py-3">Last visit</th>
                       <th className="px-4 py-3">First visit</th>
                       <th className="px-4 py-3">Visits</th>
@@ -882,13 +1063,23 @@ export function AdminDashboard() {
                   <tbody>
                     {visitors.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="px-4 py-8 text-center text-navy-600">
+                        <td colSpan={canDelete ? 8 : 7} className="px-4 py-8 text-center text-navy-600">
                           No website visitors recorded yet.
                         </td>
                       </tr>
                     ) : (
                       visitors.map((v) => (
                         <tr key={String(v.id)} className="border-b border-[#f0ebe3]">
+                          {canDelete ? (
+                            <td className="px-4 py-3">
+                              <input
+                                type="checkbox"
+                                checked={visitorPick.selected.includes(String(v.id))}
+                                onChange={() => visitorPick.toggle(String(v.id))}
+                                aria-label="Select visitor"
+                              />
+                            </td>
+                          ) : null}
                           <td className="whitespace-nowrap px-4 py-3 text-navy-600">{formatVisit(v.lastAt)}</td>
                           <td className="whitespace-nowrap px-4 py-3 text-navy-600">{formatVisit(v.firstAt)}</td>
                           <td className="px-4 py-3 font-medium">{String(v.visits ?? 0)}</td>
@@ -896,15 +1087,19 @@ export function AdminDashboard() {
                           <td className="max-w-[220px] truncate px-4 py-3">{String(v.lastPath ?? "—")}</td>
                           <td className="whitespace-nowrap px-4 py-3 text-navy-600">{String(v.device ?? "Unknown")}</td>
                           <td className="px-4 py-3">
-                            <button
-                              type="button"
-                              className="text-xs font-semibold text-red-700 underline"
-                              onClick={() =>
-                                void deleteRow(`/api/admin/page-views/${encodeURIComponent(String(v.id))}`, loadVisitors)
-                              }
-                            >
-                              Delete
-                            </button>
+                            {canDelete ? (
+                              <button
+                                type="button"
+                                className="text-xs font-semibold text-red-700 underline"
+                                onClick={() =>
+                                  void deleteRow(`/api/admin/page-views/${encodeURIComponent(String(v.id))}`, loadVisitors)
+                                }
+                              >
+                                Delete
+                              </button>
+                            ) : (
+                              "—"
+                            )}
                           </td>
                         </tr>
                       ))
@@ -1035,12 +1230,14 @@ function Stat({ label, value }: { label: string; value: string }) {
 function AdminReviewsPanel({
   rows,
   onReload,
-  onDelete,
+  canDelete = true,
 }: {
   rows: Record<string, unknown>[];
   onReload: () => void;
-  onDelete: (id: string) => void;
+  canDelete?: boolean;
 }) {
+  const ids = rows.map((row) => String(row.id ?? ""));
+  const pick = useRowSelection(ids);
   if (!rows.length) return <p className="text-sm text-navy-600">No reviews yet.</p>;
 
   async function patch(id: string, body: { showOnHome?: boolean; published?: boolean }) {
@@ -1057,9 +1254,34 @@ function AdminReviewsPanel({
       <p className="border-b bg-[#FAF7F2] px-4 py-2 text-xs text-navy-600">
         Toggle &quot;Show on home&quot; to control which reviews appear on the homepage.
       </p>
+      <BulkActions
+        canDelete={canDelete}
+        allSelected={pick.allSelected}
+        selectedCount={pick.selected.length}
+        onToggleAll={pick.toggleAll}
+        onDeleteSelected={() =>
+          void deleteMany(
+            pick.selected.map((id) => `/api/testimonials/${id}`),
+            () => {
+              pick.clear();
+              onReload();
+            }
+          )
+        }
+        onDeleteAll={() =>
+          void deleteMany(
+            ids.map((id) => `/api/testimonials/${id}`),
+            () => {
+              pick.clear();
+              onReload();
+            }
+          )
+        }
+      />
       <table className="min-w-full text-left text-sm">
         <thead className="border-b bg-[#FAF7F2] text-xs uppercase tracking-wide text-navy-600">
           <tr>
+            {canDelete ? <th className="px-4 py-3"> </th> : null}
             <th className="px-4 py-3">Title</th>
             <th className="px-4 py-3">Customer</th>
             <th className="px-4 py-3">Product</th>
@@ -1075,6 +1297,16 @@ function AdminReviewsPanel({
             const published = row.published !== false;
             return (
               <tr key={id} className="border-b border-[#f0ebe3]">
+                {canDelete ? (
+                  <td className="px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={pick.selected.includes(id)}
+                      onChange={() => pick.toggle(id)}
+                      aria-label="Select review"
+                    />
+                  </td>
+                ) : null}
                 <td className="max-w-xs truncate px-4 py-3 font-medium">{String(row.title ?? "")}</td>
                 <td className="px-4 py-3">
                   {String(row.name ?? "")}
@@ -1102,13 +1334,17 @@ function AdminReviewsPanel({
                   </label>
                 </td>
                 <td className="px-4 py-3">
-                  <button
-                    type="button"
-                    className="text-xs font-semibold text-red-700 underline"
-                    onClick={() => onDelete(id)}
-                  >
-                    Delete
-                  </button>
+                  {canDelete ? (
+                    <button
+                      type="button"
+                      className="text-xs font-semibold text-red-700 underline"
+                      onClick={() => void deleteRow(`/api/testimonials/${id}`, onReload)}
+                    >
+                      Delete
+                    </button>
+                  ) : (
+                    "—"
+                  )}
                 </td>
               </tr>
             );
@@ -1130,52 +1366,132 @@ async function deleteRow(url: string, onDone: () => void) {
   onDone();
 }
 
+async function deleteMany(urls: string[], onDone: () => void) {
+  const unique = [...new Set(urls)];
+  if (!unique.length) return;
+  if (!confirm(`Delete ${unique.length} record${unique.length === 1 ? "" : "s"} permanently?`)) return;
+  const failed = await deleteUrls(unique);
+  if (failed) alert(`${failed} record${failed === 1 ? "" : "s"} could not be deleted.`);
+  onDone();
+}
+
+async function deleteAllVisitors(onDone: () => void) {
+  if (!confirm("Delete every website visitor record?")) return;
+  const res = await fetch("/api/admin/page-views", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ all: true }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    alert(typeof data.error === "string" ? data.error : "Delete failed");
+    return;
+  }
+  onDone();
+}
+
 function AdminDataTable({
   rows,
   columns,
   deletePath,
   onReload,
+  canDelete = true,
+  selected,
+  onToggle,
+  renderExtra,
 }: {
   rows: Record<string, unknown>[];
   columns: string[];
   deletePath?: (id: string) => string;
   onReload: () => void;
+  canDelete?: boolean;
+  selected?: string[];
+  onToggle?: (id: string) => void;
+  renderExtra?: (row: Record<string, unknown>) => ReactNode;
 }) {
+  const own = useRowSelection(rows.map((row) => String(row.id ?? "")));
+  const picked = selected ?? own.selected;
+  const toggle = onToggle ?? own.toggle;
   if (!rows.length) return <p className="text-sm text-navy-600">No records yet.</p>;
+  const showDelete = Boolean(deletePath) && canDelete;
   return (
     <div className="overflow-x-auto rounded-xl bg-white shadow-sm">
+      {showDelete && !selected ? (
+        <BulkActions
+          allSelected={own.allSelected}
+          selectedCount={own.selected.length}
+          onToggleAll={own.toggleAll}
+          onDeleteSelected={() =>
+            void deleteMany(
+              own.selected.map((id) => deletePath!(id)),
+              () => {
+                own.clear();
+                onReload();
+              }
+            )
+          }
+          onDeleteAll={() =>
+            void deleteMany(
+              rows.map((row) => deletePath!(String(row.id))),
+              () => {
+                own.clear();
+                onReload();
+              }
+            )
+          }
+        />
+      ) : null}
       <table className="min-w-full text-left text-sm">
         <thead className="border-b bg-[#FAF7F2] text-xs uppercase tracking-wide text-navy-600">
           <tr>
+            {showDelete ? <th className="px-4 py-3"> </th> : null}
             {columns.map((c) => (
               <th key={c} className="px-4 py-3">
                 {c}
               </th>
             ))}
-            {deletePath ? <th className="px-4 py-3">Actions</th> : null}
+            {showDelete || renderExtra ? <th className="px-4 py-3">Actions</th> : null}
           </tr>
         </thead>
         <tbody>
-          {rows.map((row, i) => (
-            <tr key={String(row.id ?? i)} className="border-b border-[#f0ebe3]">
-              {columns.map((c) => (
-                <td key={c} className="max-w-xs truncate px-4 py-3">
-                  {String(row[c] ?? "")}
-                </td>
-              ))}
-              {deletePath ? (
-                <td className="px-4 py-3">
-                  <button
-                    type="button"
-                    className="text-xs font-semibold text-red-700 underline"
-                    onClick={() => void deleteRow(deletePath(String(row.id)), onReload)}
-                  >
-                    Delete
-                  </button>
-                </td>
-              ) : null}
-            </tr>
-          ))}
+          {rows.map((row, i) => {
+            const id = String(row.id ?? i);
+            return (
+              <tr key={id} className="border-b border-[#f0ebe3]">
+                {showDelete ? (
+                  <td className="px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={picked.includes(id)}
+                      onChange={() => toggle(id)}
+                      aria-label={`Select ${id}`}
+                    />
+                  </td>
+                ) : null}
+                {columns.map((c) => (
+                  <td key={c} className="max-w-xs truncate px-4 py-3">
+                    {c === "restricted" ? (row.restricted === true ? "Restricted" : "Active") : String(row[c] ?? "")}
+                  </td>
+                ))}
+                {showDelete || renderExtra ? (
+                  <td className="px-4 py-3">
+                    <div className="flex flex-wrap gap-2">
+                      {renderExtra ? renderExtra(row) : null}
+                      {showDelete ? (
+                        <button
+                          type="button"
+                          className="text-xs font-semibold text-red-700 underline"
+                          onClick={() => void deleteRow(deletePath!(id), onReload)}
+                        >
+                          Delete
+                        </button>
+                      ) : null}
+                    </div>
+                  </td>
+                ) : null}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -1185,17 +1501,46 @@ function AdminDataTable({
 function TradeAccountsPanel({
   rows,
   onReload,
+  canDelete = true,
 }: {
   rows: Record<string, unknown>[];
   onReload: () => void;
+  canDelete?: boolean;
 }) {
+  const ids = rows.map((row) => String(row.id));
+  const pick = useRowSelection(ids);
   if (!rows.length) return <p className="text-sm text-navy-600">No trade applications yet.</p>;
 
   return (
     <div className="overflow-x-auto rounded-xl bg-white shadow-sm">
+      <BulkActions
+        canDelete={canDelete}
+        allSelected={pick.allSelected}
+        selectedCount={pick.selected.length}
+        onToggleAll={pick.toggleAll}
+        onDeleteSelected={() =>
+          void deleteMany(
+            pick.selected.map((id) => `/api/wholesale/application/${id}`),
+            () => {
+              pick.clear();
+              onReload();
+            }
+          )
+        }
+        onDeleteAll={() =>
+          void deleteMany(
+            ids.map((id) => `/api/wholesale/application/${id}`),
+            () => {
+              pick.clear();
+              onReload();
+            }
+          )
+        }
+      />
       <table className="min-w-full text-left text-sm">
         <thead className="border-b bg-[#FAF7F2] text-xs uppercase tracking-wide text-navy-600">
           <tr>
+            {canDelete ? <th className="px-3 py-3"> </th> : null}
             {[
               "company",
               "contact",
@@ -1218,6 +1563,16 @@ function TradeAccountsPanel({
             const id = String(row.id);
             return (
               <tr key={id} className="border-b border-[#f0ebe3] align-top">
+                {canDelete ? (
+                  <td className="px-3 py-3">
+                    <input
+                      type="checkbox"
+                      checked={pick.selected.includes(id)}
+                      onChange={() => pick.toggle(id)}
+                      aria-label="Select trade account"
+                    />
+                  </td>
+                ) : null}
                 <td className="max-w-[140px] px-3 py-3">{String(row.company ?? "")}</td>
                 <td className="px-3 py-3">{String(row.contact ?? "")}</td>
                 <td className="max-w-[160px] truncate px-3 py-3">{String(row.email ?? "")}</td>
@@ -1227,13 +1582,17 @@ function TradeAccountsPanel({
                 <td className="max-w-[180px] px-3 py-3 text-xs">{String(row.productInterest ?? "")}</td>
                 <td className="whitespace-nowrap px-3 py-3 text-xs text-navy-600">{String(row.createdAt ?? "")}</td>
                 <td className="px-3 py-3">
-                  <button
-                    type="button"
-                    className="text-xs font-semibold text-red-700 underline"
-                    onClick={() => void deleteRow(`/api/wholesale/application/${id}`, onReload)}
-                  >
-                    Delete
-                  </button>
+                  {canDelete ? (
+                    <button
+                      type="button"
+                      className="text-xs font-semibold text-red-700 underline"
+                      onClick={() => void deleteRow(`/api/wholesale/application/${id}`, onReload)}
+                    >
+                      Delete
+                    </button>
+                  ) : (
+                    "—"
+                  )}
                 </td>
               </tr>
             );
