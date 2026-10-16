@@ -2,6 +2,7 @@ import type { AdminProduct } from "@/lib/db/types";
 import { colorsFromImages } from "@/lib/listing-images";
 import { getDb } from "@/lib/mongodb";
 import { products, type Product } from "@/lib/products";
+import { applySales, loadActiveSales } from "@/lib/sales";
 
 function adminToProduct(doc: AdminProduct): Product {
   const listingImages = (doc.images ?? []).filter((image) => image.url);
@@ -26,9 +27,14 @@ function adminToProduct(doc: AdminProduct): Product {
     colors: colorsFromImages(listingImages, doc.colors),
     sizes: doc.sizes,
     quantity: doc.quantity,
+    b2cOutOfStock: doc.b2cOutOfStock,
+    b2bOutOfScope: doc.b2bOutOfScope,
     categories: doc.categories,
     category: doc.categories?.[0] || "new-arrivals",
-    imageAdjust: doc.imageAdjust,
+    imageAdjust: listingImages[0]?.adjust ?? doc.imageAdjust,
+    tags: doc.tags,
+    priceIndia: doc.priceIndia,
+    priceUs: doc.priceUs,
     personalisationPrice:
       doc.personalisationPrice != null && Number.isFinite(doc.personalisationPrice)
         ? doc.personalisationPrice
@@ -78,21 +84,23 @@ export function mergeStorefrontProducts(
 }
 
 export async function getStorefrontProducts(channel?: "retail" | "wholesale"): Promise<Product[]> {
-  const mongo = await loadMongoStorefrontProducts(channel);
-  return mergeStorefrontProducts(products, mongo, channel);
+  const [mongo, sales] = await Promise.all([loadMongoStorefrontProducts(channel), loadActiveSales()]);
+  return mergeStorefrontProducts(products, mongo, channel).map((product) => applySales(product, sales));
 }
 
 export async function getStorefrontProduct(slug: string): Promise<Product | null> {
   const staticOne = products.find((p) => p.slug === slug);
+  let product: Product | null = staticOne ?? null;
   try {
     const db = await getDb();
     const doc = await db.collection<AdminProduct>("products").findOne({
       slug,
       active: { $ne: false },
     });
-    if (doc) return adminToProduct(doc);
+    if (doc) product = adminToProduct(doc);
   } catch {
     /* fall through */
   }
-  return staticOne ?? null;
+  if (!product) return null;
+  return applySales(product, await loadActiveSales());
 }

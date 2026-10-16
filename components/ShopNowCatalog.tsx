@@ -19,7 +19,27 @@ export function ShopNowCatalog({ retail = false }: { retail?: boolean }) {
   const [grid, setGrid] = useState(true);
   const [limit, setLimit] = useState(PAGE_SIZE);
   const [query, setQuery] = useState("");
+  const [extraCategories, setExtraCategories] = useState<{ slug: string; name: string }[]>([]);
+  const [remoteTree, setRemoteTree] = useState<{ slug: string; name: string; children: { slug: string; name: string; children?: { slug: string; name: string }[] }[] }[] | null>(null);
   const visualSearchRef = useRef<HTMLInputElement>(null);
+
+  const categoryTree = useMemo(() => {
+    if (remoteTree) return remoteTree;
+    const extras = extraCategories
+      .filter((item) => !shopNowTree.some((parent) => parent.slug === item.slug))
+      .map((item) => ({ slug: item.slug, name: item.name, children: [] }));
+    return [...shopNowTree, ...extras];
+  }, [extraCategories, remoteTree]);
+
+  useEffect(() => {
+    void fetch("/api/categories")
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data.tree)) setRemoteTree(data.tree);
+        if (Array.isArray(data.items)) setExtraCategories(data.items);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const channel = retail ? "retail" : "wholesale";
@@ -36,12 +56,12 @@ export function ShopNowCatalog({ retail = false }: { retail?: boolean }) {
     const slug = params.get("category");
     const q = params.get("q");
     if (q) setQuery(q);
-    const node = shopNowTree.find((c) => c.slug === slug);
+    const node = categoryTree.find((c) => c.slug === slug);
     if (!node) return;
     setParent(node.slug);
     setSub(null);
     setOpen(null);
-  }, []);
+  }, [categoryTree]);
 
   useEffect(() => {
     setLimit(PAGE_SIZE);
@@ -80,7 +100,8 @@ export function ShopNowCatalog({ retail = false }: { retail?: boolean }) {
   }, [parent, sub, sort, query, catalogProducts]);
 
   const filtered = Boolean(sub || parent);
-  const title = filtered ? findShopNowLabel(sub || parent) : "All products";
+  const extraTitle = extraCategories.find((item) => item.slug === (sub || parent))?.name;
+  const title = filtered ? extraTitle || findShopNowLabel(sub || parent) : "All products";
   const Title = retail ? "h1" : "h2";
 
   function showAll() {
@@ -90,7 +111,7 @@ export function ShopNowCatalog({ retail = false }: { retail?: boolean }) {
   }
 
   function toggleParent(slug: string) {
-    const node = shopNowTree.find((c) => c.slug === slug);
+    const node = categoryTree.find((c) => c.slug === slug);
     setParent(slug);
     setSub(null);
     if (!node?.children.length) {
@@ -106,7 +127,7 @@ export function ShopNowCatalog({ retail = false }: { retail?: boolean }) {
     setSub(childSlug);
   }
 
-  const openParent = shopNowTree.find((c) => c.slug === parent);
+  const openParent = categoryTree.find((c) => c.slug === parent);
   const mobileChildren = openParent?.children ?? [];
 
   return (
@@ -122,7 +143,7 @@ export function ShopNowCatalog({ retail = false }: { retail?: boolean }) {
           >
             All
           </button>
-          {shopNowTree.map((c) => (
+          {categoryTree.map((c) => (
             <button
               key={c.slug}
               type="button"
@@ -171,7 +192,7 @@ export function ShopNowCatalog({ retail = false }: { retail?: boolean }) {
               <span>All products</span>
               <span className="text-[11px] text-[#999]">{catalogProducts.length}</span>
             </button>
-            {shopNowTree.map((c) => {
+            {categoryTree.map((c) => {
               const hasChildren = c.children.length > 0;
               const expanded = hasChildren && open === c.slug;
               const parentActive = parent === c.slug && !sub;

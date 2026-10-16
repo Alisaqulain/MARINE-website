@@ -38,6 +38,9 @@ export type OrderRecord = {
   currency: "USD";
   razorpayOrderId?: string;
   razorpayPaymentId?: string;
+  paymentMethod?: "razorpay" | "paypal";
+  paypalOrderId?: string;
+  paypalCaptureId?: string;
   paidAt?: string;
   estimatedDelivery: string;
   createdAt: string;
@@ -92,11 +95,38 @@ export function estimatedDelivery() {
 
 export function saveOrder(order: OrderRecord) {
   store().set(order.id, order);
+  void persistOrder(order);
   return order;
+}
+
+async function persistOrder(order: OrderRecord) {
+  try {
+    const { getDb } = await import("@/lib/mongodb");
+    const db = await getDb();
+    await db.collection<OrderRecord>("orders").updateOne({ id: order.id }, { $set: order }, { upsert: true });
+  } catch (err) {
+    console.error("[orders] could not save to database", err);
+  }
 }
 
 export function getOrder(id: string) {
   return store().get(id) ?? null;
+}
+
+export async function getOrderDurable(id: string) {
+  const cached = getOrder(id);
+  if (cached) return cached;
+  try {
+    const { getDb } = await import("@/lib/mongodb");
+    const db = await getDb();
+    const doc = await db.collection<OrderRecord>("orders").findOne({ id });
+    if (!doc) return null;
+    const { _id: _ignored, ...order } = doc as OrderRecord & { _id?: unknown };
+    saveOrder(order);
+    return order;
+  } catch {
+    return null;
+  }
 }
 
 export function getOrdersByEmail(email: string) {
@@ -121,6 +151,8 @@ export async function pricedItemsAsync(
   for (const line of lines) {
     const product = (await getStorefrontProduct(line.slug)) ?? getProduct(line.slug);
     if (!product) continue;
+    if (line.b2b ? product.b2bOutOfScope : product.b2cOutOfStock) continue;
+    if (product.quantity != null && product.quantity <= 0) continue;
     const qty = Math.max(1, Math.floor(Number(line.qty) || 1));
     const personalisation = line.personalisation === "yes" || line.personalisation === "no" ? line.personalisation : undefined;
     const charge =
@@ -149,6 +181,8 @@ export function pricedItems(lines: { slug: string; qty: number; b2b?: boolean }[
   for (const line of lines) {
     const product = getProduct(line.slug);
     if (!product) continue;
+    if (line.b2b ? product.b2bOutOfScope : product.b2cOutOfStock) continue;
+    if (product.quantity != null && product.quantity <= 0) continue;
     const qty = Math.max(1, Math.floor(Number(line.qty) || 1));
     items.push({
       slug: product.slug,

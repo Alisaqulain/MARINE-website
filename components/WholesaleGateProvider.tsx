@@ -93,7 +93,11 @@ export function WholesaleGateProvider({ children }: { children: ReactNode }) {
               please log out and create or sign in with a <strong>wholesale (B2B)</strong> account.
             </p>
             <div className="mt-6 flex flex-col gap-2 sm:flex-row">
-              <button type="button" className="btn-outline flex-1" onClick={() => setOpen(false)}>
+              <button
+                type="button"
+                className="flex-1 rounded-full bg-[#031D38] px-5 py-3 text-sm font-semibold uppercase tracking-[0.16em] text-white hover:bg-[#0a3358]"
+                onClick={() => setOpen(false)}
+              >
                 Cancel
               </button>
               <button type="button" className="btn-gold flex-1" onClick={logoutAndWholesaleSignup}>

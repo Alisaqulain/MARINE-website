@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import Image from "next/image";
 import { resolveMediaUrl, isUploadedMedia } from "@/lib/media-url";
 
@@ -12,6 +13,7 @@ export function ProductImage({
   sizes,
   width,
   height,
+  style,
 }: {
   src: string;
   alt?: string;
@@ -20,6 +22,7 @@ export function ProductImage({
   sizes?: string;
   width?: number;
   height?: number;
+  style?: CSSProperties;
 }) {
   const resolved = resolveMediaUrl(src);
   if (!resolved) {
@@ -39,6 +42,7 @@ export function ProductImage({
     className,
     unoptimized,
     sizes,
+    style,
   };
   if (fill) {
     return <Image {...props} fill />;

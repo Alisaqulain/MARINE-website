@@ -14,6 +14,9 @@ import { ProductName } from "./ProductName";
 export function ProductCard({ product }: { product: Product }) {
   const { has, toggle } = useWishlist();
   const wished = has(product.slug);
+  const availabilityMessage = product.b2cOutOfStock
+    ? "Out of stock"
+    : lowStockMessage(product.quantity);
 
   return (
     <article className="group flex flex-col bg-white">
@@ -52,8 +55,8 @@ export function ProductCard({ product }: { product: Product }) {
         </h3>
       </Link>
       <PriceRow price={product.price} className="mt-1" />
-      {lowStockMessage(product.quantity) ? (
-        <p className="mt-1 text-[12px] font-medium text-[#9a3412]">{lowStockMessage(product.quantity)}</p>
+      {availabilityMessage ? (
+        <p className="mt-1 text-[12px] font-medium text-[#9a3412]">{availabilityMessage}</p>
       ) : null}
       {showsFreeShipping(product) ? <FreeShippingTag /> : null}
     </article>

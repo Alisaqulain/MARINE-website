@@ -2,7 +2,7 @@
 
 import { products } from "@/lib/products";
 import { CheckCircle2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const catalogProducts = [...products].sort((a, b) => a.name.localeCompare(b.name));
 
@@ -13,6 +13,7 @@ export function wholesaleApplicationPayload(fd: FormData) {
     contact: fd.get("contact"),
     email: fd.get("email"),
     phone: fd.get("phone"),
+    address: fd.get("address"),
     website: fd.get("website"),
     type: fd.get("type"),
     tax: fd.get("tax"),
@@ -30,8 +31,9 @@ export function WholesaleApplicationFields({ defaultEmail = "" }: { defaultEmail
         [
           ["Company Name", "company", "text", false],
           ["Contact Person", "contact", "text", true],
-          ["Company email (login)", "email", "email", true],
           ["Phone", "phone", "tel", true],
+          ["Address", "address", "text", true],
+          ["Company email (login)", "email", "email", true],
           ["Website", "website", "url", false],
         ] as const
       ).map(([label, name, type, required]) => (
@@ -82,7 +84,17 @@ function ProductPicker({
   labelClassName?: string;
 }) {
   const [value, setValue] = useState("");
+  const [categories, setCategories] = useState<{ slug: string; name: string }[]>([]);
   const other = value === "other";
+
+  useEffect(() => {
+    void fetch("/api/categories")
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data.items)) setCategories(data.items);
+      })
+      .catch(() => {});
+  }, []);
 
   return (
     <div className="block text-[13px]">
@@ -98,6 +110,11 @@ function ProductPicker({
           <option value="" disabled>
             Select a product
           </option>
+          {categories.map((category) => (
+            <option key={`${name}-cat-${category.slug}`} value={category.name}>
+              {category.name}
+            </option>
+          ))}
           {catalogProducts.map((p) => (
             <option key={`${name}-${p.slug}`} value={p.slug}>
               {p.name}

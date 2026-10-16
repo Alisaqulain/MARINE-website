@@ -70,6 +70,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         let user = await findUserByEmail(email);
         if (!user) return null;
         if (user.restricted || user.permissions?.restricted) return null;
+        if (user.emailVerified === false) return null;
         const ok = await verifyPassword(user, password);
         if (!ok) return null;
 
@@ -235,6 +236,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           });
         } else {
           if (existing.restricted || existing.permissions?.restricted) return false;
+          if (existing.emailVerified === false) {
+            const { getDb } = await import("@/lib/mongodb");
+            const db = await getDb();
+            await db.collection("users").updateOne(
+              { _id: existing._id },
+              { $set: { emailVerified: true, updatedAt: new Date() } }
+            );
+          }
           let requested: "customer" | "wholesale" | undefined;
           try {
             const jar = await cookies();

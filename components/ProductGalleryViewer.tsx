@@ -31,6 +31,7 @@ export function ProductGalleryViewer({
   const [mode, setMode] = useState<"photo" | "360" | "3d">("photo");
   const [zoomOpen, setZoomOpen] = useState(false);
   const [magnified, setMagnified] = useState(false);
+  const [hoverZoom, setHoverZoom] = useState<{ x: number; y: number } | null>(null);
   const [tilt, setTilt] = useState({ x: 8, y: -18 });
   const [spin, setSpin] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -100,6 +101,14 @@ export function ProductGalleryViewer({
   }
 
   function onPointerMove(e: PointerEvent<HTMLDivElement>) {
+    if (!interactive && e.pointerType === "mouse") {
+      const rect = e.currentTarget.getBoundingClientRect();
+      setHoverZoom({
+        x: Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100)),
+        y: Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100)),
+      });
+      return;
+    }
     const start = drag.current;
     if (!start) return;
     const dx = e.clientX - start.x;
@@ -152,6 +161,10 @@ export function ProductGalleryViewer({
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
+        onPointerLeave={() => {
+          endDrag();
+          setHoverZoom(null);
+        }}
       >
         <button
           type="button"
@@ -161,7 +174,21 @@ export function ProductGalleryViewer({
           }}
           className={`relative block h-full w-full ${interactive ? "cursor-grab active:cursor-grabbing" : "cursor-zoom-in"}`}
         >
-          <div className="relative h-full w-full transition-transform duration-150 ease-out" style={transform ? { transform } : undefined}>
+          <div
+            className={`relative h-full w-full ease-out ${
+              hoverZoom ? "transition-none" : "transition-transform duration-150"
+            }`}
+            style={
+              hoverZoom
+                ? {
+                    transform: "scale(2.2)",
+                    transformOrigin: `${hoverZoom.x}% ${hoverZoom.y}%`,
+                  }
+                : transform
+                  ? { transform }
+                  : undefined
+            }
+          >
             <Image
               src={src}
               alt={alt}
@@ -187,6 +214,7 @@ export function ProductGalleryViewer({
             onClick={() => {
               setMode(mode === "360" ? "photo" : "360");
               setDragging(false);
+              setHoverZoom(null);
             }}
             className={`rounded-md px-2.5 py-1 text-[10px] uppercase tracking-widest ${
               mode === "360" ? "bg-[#C9A84C] text-[#031D38]" : "bg-black/70 text-white"
@@ -199,6 +227,7 @@ export function ProductGalleryViewer({
             onClick={() => {
               setMode(mode === "3d" ? "photo" : "3d");
               setDragging(false);
+              setHoverZoom(null);
               setTilt({ x: 8, y: -18 });
             }}
             className={`rounded-md px-2.5 py-1 text-[10px] uppercase tracking-widest ${
@@ -219,7 +248,7 @@ export function ProductGalleryViewer({
         >
           <div className="flex h-full w-full" onClick={(e) => e.stopPropagation()}>
             {images.length > 1 ? (
-              <div className="hidden w-[76px] shrink-0 flex-col gap-2 overflow-y-auto bg-black/50 p-2 sm:flex">
+              <div className="hidden w-[76px] shrink-0 flex-col gap-2 overflow-y-auto bg-black/50 p-2 md:flex">
                 {images.map((image, index) => (
                   <button
                     key={`rail-${image}-${index}`}
@@ -251,7 +280,7 @@ export function ProductGalleryViewer({
                     type="button"
                     aria-label="Next photo"
                     onClick={() => showImage(active + 1)}
-                    className="absolute right-3 top-1/2 z-10 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white text-[#222] shadow-lg lg:right-6"
+                    className="absolute right-3 top-1/2 z-10 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white text-[#222] shadow-lg md:right-6"
                   >
                     <ChevronRight className="h-6 w-6" />
                   </button>
@@ -281,13 +310,13 @@ export function ProductGalleryViewer({
                 type="button"
                 aria-label="Close"
                 onClick={closeZoom}
-                className="absolute right-3 top-3 z-10 grid h-10 w-10 place-items-center rounded-full bg-white text-[#222] shadow-lg lg:hidden"
+                className="absolute right-3 top-3 z-10 grid h-10 w-10 place-items-center rounded-full bg-white text-[#222] shadow-lg md:hidden"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <aside className="hidden w-[300px] shrink-0 flex-col overflow-y-auto bg-[#141414] p-4 text-white lg:flex xl:w-[340px]">
+            <aside className="hidden w-[280px] shrink-0 flex-col overflow-y-auto bg-[#141414] p-4 text-white md:flex xl:w-[340px]">
               <button
                 type="button"
                 aria-label="Close"
@@ -319,7 +348,7 @@ export function ProductGalleryViewer({
           </div>
           {images.length > 1 ? (
             <div
-              className="absolute inset-x-0 bottom-0 z-20 flex gap-2 overflow-x-auto bg-black/70 p-2 sm:hidden"
+              className="absolute inset-x-0 bottom-0 z-20 flex gap-2 overflow-x-auto bg-black/70 p-2 md:hidden"
               onClick={(e) => e.stopPropagation()}
             >
               {images.map((image, index) => (

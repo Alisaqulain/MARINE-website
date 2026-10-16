@@ -1,3 +1,2 @@
-/** Shown on forgot-password page and used as SMTP from when configured. */
-export const PASSWORD_OTP_FROM =
-  process.env.SMTP_FROM?.trim() || "admin@marinamuseinternational.com";
+/** Signup and password-reset codes are sent from this mailbox. */
+export const PASSWORD_OTP_FROM = "info@marinamuseinternational.com";

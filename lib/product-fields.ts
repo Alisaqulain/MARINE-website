@@ -24,6 +24,11 @@ export function parseProductExtras(body: Record<string, unknown>): Pick<
   | "stock"
   | "images"
   | "personalisationPrice"
+  | "tags"
+  | "priceIndia"
+  | "priceUs"
+  | "b2cOutOfStock"
+  | "b2bOutOfScope"
 > {
   const quantity =
     body.quantity != null && body.quantity !== "" ? Number(body.quantity) : undefined;
@@ -54,15 +59,26 @@ export function parseProductExtras(body: Record<string, unknown>): Pick<
         ? Math.max(0, Number(personalisationRaw))
         : null;
 
+  const money = (value: unknown) => {
+    if (value == null || value === "") return undefined;
+    const n = Number(value);
+    return Number.isFinite(n) ? Math.max(0, n) : undefined;
+  };
+
   return {
     categories: stringList(body.categories),
     colors,
     materials: stringList(body.materials),
     sizes: stringList(body.sizes),
     quantity: quantity != null && Number.isFinite(quantity) ? quantity : undefined,
-    imageAdjust: { zoom, brightness, contrast },
+    imageAdjust: images?.[0]?.adjust ?? { zoom, brightness, contrast },
     images,
     personalisationPrice,
+    tags: stringList(body.tags)?.slice(0, 13),
+    priceIndia: money(body.priceIndia),
+    priceUs: money(body.priceUs),
+    b2cOutOfStock: body.b2cOutOfStock === true,
+    b2bOutOfScope: body.b2bOutOfScope === true,
     stock,
   };
 }

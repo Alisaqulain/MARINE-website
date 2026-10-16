@@ -46,6 +46,8 @@ export async function GET(req: Request) {
     compareAt: p.compareAt,
     wholesaleFrom: p.wholesaleFrom,
     quantity: p.quantity,
+    b2cOutOfStock: p.b2cOutOfStock,
+    b2bOutOfScope: p.b2bOutOfScope,
     image: p.image,
     description: p.description,
     channel: p.channel,
@@ -59,6 +61,11 @@ export async function GET(req: Request) {
     sizes: p.sizes,
     images: p.images,
     personalisationPrice: p.personalisationPrice,
+    tags: p.tags,
+    priceIndia: p.priceIndia,
+    priceUs: p.priceUs,
+    featured: p.featured,
+    renewsAt: p.renewsAt,
     listedBy: p.listedBy,
   }));
 
@@ -73,7 +80,7 @@ export async function GET(req: Request) {
   }
 
   const page = Math.max(1, Number(searchParams.get("page") ?? 1));
-  const pageSize = Math.min(50, Math.max(5, Number(searchParams.get("pageSize") ?? 10)));
+  const pageSize = Math.min(200, Math.max(5, Number(searchParams.get("pageSize") ?? 10)));
   const total = items.length;
   const start = (page - 1) * pageSize;
   const pageItems = items.slice(start, start + pageSize);
@@ -107,6 +114,8 @@ export async function POST(req: Request) {
     wholesaleFrom:
       body.wholesaleFrom != null && body.wholesaleFrom !== "" ? Number(body.wholesaleFrom) : undefined,
     quantity: extras.quantity,
+    b2cOutOfStock: extras.b2cOutOfStock,
+    b2bOutOfScope: extras.b2bOutOfScope,
     image: extras.images?.[0]?.url || String(body.image ?? ""),
     images: extras.images,
     personalisationPrice: extras.personalisationPrice,
@@ -120,6 +129,9 @@ export async function POST(req: Request) {
     colors: extras.colors,
     materials: extras.materials,
     sizes: extras.sizes,
+    tags: extras.tags,
+    priceIndia: extras.priceIndia,
+    priceUs: extras.priceUs,
     listedBy: {
       userId: session.user.id,
       name: session.user.name || session.user.email || "Admin",

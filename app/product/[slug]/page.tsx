@@ -121,7 +121,14 @@ export default function ProductPage() {
     );
   }
 
-  const stockAlert = lowStockMessage(product.quantity);
+  const manuallyUnavailable = b2b ? product.b2bOutOfScope === true : product.b2cOutOfStock === true;
+  const quantityAlert = lowStockMessage(product.quantity);
+  const unavailableLabel = b2b ? "Out of scope" : "Out of stock";
+  const stockAlert = manuallyUnavailable
+    ? unavailableLabel
+    : quantityAlert === "Out of stock" && b2b
+      ? "Out of scope"
+      : quantityAlert;
   const stockLabel = stockAlert
     ? stockAlert
     : product.stock === "in-stock"
@@ -137,7 +144,7 @@ export default function ProductPage() {
   const displayPrice = product.price + (personalisation === "yes" && personalisationCharge != null ? personalisationCharge : 0);
   const minQty = b2b ? B2B_MIN_ORDER_QTY : 1;
   const maxQty = product.quantity != null && product.quantity > 0 ? product.quantity : 99;
-  const outOfStock = product.quantity != null && product.quantity <= 0;
+  const outOfStock = manuallyUnavailable || (product.quantity != null && product.quantity <= 0);
   const orderQty = Math.min(maxQty, Math.max(minQty, qty));
 
   const handleAdd = () => {
@@ -187,7 +194,7 @@ export default function ProductPage() {
                   const nextColor = product.listingImages?.[index]?.color;
                   if (nextColor) setColor(nextColor);
                 }}
-                imageStyle={imageAdjustStyle(product.imageAdjust)}
+                imageStyle={imageAdjustStyle(product.listingImages?.[active]?.adjust ?? product.imageAdjust)}
                 caption={product.listingImages?.[active]?.text}
                 textX={product.listingImages?.[active]?.textX}
                 textY={product.listingImages?.[active]?.textY}
@@ -241,6 +248,15 @@ export default function ProductPage() {
               <span className="text-navy-500">{product.sku}</span>
             </div>
             <PriceRow price={displayPrice} size="page" className="mt-3 md:mt-4" />
+            {product.priceIndia != null || product.priceUs != null ? (
+              <p className="mt-1 text-xs text-navy-600">
+                {product.priceIndia != null ? `India ${formatPrice(product.priceIndia)}` : null}
+                {product.priceIndia != null && product.priceUs != null ? " · " : null}
+                {product.priceUs != null ? `United States ${formatPrice(product.priceUs)}` : null}
+                {" · "}Everywhere else {formatPrice(product.price)}
+              </p>
+            ) : null}
+            {product.saleTerms ? <p className="mt-2 text-sm text-navy-700">{product.saleTerms}</p> : null}
             {personalisation === "no" ? (
               <p className="mt-1 text-xs text-navy-600">No personalisation · {formatPrice(product.price)}</p>
             ) : personalisation === "yes" && personalisationCharge != null ? (
@@ -346,7 +362,7 @@ export default function ProductPage() {
 
             <div className="mt-5 grid grid-cols-2 gap-3">
               <button onClick={handleAdd} className="btn-navy" disabled={outOfStock}>
-                {outOfStock ? "Out of stock" : added ? "Added to Cart" : "Add to Cart"}
+                {outOfStock ? unavailableLabel : added ? "Added to Cart" : "Add to Cart"}
               </button>
               {outOfStock ? (
                 <span className="btn-gold text-center opacity-50">Buy Now</span>

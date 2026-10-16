@@ -22,6 +22,7 @@ const en: Messages = {
   "footer.shop": "Shop",
   "footer.business": "Business with Us",
   "footer.company": "Company",
+  "footer.legal": "Legal",
   "footer.contact": "Contact",
   "footer.link.retail": "B2C Retail Collection",
   "footer.link.collections": "Collections",
@@ -35,6 +36,9 @@ const en: Messages = {
   "footer.link.contact": "Contact Us",
   "footer.link.blog": "Blog",
   "footer.link.shipping": "Shipping",
+  "footer.link.privacy": "Privacy Policy",
+  "footer.link.terms": "Terms of Service",
+  "footer.link.deletion": "Data Deletion",
   "footer.tagline":
     "Premium nautical instruments, handcrafted brass décor and custom manufacturing from India — exporter, manufacturer & supplier.",
   "footer.office": "Corporate Office & Factory",

@@ -1,9 +1,10 @@
 import { pingDatabase } from "@/lib/mongodb";
+import { pingPayPal } from "@/lib/paypal";
 
 export const dynamic = "force-dynamic";
 
 export default async function TestDbPage() {
-  const result = await pingDatabase();
+  const [result, paypal] = await Promise.all([pingDatabase(), pingPayPal()]);
 
   return (
     <div className="mx-auto max-w-lg px-5 py-16">
@@ -99,6 +100,22 @@ export default async function TestDbPage() {
           ))}
         </ul>
       ) : null}
+      <h2 className="mt-14 font-serif text-3xl text-navy-900">PayPal connection test</h2>
+      <p className="mt-4 text-navy-600">
+        This checks whether PayPal accepts <code className="text-sm">PAYPAL_CLIENT_ID</code> and{" "}
+        <code className="text-sm">PAYPAL_CLIENT_SECRET</code>. The keys themselves are not shown.
+      </p>
+      <p className="mt-2 text-xs text-navy-500">
+        Mode: {paypal.mode} · Webhook ID: {paypal.webhookSet ? "set" : "missing"}
+      </p>
+      <div
+        className={`mt-8 rounded-2xl border px-6 py-5 ${
+          paypal.ok ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-red-200 bg-red-50 text-red-900"
+        }`}
+      >
+        <p className="text-sm font-semibold uppercase tracking-wider">{paypal.ok ? "Connected" : "Not connected"}</p>
+        <p className="mt-2 whitespace-pre-wrap break-words text-sm">{paypal.message}</p>
+      </div>
     </div>
   );
 }

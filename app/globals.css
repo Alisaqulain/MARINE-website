@@ -87,7 +87,7 @@ body {
 }
 
 .btn-outline {
-  @apply inline-flex h-11 items-center justify-center rounded-full border border-[#C9A84C] px-5 text-[10.5px] font-semibold uppercase tracking-[0.14em] text-[#E8D5A3] transition hover:bg-[#C9A84C]/10 sm:h-12 sm:px-7 sm:text-[11px] sm:tracking-[0.18em];
+  @apply inline-flex h-11 items-center justify-center rounded-full border border-[#031D38] bg-[#031D38] px-5 text-[10.5px] font-semibold uppercase tracking-[0.14em] text-white transition hover:border-[#0a3358] hover:bg-[#0a3358] sm:h-12 sm:px-7 sm:text-[11px] sm:tracking-[0.18em];
 }
 
 .btn-navy {

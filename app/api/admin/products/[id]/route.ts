@@ -48,8 +48,13 @@ export async function PATCH(req: Request, ctx: Ctx) {
     images: extras.images,
     personalisationPrice: extras.personalisationPrice,
     quantity: extras.quantity,
+    b2cOutOfStock: extras.b2cOutOfStock,
+    b2bOutOfScope: extras.b2bOutOfScope,
     stock: extras.stock,
     channel: "both",
+    tags: extras.tags,
+    priceIndia: extras.priceIndia,
+    priceUs: extras.priceUs,
   };
   if (fields.name !== undefined) update.name = fields.name;
   if (fields.sku !== undefined) update.sku = fields.sku;
@@ -62,6 +67,16 @@ export async function PATCH(req: Request, ctx: Ctx) {
   if (fields.active !== undefined) update.active = fields.active;
   if (fields.freeShipping !== undefined) update.freeShipping = fields.freeShipping;
 
+  const unset: Record<string, 1> = {};
+  if (body.priceIndia === "") {
+    delete update.priceIndia;
+    unset.priceIndia = 1;
+  }
+  if (body.priceUs === "") {
+    delete update.priceUs;
+    unset.priceUs = 1;
+  }
+
   const db = await getDb();
   const col = db.collection<AdminProduct>("products");
   const oid = new ObjectId(id);
@@ -69,7 +84,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
   if (!existing) {
     return NextResponse.json({ error: "Product not found" }, { status: 404 });
   }
-  await col.updateOne({ _id: oid }, { $set: update });
+  await col.updateOne({ _id: oid }, { $set: update, ...(Object.keys(unset).length ? { $unset: unset } : {}) });
   return NextResponse.json({ ok: true });
 }
 

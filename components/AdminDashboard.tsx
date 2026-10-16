@@ -17,21 +17,25 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { signOut, useSession } from "next-auth/react";
+import { AdminCategoriesPanel } from "@/components/AdminCategoriesPanel";
+import { AdminProductList } from "@/components/AdminProductList";
+import { AdminSalePanel } from "@/components/AdminSalePanel";
 import { AdminTeamPanel } from "@/components/AdminTeamPanel";
 import { BulkActions, deleteUrls, useRowSelection } from "@/components/AdminSelection";
-import { ProductImage } from "@/components/ProductImage";
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { AdminProductImagesField } from "@/components/AdminProductImageField";
-import { ImageOverlayText } from "@/components/ImageOverlayText";
 import { listingCategories } from "@/lib/listing-categories";
 import type { ListingImage } from "@/lib/listing-images";
-import { imageAdjustStyle } from "@/lib/product-display";
+import { lowStockMessage } from "@/lib/product-display";
 
 type Panel = "customer" | "wholesale";
 
 type Tab =
   | "overview"
   | "products"
+  | "add-product"
+  | "sales"
+  | "categories"
   | "quotes"
   | "applications"
   | "contacts"
@@ -54,6 +58,9 @@ export function AdminDashboard() {
     const allowed: Tab[] = [
       "overview",
       "products",
+      "add-product",
+      "sales",
+      "categories",
       "quotes",
       "applications",
       "contacts",
@@ -94,9 +101,14 @@ export function AdminDashboard() {
     name: "",
     sku: "",
     price: "",
+    priceIndia: "",
+    priceUs: "",
     compareAt: "",
     wholesaleFrom: "",
     quantity: "",
+    b2cOutOfStock: false,
+    b2bOutOfScope: false,
+    tags: [] as string[],
     image: "",
     images: [] as ListingImage[],
     description: "",
@@ -112,7 +124,9 @@ export function AdminDashboard() {
     personalisationPrice: "",
   });
   const [productForm, setProductForm] = useState(emptyProductForm());
+  const [tagDraft, setTagDraft] = useState("");
   const [categoryQuery, setCategoryQuery] = useState("");
+  const [extraCategories, setExtraCategories] = useState<{ slug: string; name: string }[]>([]);
   const [editing, setEditing] = useState<{ mongoId: string | null; slug: string } | null>(null);
   const [visitors, setVisitors] = useState<Record<string, unknown>[]>([]);
   const [visitorPage, setVisitorPage] = useState(1);
@@ -177,6 +191,24 @@ export function AdminDashboard() {
   }, [panel, productSearch]);
 
   useEffect(() => {
+    void fetch("/api/categories")
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data.items)) {
+          setExtraCategories(
+            data.items
+              .map((item: { slug?: string; name?: string }) => ({
+                slug: String(item.slug ?? ""),
+                name: String(item.name ?? ""),
+              }))
+              .filter((item: { slug: string; name: string }) => item.slug && item.name)
+          );
+        }
+      })
+      .catch(() => {});
+  }, [tab]);
+
+  useEffect(() => {
     setCustomerPage(1);
   }, [panel, users.length]);
 
@@ -192,6 +224,13 @@ export function AdminDashboard() {
       ? [
           { id: "overview", label: "Overview", icon: Package },
           { id: "products", label: "Products", icon: Package },
+          ...(canAddProduct
+            ? [
+                { id: "add-product" as const, label: "Add product", icon: Package },
+                { id: "sales" as const, label: "Run a sale", icon: Package },
+                { id: "categories" as const, label: "Categories", icon: Package },
+              ]
+            : []),
           { id: "users", label: "Customers", icon: Users },
           { id: "quotes", label: "Bulk quotes", icon: FileText },
           { id: "applications", label: "Trade accounts", icon: Users },
@@ -202,6 +241,13 @@ export function AdminDashboard() {
       : [
           { id: "overview", label: "Overview", icon: Package },
           { id: "products", label: "Products", icon: Package },
+          ...(canAddProduct
+            ? [
+                { id: "add-product" as const, label: "Add product", icon: Package },
+                { id: "sales" as const, label: "Run a sale", icon: Package },
+                { id: "categories" as const, label: "Categories", icon: Package },
+              ]
+            : []),
           { id: "users", label: "Customers", icon: Users },
           { id: "contacts", label: "Contact", icon: MessageSquare },
           { id: "returns", label: "Returns", icon: RotateCcw },
@@ -216,16 +262,21 @@ export function AdminDashboard() {
       slug: editing?.slug,
       channel: panel === "wholesale" ? "wholesale" : "retail",
       price: productForm.price,
+      priceIndia: productForm.priceIndia,
+      priceUs: productForm.priceUs,
+      tags: productForm.tags,
       compareAt: productForm.compareAt,
       wholesaleFrom: productForm.wholesaleFrom,
       quantity: productForm.quantity,
+      b2cOutOfStock: productForm.b2cOutOfStock,
+      b2bOutOfScope: productForm.b2bOutOfScope,
       image: productForm.images[0]?.url ?? productForm.image,
       images: productForm.images,
       freeShipping: productForm.freeShipping,
       categories: productForm.categories,
-      zoom: productForm.zoom,
-      brightness: productForm.brightness,
-      contrast: productForm.contrast,
+      zoom: productForm.images[0]?.adjust?.zoom ?? productForm.zoom,
+      brightness: productForm.images[0]?.adjust?.brightness ?? productForm.brightness,
+      contrast: productForm.images[0]?.adjust?.contrast ?? productForm.contrast,
       colors: productForm.colors,
       materials: productForm.materials,
       sizes: productForm.sizes,
@@ -253,6 +304,7 @@ export function AdminDashboard() {
 
     setProductForm(emptyProductForm());
     setEditing(null);
+    setTab("products");
     void load();
   }
 
@@ -260,13 +312,18 @@ export function AdminDashboard() {
     const source = String(p.source ?? "catalog");
     const mongoId = source === "mongodb" ? String(p.id) : null;
     setEditing({ mongoId, slug: String(p.slug) });
+    setTab("add-product");
     setProductForm({
       name: String(p.name ?? ""),
       sku: String(p.sku ?? ""),
       price: String(p.price ?? ""),
+      priceIndia: p.priceIndia != null && p.priceIndia !== "" ? String(p.priceIndia) : "",
+      priceUs: p.priceUs != null && p.priceUs !== "" ? String(p.priceUs) : "",
       compareAt: p.compareAt != null && p.compareAt !== "" ? String(p.compareAt) : "",
       wholesaleFrom: p.wholesaleFrom != null ? String(p.wholesaleFrom) : "",
       quantity: p.quantity != null ? String(p.quantity) : "",
+      b2cOutOfStock: p.b2cOutOfStock === true,
+      b2bOutOfScope: p.b2bOutOfScope === true,
       image: String(p.image ?? ""),
       images: Array.isArray(p.images)
         ? (p.images as ListingImage[]).map((image) => ({
@@ -276,6 +333,7 @@ export function AdminDashboard() {
             text: String(image?.text ?? ""),
             textX: Number.isFinite(Number(image?.textX)) ? Number(image.textX) : undefined,
             textY: Number.isFinite(Number(image?.textY)) ? Number(image.textY) : undefined,
+            adjust: image?.adjust,
           })).filter((image) => image.url)
         : p.image
           ? [{ url: String(p.image), name: "", color: "", text: "" }]
@@ -290,6 +348,7 @@ export function AdminDashboard() {
       colors: Array.isArray(p.colors) ? p.colors.join(", ") : "",
       materials: Array.isArray(p.materials) ? p.materials.join(", ") : "",
       sizes: Array.isArray(p.sizes) ? p.sizes.join(", ") : "",
+      tags: Array.isArray(p.tags) ? p.tags.map(String).slice(0, 13) : [],
       personalisationPrice:
         p.personalisationPrice != null && p.personalisationPrice !== ""
           ? String(p.personalisationPrice)
@@ -483,7 +542,6 @@ export function AdminDashboard() {
           ) : null}
 
           {tab === "products" ? (
-            <div className="grid gap-8 lg:grid-cols-[1fr_360px]">
               <div className="overflow-x-auto rounded-xl bg-white shadow-sm">
                 <div className="flex flex-col gap-3 border-b bg-[#FAF7F2] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                   <p className="text-xs text-navy-600">
@@ -519,131 +577,37 @@ export function AdminDashboard() {
                     ) : null}
                   </form>
                 </div>
-                <BulkActions
-                  canDelete={canDelete}
-                  allSelected={productPick.allSelected}
-                  selectedCount={productPick.selected.length}
-                  onToggleAll={productPick.toggleAll}
-                  deleteAllLabel="Delete all on this page"
-                  onDeleteSelected={() => void deleteProducts(productPick.selected)}
-                  onDeleteAll={() => void deleteProducts(pageProductIds)}
-                />
-                <table className="min-w-full text-left text-sm">
-                  <thead className="border-b bg-[#FAF7F2] text-xs uppercase tracking-wide text-navy-600">
-                    <tr>
-                      {canDelete ? <th className="sticky left-0 z-20 bg-[#FAF7F2] px-3 py-3"> </th> : null}
-                      <th className="px-4 py-3">Image</th>
-                      <th className="px-4 py-3">Name</th>
-                      <th className="px-4 py-3">SKU</th>
-                      <th className="px-4 py-3">Sale $</th>
-                      <th className="px-4 py-3">Regular $</th>
-                      <th className="px-4 py-3">Qty</th>
-                      <th className="px-4 py-3">Listed by</th>
-                      <th className="px-4 py-3">Source</th>
-                      <th className="px-4 py-3">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {products.length === 0 ? (
-                      <tr>
-                        <td colSpan={canDelete ? 10 : 9} className="px-4 py-8 text-center text-navy-600">
-                          No products loaded. Check MongoDB connection on /test
-                        </td>
-                      </tr>
-                    ) : (
-                      products.map((p) => (
-                        <tr key={String(p.id)} className="border-b border-[#f0ebe3]">
-                          {canDelete ? (
-                            <td className="sticky left-0 z-10 bg-white px-3 py-3">
-                              <input
-                                type="checkbox"
-                                className="h-4 w-4"
-                                checked={productPick.selected.includes(String(p.id))}
-                                onChange={() => productPick.toggle(String(p.id))}
-                                aria-label={`Select ${String(p.name)}`}
-                              />
-                            </td>
-                          ) : null}
-                          <td className="px-4 py-2">
-                            {p.image ? (
-                              <div className="relative h-10 w-10 overflow-hidden rounded bg-[#f4f1ea]">
-                                <ProductImage
-                                  src={String(p.image)}
-                                  alt=""
-                                  fill
-                                  className="object-cover"
-                                  sizes="40px"
-                                />
-                              </div>
-                            ) : (
-                              "—"
-                            )}
-                          </td>
-                          <td className="max-w-[200px] truncate px-4 py-3 font-medium">{String(p.name)}</td>
-                          <td className="px-4 py-3 text-navy-600">{String(p.sku)}</td>
-                          <td className="px-4 py-3">${String(p.price)}</td>
-                          <td className="px-4 py-3 text-navy-600">
-                            {p.compareAt != null && p.compareAt !== "" ? `$${String(p.compareAt)}` : "—"}
-                          </td>
-                          <td className="px-4 py-3">{p.quantity != null && p.quantity !== "" ? String(p.quantity) : "—"}</td>
-                          <td className="max-w-[140px] truncate px-4 py-3 text-navy-600">
-                            {p.listedBy && typeof p.listedBy === "object"
-                              ? String((p.listedBy as { name?: string }).name || (p.listedBy as { email?: string }).email || "—")
-                              : "—"}
-                          </td>
-                          <td className="px-4 py-3">
-                            <span
-                              className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${
-                                p.source === "mongodb"
-                                  ? "bg-emerald-100 text-emerald-800"
-                                  : "bg-[#F4EBD2] text-[#7A5C12]"
-                              }`}
-                            >
-                              {String(p.source ?? "catalog")}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex gap-2">
-                              {canAddProduct ? (
-                                <button
-                                  type="button"
-                                  className="text-xs font-semibold text-[#8C6E28] underline"
-                                  onClick={() => startEdit(p)}
-                                >
-                                  Edit
-                                </button>
-                              ) : null}
-                              {canDelete ? (
-                                <button
-                                  type="button"
-                                  className="text-xs font-semibold text-red-700 underline"
-                                  onClick={() => void deleteProduct(p)}
-                                >
-                                  Delete
-                                </button>
-                              ) : null}
-                            </div>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
                 <AdminListPagination
-                  className="border-t bg-[#FAF7F2] px-4 py-3"
+                  className="border-t bg-white px-4 py-3"
                   page={productPagination.totalPages ? productPage : 0}
                   totalPages={productPagination.totalPages}
                   summary={
-                    <>
+                        <>
                       Page {productPagination.totalPages ? productPage : 0} of {productPagination.totalPages} ·{" "}
                       {productPagination.total} products
                     </>
                   }
                   onPageChange={setProductPage}
                 />
+                <AdminProductList
+                  products={products}
+                  canDelete={canDelete}
+                  canEdit={canAddProduct}
+                  selected={productPick.selected}
+                  onToggle={productPick.toggle}
+                  onToggleAll={productPick.toggleAll}
+                  onEdit={startEdit}
+                  onDelete={(product) => void deleteProduct(product)}
+                  onDeleteSelected={(ids) => void deleteProducts(ids)}
+                  onChanged={() => void load()}
+                  onRunSale={() => setTab("sales")}
+                />
+
               </div>
-              {canAddProduct ? (
-              <form onSubmit={saveProduct} className="space-y-3 rounded-xl bg-white p-5 shadow-sm">
+          ) : null}
+
+          {tab === "add-product" && canAddProduct ? (
+              <form onSubmit={saveProduct} className="mx-auto max-w-4xl space-y-3 rounded-xl bg-white p-5 shadow-sm">
                 <h2 className="font-serif text-lg">{editing ? "Edit product" : "Add product"}</h2>
                 {editing ? (
                   <p className="text-xs text-navy-600">
@@ -671,35 +635,61 @@ export function AdminDashboard() {
                   value={productForm.sku}
                   onChange={(e) => setProductForm({ ...productForm, sku: e.target.value })}
                 />
-                <div className="grid grid-cols-2 gap-2">
-                  <label className="block text-xs">
-                    <span className="mb-1 block text-navy-600">Sale price ($)</span>
+                <fieldset className="space-y-2">
+                  <legend className="text-xs font-semibold uppercase tracking-wide text-navy-600">Tags</legend>
+                  <p className="text-[10px] text-navy-500">Add up to 13 tags to help people search for your listings. Shape, colour, style, function, etc.</p>
+                  <div className="flex gap-2">
                     <input
-                      className="input"
-                      type="number"
-                      step="0.01"
-                      min={0}
-                      value={productForm.price}
-                      onChange={(e) => setProductForm({ ...productForm, price: e.target.value })}
-                      required
+                      className="input text-sm"
+                      placeholder="Add tag"
+                      value={tagDraft}
+                      onChange={(e) => setTagDraft(e.target.value)}
                     />
-                  </label>
-                  <label className="block text-xs">
-                    <span className="mb-1 block text-navy-600">Regular price ($)</span>
-                    <input
-                      className="input"
-                      type="number"
-                      step="0.01"
-                      min={0}
-                      placeholder="Shows as discount"
-                      value={productForm.compareAt}
-                      onChange={(e) => setProductForm({ ...productForm, compareAt: e.target.value })}
-                    />
-                  </label>
-                </div>
-                <p className="text-[10px] text-navy-500">
-                  If regular price is higher than sale price, the shop can show a discount (was / now).
-                </p>
+                    <button
+                      type="button"
+                      className="btn-outline shrink-0 px-4 text-xs"
+                      onClick={() => {
+                        const tag = tagDraft.trim();
+                        if (!tag || productForm.tags.length >= 13 || productForm.tags.some((item) => item.toLowerCase() === tag.toLowerCase())) return;
+                        setProductForm({ ...productForm, tags: [...productForm.tags, tag] });
+                        setTagDraft("");
+                      }}
+                    >
+                      Add
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-navy-500">{13 - productForm.tags.length} left</p>
+                  <div className="flex flex-wrap gap-2">
+                    {productForm.tags.map((tag) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        className="rounded-full bg-[#f4f1ea] px-3 py-1 text-xs text-navy-800"
+                        onClick={() => setProductForm({ ...productForm, tags: productForm.tags.filter((item) => item !== tag) })}
+                      >
+                        {tag} ×
+                      </button>
+                    ))}
+                  </div>
+                </fieldset>
+                <fieldset className="space-y-2">
+                  <legend className="text-xs font-semibold uppercase tracking-wide text-navy-600">Price and inventory</legend>
+                  <p className="text-[10px] text-navy-500">Set your item price, and how many are available for sale. Prices are in US$.</p>
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    <label className="block text-xs">
+                      <span className="mb-1 block text-navy-600">India · US$</span>
+                      <input className="input" type="number" step="0.01" min={0} value={productForm.priceIndia} onChange={(e) => setProductForm({ ...productForm, priceIndia: e.target.value })} />
+                    </label>
+                    <label className="block text-xs">
+                      <span className="mb-1 block text-navy-600">United States · US$</span>
+                      <input className="input" type="number" step="0.01" min={0} value={productForm.priceUs} onChange={(e) => setProductForm({ ...productForm, priceUs: e.target.value })} />
+                    </label>
+                    <label className="block text-xs">
+                      <span className="mb-1 block text-navy-600">Everywhere else · US$</span>
+                      <input className="input" type="number" step="0.01" min={0} value={productForm.price} onChange={(e) => setProductForm({ ...productForm, price: e.target.value })} required />
+                    </label>
+                  </div>
+                </fieldset>
                 {panel === "wholesale" ? (
                   <input
                     className="input"
@@ -721,10 +711,53 @@ export function AdminDashboard() {
                     value={productForm.quantity}
                     onChange={(e) => setProductForm({ ...productForm, quantity: e.target.value })}
                   />
-                  <span className="mt-1 block text-[10px] text-navy-500">
-                    5 or fewer shows “Low in stock, only 2 left” on the shop.
-                  </span>
+                  {lowStockMessage(productForm.quantity === "" ? undefined : Number(productForm.quantity)) ? (
+                    <span className="mt-1 block text-[11px] font-medium text-[#9a3412]">
+                      {lowStockMessage(Number(productForm.quantity))}
+                    </span>
+                  ) : (
+                    <span className="mt-1 block text-[10px] text-navy-500">
+                      5 or fewer shows “Low in stock, only 2 left” on the shop and in this list.
+                    </span>
+                  )}
                 </label>
+                <fieldset className="space-y-2 rounded-xl border border-[#e6dfd2] p-3">
+                  <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-navy-600">
+                    Availability
+                  </legend>
+                  <label className="flex cursor-pointer items-start gap-2 text-sm text-navy-800">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5"
+                      checked={productForm.b2cOutOfStock}
+                      onChange={(e) =>
+                        setProductForm({ ...productForm, b2cOutOfStock: e.target.checked })
+                      }
+                    />
+                    <span>
+                      <span className="block font-medium">B2C — Out of stock</span>
+                      <span className="block text-[10px] text-navy-500">
+                        Shows “Out of stock” and disables customer purchase.
+                      </span>
+                    </span>
+                  </label>
+                  <label className="flex cursor-pointer items-start gap-2 text-sm text-navy-800">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5"
+                      checked={productForm.b2bOutOfScope}
+                      onChange={(e) =>
+                        setProductForm({ ...productForm, b2bOutOfScope: e.target.checked })
+                      }
+                    />
+                    <span>
+                      <span className="block font-medium">B2B — Out of scope</span>
+                      <span className="block text-[10px] text-navy-500">
+                        Shows “Out of scope” and disables wholesale purchase.
+                      </span>
+                    </span>
+                  </label>
+                </fieldset>
                 <fieldset className="space-y-2">
                   <legend className="text-xs font-semibold uppercase tracking-wide text-navy-600">
                     Categories
@@ -739,7 +772,7 @@ export function AdminDashboard() {
                     onChange={(e) => setCategoryQuery(e.target.value)}
                   />
                   <div className="max-h-96 space-y-1 overflow-y-auto rounded-lg border border-[#e6dfd2] p-2">
-                    {listingCategories()
+                    {[...listingCategories(), ...extraCategories.filter((item) => !listingCategories().some((category) => category.slug === item.slug))]
                       .filter((category) => {
                         const q = categoryQuery.trim().toLowerCase();
                         if (!q) return true;
@@ -767,67 +800,9 @@ export function AdminDashboard() {
                       );
                     })}
                   </div>
-                  <p className="text-[10px] text-navy-500">{listingCategories().length} categories</p>
-                </fieldset>
-                <fieldset className="space-y-2">
-                  <legend className="text-xs font-semibold uppercase tracking-wide text-navy-600">
-                    Listing image
-                  </legend>
-                  {(
-                    [
-                      ["zoom", "Zoom", 50, 160],
-                      ["brightness", "Brightness", 40, 160],
-                      ["contrast", "Contrast", 40, 160],
-                    ] as const
-                  ).map(([key, label, min, max]) => (
-                    <label key={key} className="block text-xs text-navy-700">
-                      <span className="mb-1 flex justify-between">
-                        {label}
-                        <span>{productForm[key]}%</span>
-                      </span>
-                      <input
-                        type="range"
-                        min={min}
-                        max={max}
-                        value={productForm[key]}
-                        onChange={(e) => setProductForm({ ...productForm, [key]: e.target.value })}
-                        className="w-full"
-                      />
-                    </label>
-                  ))}
-                  {(productForm.images.length
-                    ? productForm.images
-                    : productForm.image
-                      ? [{ url: productForm.image, name: "", color: "", text: "" }]
-                      : []
-                  ).length ? (
-                    <div className="grid grid-cols-2 gap-2">
-                      {(productForm.images.length
-                        ? productForm.images
-                        : [{ url: productForm.image, name: "", color: "", text: "" }]
-                      ).map((image, index) => (
-                        <div key={`${image.url}-${index}`} className="space-y-1">
-                          <div className="relative h-24 overflow-hidden rounded-lg bg-[#f5f5f5]">
-                            <img
-                              src={image.url}
-                              alt={image.name || `Image ${index + 1}`}
-                              className="h-full w-full object-cover"
-                              style={imageAdjustStyle({
-                                zoom: Number(productForm.zoom),
-                                brightness: Number(productForm.brightness),
-                                contrast: Number(productForm.contrast),
-                              })}
-                            />
-                            <ImageOverlayText text={image.text} x={image.textX} y={image.textY} />
-                          </div>
-                          <p className="truncate text-[10px] text-navy-600">
-                            {image.name || `Image ${index + 1}`}
-                            {image.color ? ` · ${image.color}` : ""}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
+                  <p className="text-[10px] text-navy-500">
+                    {listingCategories().length + extraCategories.filter((item) => !listingCategories().some((category) => category.slug === item.slug)).length} categories
+                  </p>
                 </fieldset>
                 <label className="block text-xs">
                   <span className="mb-1 block text-navy-600">Personalisation charge ($)</span>
@@ -898,13 +873,11 @@ export function AdminDashboard() {
                   </button>
                 </div>
               </form>
-              ) : (
-                <div className="rounded-xl bg-white p-5 text-sm text-navy-700 shadow-sm">
-                  Your account cannot add or edit products.
-                </div>
-              )}
-            </div>
           ) : null}
+
+          {tab === "sales" && canAddProduct ? <AdminSalePanel /> : null}
+
+          {tab === "categories" && canAddProduct ? <AdminCategoriesPanel /> : null}
 
           {tab === "quotes" ? (
             <AdminDataTable
@@ -977,7 +950,7 @@ export function AdminDashboard() {
               />
               <AdminDataTable
                 rows={pagedCustomers}
-                columns={["name", "email", "role", "restricted", "createdAt"]}
+                columns={["name", "phone", "email", "accountType", "address", "memberSince", "verified", "restricted"]}
                 deletePath={(id) => `/api/admin/customers/${id}`}
                 onReload={load}
                 canDelete={canDelete}
@@ -1470,7 +1443,17 @@ function AdminDataTable({
                 ) : null}
                 {columns.map((c) => (
                   <td key={c} className="max-w-xs truncate px-4 py-3">
-                    {c === "restricted" ? (row.restricted === true ? "Restricted" : "Active") : String(row[c] ?? "")}
+                    {c === "restricted"
+                      ? row.restricted === true
+                        ? "Restricted"
+                        : "Active"
+                      : c === "verified"
+                        ? (
+                            <span className={row.verified === "Not verified" ? "font-semibold text-[#9a3412]" : "font-semibold text-emerald-800"}>
+                              {String(row.verified ?? "Verified")}
+                            </span>
+                          )
+                        : String(row[c] ?? "")}
                   </td>
                 ))}
                 {showDelete || renderExtra ? (

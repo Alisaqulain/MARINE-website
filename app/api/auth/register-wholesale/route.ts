@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { ObjectId } from "mongodb";
+import bcrypt from "bcryptjs";
 import { createUser, findUserByEmail } from "@/lib/auth-helpers";
 import { getDb, withMongoWriteRetry } from "@/lib/mongodb";
 import { products } from "@/lib/products";
 import { resolveRole } from "@/lib/roles";
+import { issueSignupOtp } from "@/lib/signup-otp";
 import type { WholesaleApplication } from "@/lib/db/types";
 
 function resolveProductInterest(interest: string, interestOther?: string): string {
@@ -29,6 +31,7 @@ export async function POST(req: Request) {
     const contact = String(body.contact ?? "").trim();
     const company = String(body.company ?? "").trim();
     const phone = String(body.phone ?? "").trim();
+    const address = String(body.address ?? "").trim();
     const businessType = String(body.type ?? body.businessType ?? "").trim();
     const taxId = String(body.tax ?? body.taxId ?? "").trim();
     const interestRaw = String(body.interest ?? "");
@@ -42,6 +45,9 @@ export async function POST(req: Request) {
     }
     if (!phone) {
       return NextResponse.json({ error: "Phone is required." }, { status: 400 });
+    }
+    if (!address) {
+      return NextResponse.json({ error: "Address is required." }, { status: 400 });
     }
     if (!businessType) {
       return NextResponse.json({ error: "Business type is required." }, { status: 400 });
@@ -64,19 +70,25 @@ export async function POST(req: Request) {
 
     return await withMongoWriteRetry(async () => {
       const existing = await findUserByEmail(email);
-      if (existing) {
+      if (existing && existing.emailVerified !== false) {
         return NextResponse.json({ error: "An account with this email already exists." }, { status: 409 });
       }
 
-      const user = await createUser({
-        email,
-        name: contact,
-        password,
-        role: resolveRole(email, "wholesale"),
-      });
+      const user =
+        existing ??
+        (await createUser({
+          email,
+          name: contact,
+          password,
+          role: resolveRole(email, "wholesale"),
+          emailVerified: false,
+          phone,
+          address,
+        }));
 
       const db = await getDb();
       const userId = user._id instanceof ObjectId ? user._id : new ObjectId(String(user._id));
+      const passwordHash = existing ? await bcrypt.hash(password, 12) : undefined;
 
       const doc: Omit<WholesaleApplication, "_id"> = {
         userId,
@@ -84,6 +96,7 @@ export async function POST(req: Request) {
         company,
         contact,
         phone,
+        address,
         website: body.website ? String(body.website) : undefined,
         businessType,
         taxId,
@@ -93,14 +106,28 @@ export async function POST(req: Request) {
         createdAt: new Date(),
       };
 
-      await db.collection<WholesaleApplication>("wholesale_applications").insertOne(doc);
+      if (!existing) {
+        await db.collection<WholesaleApplication>("wholesale_applications").insertOne(doc);
+      }
       await db.collection("users").updateOne(
         { _id: userId },
-        { $set: { wholesaleProfileComplete: true, role: "wholesale", updatedAt: new Date() } }
+        {
+          $set: {
+            wholesaleProfileComplete: true,
+            role: "wholesale",
+            emailVerified: false,
+            phone,
+            address,
+            ...(passwordHash ? { passwordHash } : {}),
+            updatedAt: new Date(),
+          },
+        }
       );
+      await issueSignupOtp(email);
 
       return NextResponse.json({
         ok: true,
+        needsVerification: true,
         user: { id: String(userId), email: user.email, role: "wholesale" },
       });
     });

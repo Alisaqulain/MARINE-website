@@ -21,9 +21,9 @@ import { company } from "@/lib/company";
 import { useT } from "@/lib/i18n/LocaleProvider";
 import { WholesaleNavLink } from "@/components/WholesaleNavLink";
 
-const socials = [
+const socials: { label: string; Icon: typeof Facebook; href?: string }[] = [
   { label: "Facebook", Icon: Facebook },
-  { label: "Instagram", Icon: Instagram },
+  { label: "Instagram", Icon: Instagram, href: "https://www.instagram.com/reel/DecPczRB8N2/?obrf=MjJoamdzNjB5cjQz" },
   { label: "YouTube", Icon: Youtube },
   { label: "LinkedIn", Icon: Linkedin },
 ];
@@ -129,6 +129,15 @@ export function Footer() {
         [t("footer.link.shipping"), "/shipping"],
       ],
     },
+    {
+      title: t("footer.legal"),
+      links: [
+        [t("footer.link.privacy"), "/privacy"],
+        [t("footer.link.terms"), "/terms"],
+        [t("footer.link.deletion"), "/data-deletion"],
+        ["Secure Payment", "/payment"],
+      ],
+    },
   ];
 
   return (
@@ -201,8 +210,8 @@ export function Footer() {
       </Link>
 
       <div className="mx-auto max-w-[1320px] px-4 py-4 sm:px-5 sm:py-6 md:py-8">
-        <div className="grid grid-cols-3 gap-x-2 gap-y-3 sm:gap-x-6 sm:gap-y-6 lg:grid-cols-4 lg:gap-8">
-          <div className="col-span-3 lg:col-span-1">
+        <div className="grid grid-cols-2 gap-x-2 gap-y-3 sm:grid-cols-3 sm:gap-x-6 sm:gap-y-6 lg:grid-cols-5 lg:gap-8">
+          <div className="col-span-2 sm:col-span-3 lg:col-span-1">
             <BrandLogo size="footer" />
             <p className="mt-1.5 max-w-sm text-[11px] leading-snug text-cream-100/70 sm:mt-3 sm:text-sm sm:leading-relaxed">
               {t("footer.tagline")}
@@ -270,17 +279,31 @@ export function Footer() {
             </div>
           </div>
           <div className="flex shrink-0 flex-wrap justify-end gap-1.5 sm:gap-2.5">
-            {socials.map(({ label, Icon }) => (
-              <span
-                key={label}
-                aria-label={label}
-                aria-disabled="true"
-                title={label}
-                className="inline-flex h-7 w-7 cursor-default items-center justify-center rounded-full bg-[#C9A84C] text-[#031D38] sm:h-10 sm:w-10"
-              >
-                <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-              </span>
-            ))}
+            {socials.map(({ label, Icon, href }) =>
+              href ? (
+                <a
+                  key={label}
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={label}
+                  title={label}
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#C9A84C] text-[#031D38] sm:h-10 sm:w-10"
+                >
+                  <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                </a>
+              ) : (
+                <span
+                  key={label}
+                  aria-label={label}
+                  aria-disabled="true"
+                  title={label}
+                  className="inline-flex h-7 w-7 cursor-default items-center justify-center rounded-full bg-[#C9A84C] text-[#031D38] sm:h-10 sm:w-10"
+                >
+                  <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                </span>
+              )
+            )}
           </div>
         </div>
       </div>
@@ -292,7 +315,7 @@ export function Footer() {
             {" "}
             | Developed by{" "}
             <a
-              href="https://robustwebsolution.com/"
+              href="https://wa.me/918860249843"
               target="_blank"
               rel="noopener noreferrer"
               className="font-medium text-[#C9A84C] underline-offset-2 hover:underline"

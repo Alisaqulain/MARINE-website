@@ -10,6 +10,7 @@ import { PasswordInput } from "@/components/PasswordInput";
 import { GoogleAuthButton } from "@/components/GoogleAuthButton";
 import { WholesaleApplicationFields, wholesaleApplicationPayload } from "@/components/WholesaleForms";
 import { useT } from "@/lib/i18n/LocaleProvider";
+import { PASSWORD_OTP_FROM } from "@/lib/password-otp-email";
 
 function LoginInner() {
   const router = useRouter();
@@ -27,6 +28,10 @@ function LoginInner() {
   const [mode, setMode] = useState<"customer" | "wholesale">(initialMode);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [verifyEmail, setVerifyEmail] = useState("");
+  const [verifyPassword, setVerifyPassword] = useState("");
+  const [verifyMode, setVerifyMode] = useState<"customer" | "wholesale">("customer");
+  const [otp, setOtp] = useState("");
 
   useEffect(() => {
     setMode(initialMode);
@@ -84,18 +89,12 @@ function LoginInner() {
         return;
       }
 
-      const signedIn = await signIn("credentials", {
-        email,
-        password,
-        mode: "wholesale",
-        redirect: false,
-      });
       setLoading(false);
-      if (signedIn?.error) {
-        setError("Account created but sign-in failed. Try logging in with your company email.");
-        return;
-      }
-      await finishLogin();
+      setVerifyEmail(email);
+      setVerifyPassword(password);
+      setVerifyMode("wholesale");
+      setOtp("");
+      setError("");
       return;
     }
 
@@ -103,6 +102,8 @@ function LoginInner() {
     const password = String(fd.get("password") ?? "");
     const confirm = String(fd.get("confirm") ?? "");
     const name = String(fd.get("name") ?? "");
+    const phone = String(fd.get("phone") ?? "");
+    const address = String(fd.get("address") ?? "");
 
     if (view === "register" && password !== confirm) {
       setLoading(false);
@@ -114,7 +115,7 @@ function LoginInner() {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, name, mode }),
+        body: JSON.stringify({ email, password, name, phone, address, mode }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -122,6 +123,13 @@ function LoginInner() {
         setError(data.error ?? "Registration failed.");
         return;
       }
+      setLoading(false);
+      setVerifyEmail(email.trim().toLowerCase());
+      setVerifyPassword(password);
+      setVerifyMode(mode);
+      setOtp("");
+      setError("");
+      return;
     }
 
     const result = await signIn("credentials", {
@@ -133,6 +141,20 @@ function LoginInner() {
     setLoading(false);
 
     if (result?.error) {
+      const emailKey = email.trim().toLowerCase();
+      const status = await fetch("/api/auth/verify-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: emailKey, check: true }),
+      }).then((r) => r.json().catch(() => ({})));
+      if (status.needsVerification) {
+        setVerifyEmail(emailKey);
+        setVerifyPassword(password);
+        setVerifyMode(mode);
+        setOtp("");
+        setError("This account is not verified yet. Enter the code from your email.");
+        return;
+      }
       setError(view === "login" ? "Invalid email or password." : "Account created but sign-in failed.");
       return;
     }
@@ -196,8 +218,85 @@ function LoginInner() {
         <p className="my-4 text-center text-xs uppercase tracking-wider text-navy-500">{t("login.orEmail")}</p>
       </div>
 
+      {verifyEmail ? (
+        <form
+          className="space-y-4"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            setError("");
+            setLoading(true);
+            const res = await fetch("/api/auth/verify-email", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ email: verifyEmail, otp, password: verifyPassword }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              setLoading(false);
+              setError(typeof data.error === "string" ? data.error : "Verification failed.");
+              return;
+            }
+            const signedIn = await signIn("credentials", {
+              email: verifyEmail,
+              password: verifyPassword,
+              mode: verifyMode,
+              redirect: false,
+            });
+            setLoading(false);
+            if (signedIn?.error) {
+              setError("Verified, but sign-in failed. Try logging in.");
+              setVerifyEmail("");
+              return;
+            }
+            await finishLogin();
+          }}
+        >
+          <h2 className="font-serif text-xl text-navy-900">Verify your email</h2>
+          <p className="text-sm text-navy-600">
+            We sent a 6-digit code to {verifyEmail} from {PASSWORD_OTP_FROM}.
+          </p>
+          <input
+            className="input"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            placeholder="6-digit code"
+            value={otp}
+            onChange={(e) => setOtp(e.target.value)}
+            required
+          />
+          {error ? <p className="text-sm text-red-700">{error}</p> : null}
+          <button type="submit" className="btn-gold w-full" disabled={loading}>
+            {loading ? "Please wait…" : "Verify and continue"}
+          </button>
+          <button
+            type="button"
+            className="w-full text-sm text-[#8C6E28] underline"
+            onClick={() => {
+              void fetch("/api/auth/verify-email", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email: verifyEmail }),
+              })
+                .then(async (res) => {
+                  const data = await res.json().catch(() => ({}));
+                  setError(
+                    res.ok
+                      ? `A new code has been sent from ${PASSWORD_OTP_FROM}.`
+                      : typeof data.error === "string"
+                        ? data.error
+                        : "Could not resend the code."
+                  );
+                })
+                .catch(() => setError("Could not resend the code."));
+            }}
+          >
+            Resend code
+          </button>
+        </form>
+      ) : null}
+
       <form
-        className={wholesaleRegister ? "grid gap-4 md:grid-cols-2" : "space-y-4"}
+        className={`${verifyEmail ? "hidden" : ""} ${wholesaleRegister ? "grid gap-4 md:grid-cols-2" : "space-y-4"}`}
         onSubmit={onSubmit}
       >
         {wholesaleRegister ? (
@@ -219,6 +318,12 @@ function LoginInner() {
               <input className="input" name="name" required placeholder={t("login.fullName")} />
             ) : null}
             <input className="input" name="email" type="email" required placeholder={t("login.email")} />
+            {view === "register" ? (
+              <>
+                <input className="input" name="phone" type="tel" required placeholder="Phone number" autoComplete="tel" />
+                <input className="input" name="address" required placeholder="Address" autoComplete="street-address" />
+              </>
+            ) : null}
             <PasswordInput
               name="password"
               required

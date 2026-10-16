@@ -11,6 +11,8 @@ export type AdminProductRow = {
   compareAt?: number;
   wholesaleFrom?: number;
   quantity?: number;
+  b2cOutOfStock?: boolean;
+  b2bOutOfScope?: boolean;
   image: string;
   description: string;
   channel: "retail" | "wholesale" | "both";
@@ -18,12 +20,30 @@ export type AdminProductRow = {
   active: boolean;
   freeShipping?: boolean;
   categories?: string[];
-  imageAdjust?: { zoom: number; brightness: number; contrast: number };
+  imageAdjust?: {
+    zoom: number;
+    brightness: number;
+    contrast: number;
+    exposure?: number;
+    shadows?: number;
+    highlights?: number;
+    blacks?: number;
+    whites?: number;
+    saturation?: number;
+    temperature?: number;
+    sharpness?: number;
+    clarity?: number;
+  };
   colors?: string[];
   materials?: string[];
   sizes?: string[];
-  images?: { url: string; name: string; color: string; text: string; textX?: number; textY?: number }[];
+  images?: { url: string; name: string; color: string; text: string; textX?: number; textY?: number; adjust?: AdminProductRow["imageAdjust"] }[];
   personalisationPrice?: number | null;
+  tags?: string[];
+  priceIndia?: number;
+  priceUs?: number;
+  featured?: boolean;
+  renewsAt?: string;
   listedBy?: { userId: string; name: string; email: string };
 };
 
@@ -48,6 +68,8 @@ function catalogProductToRow(p: Product): AdminProductRow {
     compareAt: p.compareAt,
     wholesaleFrom: p.wholesaleFrom,
     quantity: undefined,
+    b2cOutOfStock: p.b2cOutOfStock,
+    b2bOutOfScope: p.b2bOutOfScope,
     image: p.image,
     description: p.description,
     channel: p.wholesaleFrom ? "both" : "retail",

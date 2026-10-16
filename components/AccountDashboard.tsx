@@ -8,6 +8,8 @@ type Profile = {
     id: string;
     name: string;
     email: string;
+    phone?: string;
+    address?: string;
     role: UserRole;
     wholesaleProfileComplete: boolean;
     createdAt: string;
@@ -17,6 +19,7 @@ type Profile = {
     company: string;
     contact: string;
     phone: string;
+    address?: string;
     website?: string;
     businessType: string;
     taxId: string;
@@ -51,6 +54,8 @@ export function AccountDashboard({
     id: "",
     name: fallbackName,
     email: fallbackEmail,
+    phone: "",
+    address: "",
     role,
     wholesaleProfileComplete: false,
     createdAt: "",
@@ -71,22 +76,30 @@ export function AccountDashboard({
         <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
           <div>
             <dt className="text-xs uppercase tracking-wide text-navy-500">Name</dt>
-            <dd className="font-medium text-navy-900">{user.name}</dd>
+            <dd className="font-medium text-navy-900">{user.name || "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-xs uppercase tracking-wide text-navy-500">Phone number</dt>
+            <dd className="font-medium text-navy-900">{user.phone || "—"}</dd>
           </div>
           <div>
             <dt className="text-xs uppercase tracking-wide text-navy-500">Email</dt>
-            <dd className="font-medium text-navy-900">{user.email}</dd>
+            <dd className="font-medium text-navy-900">{user.email || "—"}</dd>
           </div>
           <div>
             <dt className="text-xs uppercase tracking-wide text-navy-500">Account type</dt>
             <dd className="font-medium capitalize text-navy-900">{user.role}</dd>
           </div>
-          {user.createdAt ? (
-            <div>
-              <dt className="text-xs uppercase tracking-wide text-navy-500">Member since</dt>
-              <dd className="font-medium text-navy-900">{new Date(user.createdAt).toLocaleDateString()}</dd>
-            </div>
-          ) : null}
+          <div className="sm:col-span-2">
+            <dt className="text-xs uppercase tracking-wide text-navy-500">Address</dt>
+            <dd className="font-medium text-navy-900">{user.address || "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-xs uppercase tracking-wide text-navy-500">Member since</dt>
+            <dd className="font-medium text-navy-900">
+              {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "—"}
+            </dd>
+          </div>
         </dl>
       </section>
 

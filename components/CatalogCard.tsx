@@ -21,6 +21,15 @@ export function CatalogCard({
   const { has, toggle } = useWishlist();
   const wished = has(product.slug);
   const href = wholesale ? `/product/${product.slug}?b2b=1` : `/product/${product.slug}`;
+  const unavailable = wholesale ? product.b2bOutOfScope : product.b2cOutOfStock;
+  const quantityMessage = lowStockMessage(product.quantity);
+  const availabilityMessage = unavailable
+    ? wholesale
+      ? "Out of scope"
+      : "Out of stock"
+    : quantityMessage === "Out of stock" && wholesale
+      ? "Out of scope"
+      : quantityMessage;
 
   return (
     <article className="group flex flex-col bg-white">
@@ -58,8 +67,8 @@ export function CatalogCard({
         </h3>
       </Link>
       <PriceRow price={product.price} className="mt-1" />
-      {lowStockMessage(product.quantity) ? (
-        <p className="mt-1 text-[12px] font-medium text-[#9a3412]">{lowStockMessage(product.quantity)}</p>
+      {availabilityMessage ? (
+        <p className="mt-1 text-[12px] font-medium text-[#9a3412]">{availabilityMessage}</p>
       ) : null}
       {wholesale && (
         <p className="mt-0.5 text-[11px] font-medium text-[#595959] sm:text-[12px]">

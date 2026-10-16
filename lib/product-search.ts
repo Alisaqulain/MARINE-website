@@ -17,6 +17,8 @@ export function filterProductsByQuery(items: Product[], rawQuery: string): Produ
       p.description,
       categoryLabel,
       p.subcategory ?? "",
+      ...(p.tags ?? []),
+      ...(p.colors ?? []),
     ]
       .join(" ")
       .toLowerCase();

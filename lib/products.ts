@@ -38,14 +38,44 @@ export type Product = {
   featured?: boolean;
   /** Units on hand. When 1–5, the shop shows a low-stock alert. */
   quantity?: number;
+  /** Manually unavailable on the customer/B2C shop. */
+  b2cOutOfStock?: boolean;
+  /** Manually unavailable on the wholesale/B2B shop. */
+  b2bOutOfScope?: boolean;
   /** Shop-now category slugs this product is listed under. */
   categories?: string[];
-  imageAdjust?: { zoom: number; brightness: number; contrast: number };
+  imageAdjust?: {
+    zoom: number;
+    brightness: number;
+    contrast: number;
+    exposure?: number;
+    shadows?: number;
+    highlights?: number;
+    blacks?: number;
+    whites?: number;
+    saturation?: number;
+    temperature?: number;
+    sharpness?: number;
+    clarity?: number;
+  };
   colors?: string[];
   materials?: string[];
   sizes?: string[];
   /** Named photos. Each color opens that photo; text is drawn on the image. */
-  listingImages?: { url: string; name: string; color: string; text: string; textX?: number; textY?: number }[];
+  listingImages?: {
+    url: string;
+    name: string;
+    color: string;
+    text: string;
+    textX?: number;
+    textY?: number;
+    adjust?: Product["imageAdjust"];
+  }[];
+  tags?: string[];
+  priceIndia?: number;
+  priceUs?: number;
+  /** Buyer-facing note while a shop-wide sale includes this listing. */
+  saleTerms?: string;
   /** Extra charge when the buyer chooses personalisation. Hidden when unset. */
   personalisationPrice?: number;
 };

@@ -2,11 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Camera, ImageIcon, X } from "lucide-react";
+import { Camera, ChevronLeft, ChevronRight, ImageIcon, Pencil, Trash2, X } from "lucide-react";
 import { ProductImage } from "@/components/ProductImage";
-import { ImageOverlayText } from "@/components/ImageOverlayText";
 import type { ListingImage } from "@/lib/listing-images";
 import { resolveMediaUrl } from "@/lib/media-url";
+import { imageAdjustStyle, NEUTRAL_IMAGE_ADJUST, type ImageAdjust } from "@/lib/product-display";
 
 function CameraCapture({
   stream,
@@ -242,6 +242,8 @@ export function AdminProductImagesField({
   const [notice, setNotice] = useState("");
   const [paste, setPaste] = useState("");
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [editing, setEditing] = useState<number | null>(null);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
 
   async function openCamera() {
@@ -263,6 +265,24 @@ export function AdminProductImagesField({
 
   function update(index: number, patch: Partial<ListingImage>) {
     onChange(images.map((image, i) => (i === index ? { ...image, ...patch } : image)));
+  }
+
+  function swap(index: number, direction: -1 | 1) {
+    const next = index + direction;
+    if (next < 0 || next >= images.length) return;
+    const copy = [...images];
+    const current = copy[index];
+    copy[index] = copy[next];
+    copy[next] = current;
+    onChange(copy);
+  }
+
+  function moveTo(from: number, to: number) {
+    if (from === to || from < 0 || to < 0 || from >= images.length || to >= images.length) return;
+    const copy = [...images];
+    const [item] = copy.splice(from, 1);
+    copy.splice(to, 0, item);
+    onChange(copy);
   }
 
   async function addFiles(list: FileList | null) {
@@ -291,7 +311,7 @@ export function AdminProductImagesField({
     <div className="space-y-2">
       <span className="block text-xs font-semibold uppercase tracking-wide text-navy-600">Product images</span>
       <p className="text-[11px] text-navy-500">
-        Add as many photos as you need. Name each one, set the color the buyer picks, and optional text drawn on that photo.
+        The first photo is the thumbnail. Drag to reorder. Edit opens brightness, colour, and zoom.
       </p>
       <div className="flex flex-wrap gap-2">
         <button
@@ -361,92 +381,264 @@ export function AdminProductImagesField({
           Add
         </button>
       </div>
-      {images.map((image, index) => (
-        <div key={`${image.url}-${index}`} className="space-y-2 rounded-lg border border-[#e6dfd2] p-2">
-          <div className="flex items-start gap-3">
-            <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg border border-[#e6dfd2] bg-[#f5f5f5]">
-              <ProductImage src={image.url} alt={image.name || "Product image"} fill className="object-cover" sizes="80px" />
-              <ImageOverlayText text={image.text} x={image.textX} y={image.textY} />
+      {images.length ? <p className="text-[11px] text-navy-500">Drag to reorder.</p> : null}
+      <div className="flex gap-3 overflow-x-auto pb-2">
+        {images.map((image, index) => (
+          <div
+            key={`${image.url}-${index}`}
+            draggable
+            onDragStart={() => setDragIndex(index)}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={() => {
+              if (dragIndex != null) moveTo(dragIndex, index);
+              setDragIndex(null);
+            }}
+            className="w-36 shrink-0"
+          >
+            <div className="relative aspect-[4/3] overflow-hidden rounded-2xl border border-[#e6dfd2] bg-[#f7f4ee]">
+              <ProductImage
+                src={image.url}
+                alt={image.name || "Product image"}
+                fill
+                className="object-cover"
+                sizes="144px"
+                style={imageAdjustStyle(image.adjust)}
+              />
+              {index === 0 ? (
+                <span className="absolute left-2 top-2 rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-navy-900 shadow">
+                  Thumbnail
+                </span>
+              ) : null}
+              <button
+                type="button"
+                aria-label="Delete image"
+                onClick={() => onChange(images.filter((_, i) => i !== index))}
+                className="absolute bottom-2 left-2 grid h-8 w-8 place-items-center rounded-full bg-white text-red-600 shadow"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                aria-label="Edit image"
+                onClick={() => setEditing(index)}
+                className="absolute bottom-2 right-2 grid h-8 w-8 place-items-center rounded-full bg-white text-navy-900 shadow"
+              >
+                <Pencil className="h-4 w-4" />
+              </button>
             </div>
-            <div className="min-w-0 flex-1 space-y-2">
-              <input
-                className="input text-sm"
-                placeholder="Image name"
-                value={image.name}
-                onChange={(e) => update(index, { name: e.target.value })}
-              />
-              <input
-                className="input text-sm"
-                placeholder="Color (shows in buyer dropdown)"
-                value={image.color}
-                onChange={(e) => update(index, { color: e.target.value })}
-              />
-              <input
-                className="input text-sm"
-                placeholder="Text on this image"
-                value={image.text}
-                onChange={(e) =>
-                  update(index, {
-                    text: e.target.value,
-                    textX: image.textX ?? 50,
-                    textY: image.textY ?? 50,
-                  })
-                }
-              />
+            <div className="mt-1 flex justify-center gap-1">
+              <button
+                type="button"
+                aria-label="Move image left"
+                disabled={index === 0}
+                onClick={() => swap(index, -1)}
+                className="grid h-7 w-7 place-items-center rounded-full border border-[#e6dfd2] text-navy-800 disabled:opacity-30"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                aria-label="Move image right"
+                disabled={index === images.length - 1}
+                onClick={() => swap(index, 1)}
+                className="grid h-7 w-7 place-items-center rounded-full border border-[#e6dfd2] text-navy-800 disabled:opacity-30"
+              >
+                <ChevronRight className="h-3.5 w-3.5" />
+              </button>
             </div>
           </div>
-          {image.text ? (
-            <div className="space-y-1">
-              <p className="text-[11px] text-navy-600">Drag the text to place it on the photo.</p>
-              <div
-                className="relative h-48 cursor-crosshair touch-none overflow-hidden rounded-lg border border-[#e6dfd2] bg-[#f5f5f5]"
-                onPointerDown={(e) => {
-                  const move = (event: PointerEvent) => {
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    const textX = Math.min(96, Math.max(4, ((event.clientX - rect.left) / rect.width) * 100));
-                    const textY = Math.min(96, Math.max(4, ((event.clientY - rect.top) / rect.height) * 100));
-                    update(index, { textX: Math.round(textX), textY: Math.round(textY) });
-                  };
-                  move(e.nativeEvent);
-                  e.currentTarget.setPointerCapture(e.pointerId);
-                  const target = e.currentTarget;
-                  function onMove(event: PointerEvent) {
-                    if (event.pointerId !== e.pointerId) return;
-                    move(event);
-                  }
-                  function onUp(event: PointerEvent) {
-                    target.removeEventListener("pointermove", onMove);
-                    target.removeEventListener("pointerup", onUp);
-                    if (event.pointerId === e.pointerId) target.releasePointerCapture(e.pointerId);
-                  }
-                  target.addEventListener("pointermove", onMove);
-                  target.addEventListener("pointerup", onUp);
-                }}
-              >
-                <ProductImage src={image.url} alt="" fill className="object-cover" sizes="400px" />
-                <span
-                  className="pointer-events-none absolute z-[2] max-w-[90%] -translate-x-1/2 -translate-y-1/2 text-center text-sm font-semibold leading-snug text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.9),0_0_8px_rgba(0,0,0,0.65)]"
-                  style={{ left: `${image.textX ?? 50}%`, top: `${image.textY ?? 50}%` }}
-                >
-                  {image.text}
-                </span>
-              </div>
-            </div>
-          ) : null}
-          <button
-            type="button"
-            className="text-xs font-semibold text-red-700 underline"
-            onClick={() => onChange(images.filter((_, i) => i !== index))}
-          >
-            Remove image
-          </button>
-          <p className="truncate text-[10px] text-navy-500" title={image.url}>
-            {resolveMediaUrl(image.url)}
-          </p>
-        </div>
-      ))}
+        ))}
+        <button
+          type="button"
+          disabled={uploading}
+          onClick={() => galleryRef.current?.click()}
+          className="grid aspect-[4/3] w-36 shrink-0 place-items-center rounded-2xl border border-dashed border-[#cfc6b6] bg-[#faf8f4] text-center text-sm font-semibold text-navy-800"
+        >
+          <span>
+            <ImageIcon className="mx-auto mb-1 h-5 w-5" />
+            {uploading ? "Uploading…" : "Add photos"}
+          </span>
+        </button>
+      </div>
+      {editing != null && images[editing] ? (
+        <ImageEditor
+          image={images[editing]}
+          onClose={() => setEditing(null)}
+          onApply={(next) => {
+            update(editing, next);
+            setEditing(null);
+          }}
+        />
+      ) : null}
       {notice ? <p className="text-xs text-amber-800">{notice}</p> : null}
       {error ? <p className="text-xs text-red-700">{error}</p> : null}
     </div>
+  );
+}
+
+const ADJUST_TOOLS: { key: keyof ImageAdjust; label: string; min: number; max: number }[] = [
+  { key: "brightness", label: "Brightness", min: 40, max: 160 },
+  { key: "exposure", label: "Exposure", min: -100, max: 100 },
+  { key: "shadows", label: "Shadows", min: -100, max: 100 },
+  { key: "highlights", label: "Highlights", min: -100, max: 100 },
+  { key: "blacks", label: "Blacks", min: -100, max: 100 },
+  { key: "whites", label: "Whites", min: -100, max: 100 },
+  { key: "contrast", label: "Contrast", min: 40, max: 160 },
+  { key: "saturation", label: "Saturation", min: -100, max: 100 },
+  { key: "temperature", label: "Temperature", min: -100, max: 100 },
+  { key: "sharpness", label: "Sharpness", min: -100, max: 100 },
+  { key: "clarity", label: "Clarity", min: -100, max: 100 },
+];
+
+function ImageEditor({
+  image,
+  onClose,
+  onApply,
+}: {
+  image: ListingImage;
+  onClose: () => void;
+  onApply: (next: Partial<ListingImage>) => void;
+}) {
+  const [draft, setDraft] = useState<ListingImage>({
+    ...image,
+    adjust: { ...NEUTRAL_IMAGE_ADJUST, ...image.adjust },
+  });
+  const [past, setPast] = useState<ListingImage[]>([]);
+  const [future, setFuture] = useState<ListingImage[]>([]);
+  const [mode, setMode] = useState<"adjust" | "transform">("adjust");
+  const [tool, setTool] = useState<keyof ImageAdjust>("brightness");
+
+  function remember() {
+    setPast((items) => [...items.slice(-30), draft]);
+    setFuture([]);
+  }
+
+  function undo() {
+    setPast((items) => {
+      const previous = items[items.length - 1];
+      if (!previous) return items;
+      setFuture((queue) => [draft, ...queue]);
+      setDraft(previous);
+      return items.slice(0, -1);
+    });
+  }
+
+  function redo() {
+    setFuture((items) => {
+      const next = items[0];
+      if (!next) return items;
+      setPast((queue) => [...queue, draft]);
+      setDraft(next);
+      return items.slice(1);
+    });
+  }
+
+  const activeTool = ADJUST_TOOLS.find((item) => item.key === tool) ?? ADJUST_TOOLS[0];
+  const adjust = draft.adjust ?? NEUTRAL_IMAGE_ADJUST;
+
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[220] flex flex-col bg-white">
+      <div className="flex items-center justify-between gap-3 border-b border-[#eee] px-4 py-3">
+        <div className="flex gap-3 text-sm">
+          <button type="button" className="text-navy-600 disabled:opacity-30" disabled={!past.length} onClick={undo}>
+            Undo
+          </button>
+          <button type="button" className="text-navy-600 disabled:opacity-30" disabled={!future.length} onClick={redo}>
+            Redo
+          </button>
+        </div>
+        <div className="flex gap-2">
+          <button type="button" className="rounded-full bg-[#222] px-5 py-2 text-sm font-semibold text-white" onClick={() => onApply(draft)}>
+            Apply
+          </button>
+          <button type="button" className="rounded-full border border-[#ddd] px-5 py-2 text-sm font-semibold" onClick={onClose}>
+            Cancel
+          </button>
+        </div>
+      </div>
+      <div className="relative min-h-0 flex-1 overflow-hidden bg-[#f3f3f3]">
+        <ProductImage src={draft.url} alt="" fill className="object-contain" sizes="100vw" style={imageAdjustStyle(adjust)} />
+        {draft.text ? (
+          <span
+            className="pointer-events-none absolute z-[2] max-w-[80%] -translate-x-1/2 -translate-y-1/2 text-center text-lg font-semibold text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.9)]"
+            style={{ left: `${draft.textX ?? 50}%`, top: `${draft.textY ?? 50}%` }}
+          >
+            {draft.text}
+          </span>
+        ) : null}
+      </div>
+      <div className="max-h-[46vh] overflow-y-auto border-t border-[#eee] px-4 py-4">
+        <div className="mx-auto grid max-w-5xl gap-2 sm:grid-cols-3">
+          <input className="input text-sm" placeholder="Image name" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
+          <input className="input text-sm" placeholder="Color" value={draft.color} onChange={(e) => setDraft({ ...draft, color: e.target.value })} />
+          <input
+            className="input text-sm"
+            placeholder="Text on this image"
+            value={draft.text}
+            onChange={(e) => setDraft({ ...draft, text: e.target.value, textX: draft.textX ?? 50, textY: draft.textY ?? 50 })}
+          />
+        </div>
+        {mode === "adjust" ? (
+          <div className="mx-auto mt-4 max-w-5xl">
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-6 lg:grid-cols-11">
+              {ADJUST_TOOLS.map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => setTool(item.key)}
+                  className={`rounded-xl px-2 py-3 text-center text-[11px] font-medium ${
+                    tool === item.key ? "bg-[#222] text-white" : "bg-[#ececec] text-[#333]"
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+            <label className="mt-4 block text-xs text-navy-700">
+              <span className="mb-1 flex justify-between">
+                {activeTool.label}
+                <span>{adjust[activeTool.key] ?? 0}</span>
+              </span>
+              <input
+                type="range"
+                min={activeTool.min}
+                max={activeTool.max}
+                value={Number(adjust[activeTool.key] ?? (activeTool.key === "brightness" || activeTool.key === "contrast" ? 100 : 0))}
+                onPointerDown={remember}
+                onChange={(e) => setDraft({ ...draft, adjust: { ...adjust, [activeTool.key]: Number(e.target.value) } })}
+                className="w-full"
+              />
+            </label>
+          </div>
+        ) : (
+          <label className="mx-auto mt-4 block max-w-lg text-xs text-navy-700">
+            <span className="mb-1 flex justify-between">
+              Zoom
+              <span>{adjust.zoom}%</span>
+            </span>
+            <input
+              type="range"
+              min={50}
+              max={180}
+              value={adjust.zoom}
+              onPointerDown={remember}
+              onChange={(e) => setDraft({ ...draft, adjust: { ...adjust, zoom: Number(e.target.value) } })}
+              className="w-full"
+            />
+          </label>
+        )}
+        <div className="mt-4 flex justify-center gap-2">
+          <button type="button" onClick={() => setMode("adjust")} className={`rounded-full px-5 py-2 text-sm font-semibold ${mode === "adjust" ? "bg-[#222] text-white" : "border border-[#ddd]"}`}>
+            Adjust
+          </button>
+          <button type="button" onClick={() => setMode("transform")} className={`rounded-full px-5 py-2 text-sm font-semibold ${mode === "transform" ? "bg-[#222] text-white" : "border border-[#ddd]"}`}>
+            Transform
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
   );
 }

@@ -180,7 +180,12 @@ export function HomeHero() {
               </WholesaleNavLink>
             </div>
             {i === 0 ? (
-              <Link href="/about" className="group -mt-1.5 flex flex-nowrap items-center gap-2 whitespace-nowrap sm:-mt-0.5 sm:gap-3">
+              <a
+                href="https://www.instagram.com/reel/DecPczRB8N2/?obrf=MjJoamdzNjB5cjQz"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group -mt-1.5 flex flex-nowrap items-center gap-2 whitespace-nowrap sm:-mt-0.5 sm:gap-3"
+              >
                 <span className="relative grid h-8 w-8 shrink-0 place-items-center sm:h-11 sm:w-11 lg:h-14 lg:w-14">
                   <span className="absolute inset-0 rounded-full bg-[#F6BE52]/50 animate-story-ring group-hover:[animation-play-state:paused]" />
                   <span className="absolute inset-0 rounded-full bg-[#FFD56A]/40 animate-story-ring [animation-delay:1s] group-hover:[animation-play-state:paused]" />
@@ -191,7 +196,7 @@ export function HomeHero() {
                 <span className="whitespace-nowrap font-serif text-[14px] font-semibold tracking-[0.02em] text-white underline decoration-[#F6BE52] decoration-2 underline-offset-[5px] drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)] transition group-hover:text-[#F6BE52] sm:text-[18px] sm:tracking-[0.04em] lg:text-[22px]">
                   Watch Our Story
                 </span>
-              </Link>
+              </a>
             ) : null}
           </div>
         )}

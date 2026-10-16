@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { signIn } from "next-auth/react";
 import { BrandLogo } from "@/components/Logo";
+import { PasswordInput } from "@/components/PasswordInput";
 import { useT } from "@/lib/i18n/LocaleProvider";
 
 function AdminLoginInner() {
@@ -62,7 +63,7 @@ function AdminLoginInner() {
           </label>
           <label className="block text-sm">
             <span className="mb-1 block text-navy-700">{t("admin.login.password")}</span>
-            <input className="input" name="password" type="password" required autoComplete="current-password" />
+            <PasswordInput name="password" required autoComplete="current-password" />
           </label>
           {error ? <p className="text-sm text-red-700">{error}</p> : null}
           <button type="submit" className="btn-gold w-full" disabled={loading}>

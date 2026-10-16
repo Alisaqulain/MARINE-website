@@ -6,8 +6,8 @@ import { company } from "@/lib/company";
 import Link from "next/link";
 import { WholesaleNavLink } from "@/components/WholesaleNavLink";
 import Script from "next/script";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 
 declare global {
   interface Window {
@@ -17,12 +17,14 @@ declare global {
 
 const SAVED_ORDERS = "marina-muse-orders";
 
-export default function CheckoutPage() {
+function CheckoutForm() {
   const { items, subtotal, clear, lines } = useCart();
   const router = useRouter();
+  const cancelled = useSearchParams().get("paypal") === "cancelled";
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [whatsapp, setWhatsapp] = useState(true);
+  const [method, setMethod] = useState<"razorpay" | "paypal">("paypal");
 
   if (items.length === 0) {
     return (
@@ -40,20 +42,33 @@ export default function CheckoutPage() {
     setError("");
     setBusy(true);
     const form = new FormData(e.currentTarget);
+    const customer = {
+      lines,
+      name: form.get("name"),
+      email: form.get("email"),
+      phone: form.get("phone"),
+      address: form.get("address"),
+      city: form.get("city"),
+      postal: form.get("postal"),
+      country: form.get("country"),
+    };
     try {
+      if (method === "paypal") {
+        const res = await fetch("/api/paypal/order", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(customer),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "Could not start PayPal.");
+        window.location.href = String(data.approveUrl);
+        return;
+      }
+
       const res = await fetch("/api/razorpay/order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          lines,
-          name: form.get("name"),
-          email: form.get("email"),
-          phone: form.get("phone"),
-          address: form.get("address"),
-          city: form.get("city"),
-          postal: form.get("postal"),
-          country: form.get("country"),
-        }),
+        body: JSON.stringify(customer),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Could not start payment.");
@@ -139,12 +154,24 @@ export default function CheckoutPage() {
           />
           Optional: WhatsApp order confirmation after successful payment
         </label>
+        <fieldset className="space-y-2 text-sm">
+          <legend className="mb-1 text-navy-700">Payment method</legend>
+          <label className="flex items-center gap-2">
+            <input type="radio" name="pay-method" checked={method === "paypal"} onChange={() => setMethod("paypal")} />
+            PayPal
+          </label>
+          <label className="flex items-center gap-2">
+            <input type="radio" name="pay-method" checked={method === "razorpay"} onChange={() => setMethod("razorpay")} />
+            Card, UPI, netbanking
+          </label>
+        </fieldset>
+        {cancelled ? <p className="text-sm text-navy-700">PayPal checkout was cancelled. You can try again.</p> : null}
         {error ? <p className="text-sm text-red-700">{error}</p> : null}
         <button className="btn-gold w-full" type="submit" disabled={busy}>
-          {busy ? "Connecting to secure checkout…" : `Pay ${formatPrice(subtotal)}`}
+          {busy ? "Connecting to secure checkout…" : method === "paypal" ? `Pay ${formatPrice(subtotal)} with PayPal` : `Pay ${formatPrice(subtotal)}`}
         </button>
         <p className="text-center text-xs text-navy-500">
-          SSL protection · Cards, UPI, netbanking and wallets at secure checkout
+          SSL protection · PayPal, cards, UPI, netbanking and wallets
         </p>
       </form>
       <aside className="sticky top-[calc(var(--site-nav)+1rem)] h-fit self-start rounded-2xl border border-cream-300/80 bg-white p-6 shadow-soft">
@@ -191,5 +218,13 @@ export default function CheckoutPage() {
         </WholesaleNavLink>
       </aside>
     </div>
+  );
+}
+
+export default function CheckoutPage() {
+  return (
+    <Suspense fallback={<div className="py-24 text-center text-navy-600">Loading checkout…</div>}>
+      <CheckoutForm />
+    </Suspense>
   );
 }

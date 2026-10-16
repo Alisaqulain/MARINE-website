@@ -7,6 +7,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { BannerHero } from "@/components/BannerHero";
+import { ShopCategoryLinks } from "@/components/ShopCategoryLinks";
 import { WholesaleNavLink } from "@/components/WholesaleNavLink";
 import { heroImg, img } from "@/lib/images";
 
@@ -152,6 +153,7 @@ export default function AboutPage() {
               and durability.
             </p>
           </div>
+          <ShopCategoryLinks />
           <div className="mt-8 grid gap-6 lg:grid-cols-3">
             {ranges.map((range) => (
               <article

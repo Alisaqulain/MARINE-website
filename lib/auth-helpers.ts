@@ -23,6 +23,9 @@ export async function createUser(input: {
   password?: string;
   role?: UserRole;
   googleId?: string;
+  emailVerified?: boolean;
+  phone?: string;
+  address?: string;
 }) {
   const db = await getDb();
   const email = input.email.toLowerCase();
@@ -33,6 +36,9 @@ export async function createUser(input: {
     name: input.name,
     role,
     googleId: input.googleId,
+    emailVerified: input.googleId ? true : input.emailVerified,
+    phone: input.phone?.trim() || undefined,
+    address: input.address?.trim() || undefined,
     wholesaleProfileComplete: role === "wholesale" ? false : undefined,
     createdAt: now,
     updatedAt: now,

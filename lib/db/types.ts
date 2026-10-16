@@ -19,6 +19,10 @@ export type DbUser = {
   wholesaleProfileComplete?: boolean;
   /** Blocks storefront and admin sign-in. */
   restricted?: boolean;
+  /** False until the signup email code is confirmed. Missing means already verified. */
+  emailVerified?: boolean;
+  phone?: string;
+  address?: string;
   permissions?: StaffPermissions;
   createdAt: Date;
   updatedAt: Date;
@@ -31,6 +35,7 @@ export type WholesaleApplication = {
   company: string;
   contact: string;
   phone: string;
+  address?: string;
   website?: string;
   businessType: string;
   taxId: string;
@@ -104,6 +109,10 @@ export type AdminProduct = {
   compareAt?: number;
   wholesaleFrom?: number;
   quantity?: number;
+  /** Manually prevent retail/B2C purchases, independently of quantity. */
+  b2cOutOfStock?: boolean;
+  /** Manually mark wholesale/B2B listing unavailable. */
+  b2bOutOfScope?: boolean;
   image: string;
   description: string;
   channel: "retail" | "wholesale" | "both";
@@ -112,11 +121,18 @@ export type AdminProduct = {
   /** Show “FREE shipping” badge on retail listings. Default true when unset. */
   freeShipping?: boolean;
   categories?: string[];
-  imageAdjust?: { zoom: number; brightness: number; contrast: number };
+  imageAdjust?: { zoom: number; brightness: number; contrast: number; exposure?: number; shadows?: number; highlights?: number; blacks?: number; whites?: number; saturation?: number; temperature?: number; sharpness?: number; clarity?: number };
   colors?: string[];
   materials?: string[];
   sizes?: string[];
-  images?: { url: string; name: string; color: string; text: string; textX?: number; textY?: number }[];
+  images?: { url: string; name: string; color: string; text: string; textX?: number; textY?: number; adjust?: AdminProduct["imageAdjust"] }[];
+  tags?: string[];
+  /** Regional shelf prices in USD. `price` is Everywhere else. */
+  priceIndia?: number;
+  priceUs?: number;
+  featured?: boolean;
+  /** Listing renewal date shown in the admin grid. */
+  renewsAt?: string;
   personalisationPrice?: number | null;
   listedBy?: { userId: string; name: string; email: string };
   createdAt: Date;
