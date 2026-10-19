@@ -14,9 +14,11 @@ import {
   FileText,
   RotateCcw,
   Star,
+  BookOpen,
 } from "lucide-react";
 import Link from "next/link";
 import { signOut, useSession } from "next-auth/react";
+import { AdminBlogPanel } from "@/components/AdminBlogPanel";
 import { AdminCategoriesPanel } from "@/components/AdminCategoriesPanel";
 import { AdminProductList } from "@/components/AdminProductList";
 import { AdminSalePanel } from "@/components/AdminSalePanel";
@@ -41,6 +43,7 @@ type Tab =
   | "contacts"
   | "returns"
   | "testimonials"
+  | "blog"
   | "users"
   | "visitors"
   | "team";
@@ -66,6 +69,7 @@ export function AdminDashboard() {
       "contacts",
       "returns",
       "testimonials",
+      "blog",
       "users",
       "visitors",
       "team",
@@ -236,6 +240,7 @@ export function AdminDashboard() {
           { id: "applications", label: "Trade accounts", icon: Users },
           { id: "contacts", label: "Contact", icon: MessageSquare },
           { id: "testimonials", label: "Reviews", icon: Star },
+          { id: "blog", label: "Blog", icon: BookOpen },
           ...teamNav,
         ]
       : [
@@ -252,6 +257,7 @@ export function AdminDashboard() {
           { id: "contacts", label: "Contact", icon: MessageSquare },
           { id: "returns", label: "Returns", icon: RotateCcw },
           { id: "testimonials", label: "Reviews", icon: Star },
+          { id: "blog", label: "Blog", icon: BookOpen },
           { id: "visitors", label: "Website visitors", icon: Eye },
           ...teamNav,
         ];
@@ -542,7 +548,7 @@ export function AdminDashboard() {
           ) : null}
 
           {tab === "products" ? (
-              <div className="overflow-x-auto rounded-xl bg-white shadow-sm">
+              <div className="rounded-xl bg-white shadow-sm">
                 <div className="flex flex-col gap-3 border-b bg-[#FAF7F2] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                   <p className="text-xs text-navy-600">
                     Live catalogue from the shop plus MongoDB overrides ({productPagination.total} products).
@@ -717,7 +723,7 @@ export function AdminDashboard() {
                     </span>
                   ) : (
                     <span className="mt-1 block text-[10px] text-navy-500">
-                      5 or fewer shows “Low in stock, only 2 left” on the shop and in this list.
+                      5 or fewer shows “Low in stock, only 2 left” on the B2C shop (not on B2B).
                     </span>
                   )}
                 </label>
@@ -856,18 +862,19 @@ export function AdminDashboard() {
                   onChange={(e) => setProductForm({ ...productForm, description: e.target.value })}
                 />
                 <div className="flex gap-2">
-                  {editing ? (
-                    <button
-                      type="button"
-                      className="btn-outline flex-1"
-                      onClick={() => {
-                        setEditing(null);
-                        setProductForm(emptyProductForm());
-                      }}
-                    >
-                      Cancel
-                    </button>
-                  ) : null}
+                  <button
+                    type="button"
+                    className="btn-outline flex-1"
+                    onClick={() => {
+                      const dirty = JSON.stringify(productForm) !== JSON.stringify(emptyProductForm());
+                      if (!editing && dirty && !window.confirm("Discard this product? Your changes will not be saved.")) return;
+                      setEditing(null);
+                      setProductForm(emptyProductForm());
+                      setTab("products");
+                    }}
+                  >
+                    Cancel
+                  </button>
                   <button type="submit" className="btn-gold flex-1">
                     {editing ? "Update product" : "Save product"}
                   </button>
@@ -991,6 +998,7 @@ export function AdminDashboard() {
               canDelete={canDelete}
             />
           ) : null}
+          {tab === "blog" ? <AdminBlogPanel canEdit={canAddProduct} canDelete={canDelete} /> : null}
           {tab === "team" && manageTeam ? <AdminTeamPanel /> : null}
           {tab === "visitors" ? (
             <div className="space-y-4">

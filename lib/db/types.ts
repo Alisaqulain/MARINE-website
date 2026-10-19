@@ -138,3 +138,13 @@ export type AdminProduct = {
   createdAt: Date;
   updatedAt: Date;
 };
+
+/** Listing state (renew / deactivate) for built-in catalogue products that have no `products` doc. */
+export type CatalogOverride = {
+  _id?: ObjectId;
+  slug: string;
+  active?: boolean;
+  featured?: boolean;
+  renewsAt?: string;
+  updatedAt?: Date;
+};

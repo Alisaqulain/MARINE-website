@@ -9,6 +9,7 @@ import { BrandLogo } from "@/components/Logo";
 import { PasswordInput } from "@/components/PasswordInput";
 import { GoogleAuthButton } from "@/components/GoogleAuthButton";
 import { WholesaleApplicationFields, wholesaleApplicationPayload } from "@/components/WholesaleForms";
+import { LegalConsent } from "@/components/LegalConsent";
 import { useT } from "@/lib/i18n/LocaleProvider";
 import { PASSWORD_OTP_FROM } from "@/lib/password-otp-email";
 
@@ -63,7 +64,6 @@ function LoginInner() {
         .toLowerCase();
       const password = String(fd.get("password") ?? "");
       const confirm = String(fd.get("confirm") ?? "");
-      const contact = String(fd.get("contact") ?? "").trim();
 
       if (password !== confirm) {
         setLoading(false);
@@ -311,6 +311,7 @@ function LoginInner() {
               <span className="mb-1.5 block text-navy-700">{t("login.confirmPassword")}</span>
               <PasswordInput name="confirm" required minLength={8} autoComplete="new-password" />
             </label>
+            <LegalConsent className="md:col-span-2" />
           </>
         ) : (
           <>
@@ -340,6 +341,7 @@ function LoginInner() {
                 autoComplete="new-password"
               />
             ) : null}
+            {view === "register" ? <LegalConsent /> : null}
           </>
         )}
 

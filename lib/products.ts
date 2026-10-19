@@ -76,6 +76,8 @@ export type Product = {
   priceUs?: number;
   /** Buyer-facing note while a shop-wide sale includes this listing. */
   saleTerms?: string;
+  /** Percent off from a running admin sale (set by applySales). */
+  salePercent?: number;
   /** Extra charge when the buyer chooses personalisation. Hidden when unset. */
   personalisationPrice?: number;
 };

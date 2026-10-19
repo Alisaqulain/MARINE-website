@@ -93,7 +93,7 @@ export function AdminCategoriesPanel() {
   }
 
   function Row({ node, depth }: { node: CategoryNode; depth: number }) {
-    const expanded = open[node.slug] ?? (depth === 0 && node.slug === tree[0]?.slug);
+    const expanded = open[node.slug] ?? false;
     const isEditing = editing === node.id;
     return (
       <div>

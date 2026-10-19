@@ -28,8 +28,8 @@ export async function POST(req: Request) {
       .toLowerCase();
     const password = String(body.password ?? "");
     const confirm = String(body.confirm ?? body.confirmPassword ?? "");
-    const contact = String(body.contact ?? "").trim();
     const company = String(body.company ?? "").trim();
+    const contact = String(body.contact ?? "").trim() || company || email.split("@")[0];
     const phone = String(body.phone ?? "").trim();
     const address = String(body.address ?? "").trim();
     const businessType = String(body.type ?? body.businessType ?? "").trim();
@@ -39,9 +39,6 @@ export async function POST(req: Request) {
 
     if (!email || !email.includes("@")) {
       return NextResponse.json({ error: "Company email is required and will be your login." }, { status: 400 });
-    }
-    if (!contact) {
-      return NextResponse.json({ error: "Contact person is required." }, { status: 400 });
     }
     if (!phone) {
       return NextResponse.json({ error: "Phone is required." }, { status: 400 });

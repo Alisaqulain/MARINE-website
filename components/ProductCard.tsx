@@ -54,7 +54,7 @@ export function ProductCard({ product }: { product: Product }) {
           <ProductName name={product.name} className="text-[14px] font-normal leading-[1.35] text-[#222222]" />
         </h3>
       </Link>
-      <PriceRow price={product.price} className="mt-1" />
+      <PriceRow price={product.price} salePercent={product.salePercent} className="mt-1" />
       {availabilityMessage ? (
         <p className="mt-1 text-[12px] font-medium text-[#9a3412]">{availabilityMessage}</p>
       ) : null}

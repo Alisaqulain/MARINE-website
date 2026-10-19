@@ -27,8 +27,10 @@ export function CatalogCard({
     ? wholesale
       ? "Out of scope"
       : "Out of stock"
-    : quantityMessage === "Out of stock" && wholesale
-      ? "Out of scope"
+    : wholesale
+      ? quantityMessage === "Out of stock"
+        ? "Out of scope"
+        : null
       : quantityMessage;
 
   return (
@@ -66,7 +68,7 @@ export function CatalogCard({
           />
         </h3>
       </Link>
-      <PriceRow price={product.price} className="mt-1" />
+      <PriceRow price={product.price} salePercent={product.salePercent} className="mt-1" />
       {availabilityMessage ? (
         <p className="mt-1 text-[12px] font-medium text-[#9a3412]">{availabilityMessage}</p>
       ) : null}

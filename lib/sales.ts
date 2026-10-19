@@ -36,7 +36,7 @@ export function saleAppliesTo(sale: ShopSale, slug: string, now = new Date()) {
   return true;
 }
 
-export function applySales<T extends { slug: string; price: number; compareAt?: number; priceIndia?: number; priceUs?: number; saleTerms?: string }>(
+export function applySales<T extends { slug: string; price: number; compareAt?: number; priceIndia?: number; priceUs?: number; saleTerms?: string; salePercent?: number }>(
   product: T,
   sales: ShopSale[]
 ): T {
@@ -51,6 +51,7 @@ export function applySales<T extends { slug: string; price: number; compareAt?: 
     priceIndia: product.priceIndia != null ? cut(product.priceIndia) : product.priceIndia,
     priceUs: product.priceUs != null ? cut(product.priceUs) : product.priceUs,
     saleTerms: best.terms || undefined,
+    salePercent: best.percent,
   };
 }
 

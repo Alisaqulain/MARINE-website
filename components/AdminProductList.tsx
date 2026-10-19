@@ -2,8 +2,9 @@
 
 import { ProductImage } from "@/components/ProductImage";
 import { imageAdjustStyle, lowStockMessage } from "@/lib/product-display";
-import { ChevronDown, Settings, Star } from "lucide-react";
-import { useState } from "react";
+import { ChevronDown, Settings } from "lucide-react";
+import { useEffect, useState } from "react";
+import type { ShopSale } from "@/lib/sales";
 
 type Row = Record<string, unknown>;
 
@@ -47,13 +48,31 @@ export function AdminProductList({
 }) {
   const [menu, setMenu] = useState<"select" | "edit" | string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [sales, setSales] = useState<ShopSale[]>([]);
+
+  useEffect(() => {
+    void fetch("/api/admin/sales")
+      .then((res) => res.json())
+      .then((data) => setSales(Array.isArray(data.items) ? data.items : []))
+      .catch(() => {});
+  }, [products]);
+
+  function saleFor(slug: string) {
+    const today = new Date().toISOString().slice(0, 10);
+    const live = sales.filter(
+      (sale) =>
+        sale.startsAt.slice(0, 10) <= today &&
+        today <= sale.endsAt.slice(0, 10) &&
+        (sale.scope === "all" || sale.productSlugs.includes(slug))
+    );
+    return live.length ? live.reduce((a, b) => (a.percent > b.percent ? a : b)) : null;
+  }
   const ids = products.map((product) => String(product.id));
   const allSelected = ids.length > 0 && ids.every((id) => selected.includes(id));
 
-  async function run(action: "renew" | "deactivate" | "activate" | "feature" | "unfeature", targetIds: string[]) {
-    const mongoIds = targetIds.filter((id) => !id.startsWith("catalog-"));
-    if (!mongoIds.length) {
-      window.alert("Select saved listings. Catalogue items need to be edited and saved before renew, deactivate, or feature.");
+  async function run(action: "renew" | "deactivate" | "activate", targetIds: string[]) {
+    if (!targetIds.length) {
+      window.alert("Select listings first.");
       return;
     }
     setBusy(true);
@@ -62,7 +81,7 @@ export function AdminProductList({
       const res = await fetch("/api/admin/products/bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, ids: mongoIds }),
+        body: JSON.stringify({ action, ids: targetIds }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -158,10 +177,10 @@ export function AdminProductList({
               money(product.price) ? `${money(product.price)} Everywhere else` : null,
             ].filter(Boolean);
             const renews = renewLabel(product.renewsAt);
-            const featured = product.featured === true;
+            const sale = saleFor(String(product.slug));
             return (
-              <article key={id} className={`overflow-hidden rounded-xl border border-[#eee] bg-white ${product.active === false ? "opacity-60" : ""}`}>
-                <div className="relative aspect-[4/3] bg-[#f6f3ec]">
+              <article key={id} className={`relative rounded-xl border border-[#eee] bg-white ${menu === id ? "z-30" : ""} ${product.active === false ? "opacity-60" : ""}`}>
+                <div className="relative aspect-[4/3] overflow-hidden rounded-t-xl bg-[#f6f3ec]">
                   {product.image ? (
                     <ProductImage
                       src={String(product.image)}
@@ -171,6 +190,11 @@ export function AdminProductList({
                       sizes="280px"
                       style={imageAdjustStyle(product.imageAdjust as { zoom: number; brightness: number; contrast: number } | undefined)}
                     />
+                  ) : null}
+                  {sale ? (
+                    <span className="absolute left-2 top-2 rounded-full bg-red-600 px-2 py-0.5 text-[11px] font-semibold text-white shadow">
+                      {sale.percent}% OFF
+                    </span>
                   ) : null}
                 </div>
                 <div className="space-y-1 px-3 py-3 text-sm">
@@ -190,19 +214,16 @@ export function AdminProductList({
                   {prices.map((line) => (
                     <p key={line} className="truncate text-xs text-navy-700">{line}</p>
                   ))}
+                  {sale ? (
+                    <p className="text-xs font-semibold text-red-700">
+                      Sale {sale.name}: {sale.percent}% off
+                      {sale.region !== "everywhere" ? ` (${sale.region})` : ""} until {sale.endsAt}
+                    </p>
+                  ) : null}
                   {renews ? <p className="text-xs text-navy-500">Auto-renews {renews}</p> : null}
                 </div>
                 <div className="flex items-center gap-3 border-t border-[#f0ebe3] px-3 py-2 text-navy-500">
                   <input type="checkbox" className="h-4 w-4" checked={selected.includes(id)} onChange={() => onToggle(id)} aria-label={`Select ${String(product.name)}`} />
-                  <button
-                    type="button"
-                    aria-label={featured ? "Unfeature listing" : "Feature listing"}
-                    disabled={!canEdit || busy}
-                    onClick={() => void run(featured ? "unfeature" : "feature", [id])}
-                    className="disabled:opacity-40"
-                  >
-                    <Star className={`h-4 w-4 ${featured ? "fill-[#C9A84C] text-[#C9A84C]" : ""}`} />
-                  </button>
                   <div className="relative ml-auto">
                     <button type="button" aria-label="Listing actions" className="grid h-8 w-8 place-items-center rounded-full hover:bg-[#faf8f4]" onClick={() => setMenu(menu === id ? null : id)}>
                       <Settings className="h-4 w-4" />

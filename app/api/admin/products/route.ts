@@ -8,7 +8,7 @@ import {
   type AdminProductRow,
 } from "@/lib/admin-catalog";
 import { getDb } from "@/lib/mongodb";
-import type { AdminProduct } from "@/lib/db/types";
+import type { AdminProduct, CatalogOverride } from "@/lib/db/types";
 import { slugify } from "@/lib/slugify";
 import { parseProductExtras } from "@/lib/product-fields";
 
@@ -22,9 +22,20 @@ export async function GET(req: Request) {
   const channel =
     channelParam === "retail" || channelParam === "wholesale" ? channelParam : null;
 
-  const catalog = catalogProductsForAdmin(channel);
-
   const db = await getDb();
+  const overrides = await db.collection<CatalogOverride>("catalog_overrides").find({}).toArray();
+  const overrideBySlug = new Map(overrides.map((o) => [o.slug, o]));
+  const catalog = catalogProductsForAdmin(channel).map((row) => {
+    const o = overrideBySlug.get(row.slug);
+    if (!o) return row;
+    return {
+      ...row,
+      active: o.active ?? row.active,
+      featured: o.featured ?? row.featured,
+      renewsAt: o.renewsAt ?? row.renewsAt,
+    };
+  });
+
   const filter =
     channel === "retail" || channel === "wholesale"
       ? { channel: { $in: [channel, "both"] as const } }

@@ -1,10 +1,11 @@
 "use client";
 
-import { products, formatPrice } from "@/lib/products";
+import { products as staticProducts, formatPrice, type Product } from "@/lib/products";
+import { filterProductsByQuery } from "@/lib/product-search";
 import { Search, X } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { ProductImage } from "./ProductImage";
 
 export function SearchModal({
   open,
@@ -14,21 +15,30 @@ export function SearchModal({
   onClose: () => void;
 }) {
   const [q, setQ] = useState("");
+  const [products, setProducts] = useState<Product[]>(staticProducts);
 
   useEffect(() => {
-    if (!open) setQ("");
+    if (!open) {
+      setQ("");
+      return;
+    }
+    // Load the live catalogue (built-in + admin-added listings) each time search opens.
+    let cancelled = false;
+    void fetch("/api/catalog/products", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled && Array.isArray(data.items)) setProducts(data.items);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   }, [open]);
 
   const results = useMemo(() => {
-    const query = q.trim().toLowerCase();
-    if (!query) return products.slice(0, 6);
-    return products.filter(
-      (p) =>
-        p.name.toLowerCase().includes(query) ||
-        p.collection.includes(query) ||
-        p.sku.toLowerCase().includes(query)
-    );
-  }, [q]);
+    if (!q.trim()) return products.slice(0, 6);
+    return filterProductsByQuery(products, q);
+  }, [q, products]);
 
   if (!open) return null;
 
@@ -63,7 +73,7 @@ export function SearchModal({
               className="flex items-center gap-3 rounded-xl p-3 hover:bg-cream-200"
             >
               <div className="relative h-14 w-14 overflow-hidden rounded-lg bg-cream-300">
-                <Image src={p.image} alt={p.name} fill className="object-cover" />
+                <ProductImage src={p.image} alt={p.name} fill sizes="56px" className="object-cover" />
               </div>
               <div className="flex-1">
                 <p className="font-medium text-navy-900">{p.name}</p>

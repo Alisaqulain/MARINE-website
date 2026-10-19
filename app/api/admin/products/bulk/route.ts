@@ -1,7 +1,7 @@
 import { ObjectId } from "mongodb";
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/admin-auth";
-import type { AdminProduct } from "@/lib/db/types";
+import type { AdminProduct, CatalogOverride } from "@/lib/db/types";
 import { getDb } from "@/lib/mongodb";
 
 export async function POST(req: Request) {
@@ -9,9 +9,12 @@ export async function POST(req: Request) {
   if (error) return error;
   const body = await req.json().catch(() => null);
   const action = String(body?.action ?? "");
-  const ids = Array.isArray(body?.ids) ? body.ids.map(String).filter((id: string) => ObjectId.isValid(id)) : [];
-  if (!ids.length) {
-    return NextResponse.json({ error: "Select saved listings first. Catalogue items need to be edited and saved before this." }, { status: 400 });
+  const rawIds: string[] = Array.isArray(body?.ids) ? body.ids.map(String) : [];
+  const ids = rawIds.filter((id) => ObjectId.isValid(id));
+  // Built-in catalogue items have no Mongo doc; their listing state lives in catalog_overrides.
+  const catalogSlugs = rawIds.filter((id) => id.startsWith("catalog-")).map((id) => id.slice("catalog-".length));
+  if (!ids.length && !catalogSlugs.length) {
+    return NextResponse.json({ error: "Select listings first." }, { status: 400 });
   }
 
   const now = new Date();
@@ -28,9 +31,21 @@ export async function POST(req: Request) {
   else return NextResponse.json({ error: "Unknown listing action." }, { status: 400 });
 
   const db = await getDb();
-  const result = await db.collection<AdminProduct>("products").updateMany(
-    { _id: { $in: ids.map((id: string) => new ObjectId(id)) } },
-    { $set: set }
-  );
-  return NextResponse.json({ ok: true, updated: result.modifiedCount });
+  let updated = 0;
+  if (ids.length) {
+    const result = await db.collection<AdminProduct>("products").updateMany(
+      { _id: { $in: ids.map((id) => new ObjectId(id)) } },
+      { $set: set }
+    );
+    updated += result.matchedCount;
+  }
+  if (catalogSlugs.length) {
+    const result = await db.collection<CatalogOverride>("catalog_overrides").bulkWrite(
+      catalogSlugs.map((slug) => ({
+        updateOne: { filter: { slug }, update: { $set: { slug, ...set } }, upsert: true },
+      }))
+    );
+    updated += result.matchedCount + result.upsertedCount;
+  }
+  return NextResponse.json({ ok: true, updated });
 }

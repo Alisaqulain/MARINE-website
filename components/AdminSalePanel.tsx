@@ -2,12 +2,35 @@
 
 import { listingCategories } from "@/lib/listing-categories";
 import type { ShopSale } from "@/lib/sales";
+import { shopNowTree, type ShopNowChild } from "@/lib/shop-now-data";
+import { useEffect, useMemo, useState } from "react";
 
 function saleIsLive(sale: ShopSale) {
   const today = new Date().toISOString().slice(0, 10);
   return sale.startsAt.slice(0, 10) <= today && today <= sale.endsAt.slice(0, 10);
 }
-import { useEffect, useMemo, useState } from "react";
+
+function categoryWithChildren(slug: string): Set<string> {
+  const out = new Set([slug]);
+  function collect(nodes: ShopNowChild[]) {
+    for (const node of nodes) {
+      out.add(node.slug);
+      if (node.children) collect(node.children);
+    }
+  }
+  function find(nodes: ShopNowChild[]): boolean {
+    for (const node of nodes) {
+      if (node.slug === slug) {
+        collect(node.children ?? []);
+        return true;
+      }
+      if (node.children && find(node.children)) return true;
+    }
+    return false;
+  }
+  find(shopNowTree.map((parent) => ({ slug: parent.slug, name: parent.name, children: parent.children })));
+  return out;
+}
 
 type Listing = { id: string; slug: string; name: string; categories?: string[]; price?: number };
 
@@ -64,8 +87,10 @@ export function AdminSalePanel() {
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
+    // A parent category also covers every subcategory under it.
+    const inCategory = category === "all" ? null : categoryWithChildren(category);
     return listings.filter((item) => {
-      if (category !== "all" && !(item.categories ?? []).includes(category)) return false;
+      if (inCategory && !(item.categories ?? []).some((slug) => inCategory.has(slug))) return false;
       if (!q) return true;
       return item.name.toLowerCase().includes(q) || item.slug.toLowerCase().includes(q);
     });
@@ -252,6 +277,27 @@ export function AdminSalePanel() {
             ))}
           </div>
           <input className="input" placeholder="Search for a specific listing" value={query} onChange={(e) => setQuery(e.target.value)} />
+          {visible.length ? (
+            <div className="flex gap-3 text-xs">
+              <button
+                type="button"
+                className="font-semibold text-[#8C6E28] underline"
+                onClick={() => setPicked((current) => [...new Set([...current, ...visible.map((item) => item.slug)])])}
+              >
+                Select all {visible.length} shown
+              </button>
+              <button
+                type="button"
+                className="text-navy-600 underline"
+                onClick={() => {
+                  const shown = new Set(visible.map((item) => item.slug));
+                  setPicked((current) => current.filter((slug) => !shown.has(slug)));
+                }}
+              >
+                Clear shown
+              </button>
+            </div>
+          ) : null}
           {visible.length === 0 ? (
             <p className="rounded-xl border border-dashed px-4 py-8 text-center text-sm text-navy-600">Add some listings to get started</p>
           ) : (

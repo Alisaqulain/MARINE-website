@@ -1,15 +1,18 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import { BannerHero } from "@/components/BannerHero";
-import { blogPosts } from "@/lib/blog";
+import { listPublishedPosts } from "@/lib/blog-store";
+import { ProductImage } from "@/components/ProductImage";
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Blog",
   description: "Notes on brass, nautical instruments, wholesale and custom manufacturing from Marina Muse International.",
 };
 
-export default function BlogPage() {
+export default async function BlogPage() {
+  const blogPosts = await listPublishedPosts();
   return (
     <div className="bg-[#FAF7F2]">
       <BannerHero
@@ -23,7 +26,7 @@ export default function BlogPage() {
           {blogPosts.map((post) => (
             <article key={post.slug} className="overflow-hidden rounded-3xl bg-white shadow-soft">
               <Link href={`/blog/${post.slug}`} className="relative block aspect-[16/10]">
-                <Image
+                <ProductImage
                   src={post.image}
                   alt={post.title}
                   fill

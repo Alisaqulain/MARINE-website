@@ -79,6 +79,42 @@ function CameraCapture({
   );
 }
 
+/**
+ * Phones: one button — the OS sheet already offers Camera, Photo library and Files.
+ * Desktop: separate webcam and file buttons (getUserMedia needs HTTPS and is unreliable on phones).
+ */
+function PhotoPickerButtons({
+  uploading,
+  onCamera,
+  onPick,
+}: {
+  uploading: boolean;
+  onCamera: () => void;
+  onPick: () => void;
+}) {
+  const cls =
+    "inline-flex items-center justify-center gap-2 rounded-xl border border-[#C9A84C]/50 bg-[#FAF7F2] px-3 py-3 text-sm font-medium text-navy-800 hover:border-[#C9A84C] disabled:opacity-60 sm:px-4";
+  return (
+    <div className="flex flex-wrap gap-2">
+      <button type="button" disabled={uploading} onClick={onPick} className={`${cls} flex-1 sm:flex-none`}>
+        <ImageIcon className="h-4 w-4 shrink-0" />
+        {uploading ? (
+          "Uploading…"
+        ) : (
+          <>
+            <span className="sm:hidden">Take or choose photo</span>
+            <span className="hidden sm:inline">Gallery / files</span>
+          </>
+        )}
+      </button>
+      <button type="button" disabled={uploading} onClick={onCamera} className={`${cls} hidden sm:inline-flex`}>
+        <Camera className="h-4 w-4 shrink-0" />
+        Webcam
+      </button>
+    </div>
+  );
+}
+
 export function AdminProductImageField({
   value,
   onChange,
@@ -109,83 +145,43 @@ export function AdminProductImageField({
     }
   }
 
-  async function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
+  function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (!file) return;
+    e.target.value = "";
+    if (file) void uploadSingle(file);
+  }
+
+  async function uploadSingle(file: File) {
     setError("");
     setNotice("");
     setUploading(true);
     try {
-      const body = new FormData();
-      body.append("file", file);
-      let res: Response;
-      try {
-        res = await fetch("/api/upload", { method: "POST", body });
-      } catch {
-        setError(
-          "Network error — could not reach /api/upload. Check that the site is running and you are logged in as admin."
-        );
-        return;
-      }
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setError(typeof data.error === "string" ? data.error : "Upload failed");
-        return;
-      }
-      const url = data.path ?? data.url;
-      if (url) onChange(String(url));
-      else if (data.url) onChange(String(data.url));
-      if (data.warning) setNotice(String(data.warning));
+      const uploaded = await uploadImageFile(file);
+      onChange(uploaded.url);
+      if (uploaded.warning) setNotice(uploaded.warning);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Upload failed");
     } finally {
       setUploading(false);
-      e.target.value = "";
     }
   }
 
   return (
     <div className="space-y-2">
       <span className="block text-xs font-semibold uppercase tracking-wide text-navy-600">Product image</span>
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          disabled={uploading}
-          onClick={() => void openCamera()}
-          className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-[#C9A84C]/50 bg-[#FAF7F2] px-3 py-3 text-sm font-medium text-navy-800 hover:border-[#C9A84C] sm:flex-none sm:px-4"
-        >
-          <Camera className="h-4 w-4 shrink-0" />
-          {uploading ? "Uploading…" : "Camera"}
-        </button>
-        <button
-          type="button"
-          disabled={uploading}
-          onClick={() => galleryRef.current?.click()}
-          className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-[#C9A84C]/50 bg-[#FAF7F2] px-3 py-3 text-sm font-medium text-navy-800 hover:border-[#C9A84C] sm:flex-none sm:px-4"
-        >
-          <ImageIcon className="h-4 w-4 shrink-0" />
-          Gallery / files
-        </button>
-      </div>
-      <input
-        ref={galleryRef}
-        type="file"
-        accept="image/jpeg,image/png,image/webp,image/gif"
-        form="marina-image-picker"
-        className="hidden"
-        onChange={onPickFile}
-      />
+      <PhotoPickerButtons uploading={uploading} onCamera={() => void openCamera()} onPick={() => galleryRef.current?.click()} />
+      <input ref={galleryRef} type="file" accept="image/*" className="sr-only" tabIndex={-1} onChange={onPickFile} />
       {cameraStream ? (
         <CameraCapture
           stream={cameraStream}
           onClose={() => setCameraStream(null)}
           onCapture={(file) => {
             setCameraStream(null);
-            const list = new DataTransfer();
-            list.items.add(file);
-            void onPickFile({ target: { files: list.files, value: "" } } as React.ChangeEvent<HTMLInputElement>);
+            void uploadSingle(file);
           }}
         />
       ) : null}
-      <p className="text-[11px] text-navy-500">Use Gallery on phones to pick existing photos. JPG, PNG, or WebP.</p>
+      <p className="text-[11px] text-navy-500">On phones one button opens the camera or your gallery. Large photos are resized automatically.</p>
       {value ? (
         <div className="flex items-start gap-3">
           <div className="relative h-24 w-24 overflow-hidden rounded-lg border border-[#e6dfd2]">
@@ -217,7 +213,38 @@ export function AdminProductImageField({
   );
 }
 
-async function uploadImageFile(file: File) {
+const MAX_EDGE = 2000;
+
+/**
+ * Phone photos are often 3–12 MB (and sometimes HEIC). Re-encode them to a ~2000px JPEG
+ * in the browser so uploads stay small enough for nginx / mobile data.
+ * Falls back to the original file if the browser cannot decode it.
+ */
+async function prepareImage(file: File): Promise<File> {
+  const webSafe = /^image\/(jpeg|png|webp|gif)$/.test(file.type);
+  if (webSafe && file.size <= 900 * 1024) return file;
+  if (file.type === "image/gif") return file;
+  try {
+    const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+    const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return file;
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.85));
+    if (!blob) return file;
+    const base = (file.name || "photo").replace(/\.[^.]+$/, "");
+    return new File([blob], `${base}.jpg`, { type: "image/jpeg" });
+  } catch {
+    return file;
+  }
+}
+
+export async function uploadImageFile(original: File) {
+  const file = await prepareImage(original);
   const body = new FormData();
   body.append("file", file);
   const res = await fetch("/api/upload", { method: "POST", body });
@@ -285,8 +312,7 @@ export function AdminProductImagesField({
     onChange(copy);
   }
 
-  async function addFiles(list: FileList | null) {
-    const files = list ? [...list] : [];
+  async function addFiles(files: File[]) {
     if (!files.length) return;
     setError("");
     setNotice("");
@@ -313,40 +339,18 @@ export function AdminProductImagesField({
       <p className="text-[11px] text-navy-500">
         The first photo is the thumbnail. Drag to reorder. Edit opens brightness, colour, and zoom.
       </p>
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          disabled={uploading}
-          onClick={() => void openCamera()}
-          className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-[#C9A84C]/50 bg-[#FAF7F2] px-3 py-3 text-sm font-medium text-navy-800 hover:border-[#C9A84C] sm:flex-none sm:px-4"
-        >
-          <Camera className="h-4 w-4 shrink-0" />
-          {uploading ? "Uploading…" : "Camera"}
-        </button>
-        <button
-          type="button"
-          disabled={uploading}
-          onClick={() => galleryRef.current?.click()}
-          className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-[#C9A84C]/50 bg-[#FAF7F2] px-3 py-3 text-sm font-medium text-navy-800 hover:border-[#C9A84C] sm:flex-none sm:px-4"
-        >
-          <ImageIcon className="h-4 w-4 shrink-0" />
-          Gallery / files
-        </button>
-      </div>
+      <PhotoPickerButtons uploading={uploading} onCamera={() => void openCamera()} onPick={() => galleryRef.current?.click()} />
       <input
         ref={galleryRef}
         type="file"
-        accept="image/jpeg,image/png,image/webp,image/gif"
+        accept="image/*"
         multiple
-        form="marina-image-picker"
-        className="hidden"
+        className="sr-only"
+        tabIndex={-1}
         onChange={(e) => {
           const files = e.target.files ? [...e.target.files] : [];
           e.target.value = "";
-          if (!files.length) return;
-          const transfer = new DataTransfer();
-          files.forEach((file) => transfer.items.add(file));
-          void addFiles(transfer.files);
+          if (files.length) void addFiles(files);
         }}
       />
       {cameraStream ? (
@@ -355,9 +359,7 @@ export function AdminProductImagesField({
           onClose={() => setCameraStream(null)}
           onCapture={(file) => {
             setCameraStream(null);
-            const transfer = new DataTransfer();
-            transfer.items.add(file);
-            void addFiles(transfer.files);
+            void addFiles([file]);
           }}
         />
       ) : null}

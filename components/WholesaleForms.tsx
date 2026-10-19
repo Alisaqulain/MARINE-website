@@ -2,15 +2,18 @@
 
 import { products } from "@/lib/products";
 import { CheckCircle2 } from "lucide-react";
+import { LegalConsent } from "@/components/LegalConsent";
 import { useEffect, useState } from "react";
 
 const catalogProducts = [...products].sort((a, b) => a.name.localeCompare(b.name));
 
 export function wholesaleApplicationPayload(fd: FormData) {
   const interest = String(fd.get("interest") ?? "");
+  const company = String(fd.get("company") ?? "").trim();
+  const email = String(fd.get("email") ?? "").trim();
   return {
-    company: fd.get("company"),
-    contact: fd.get("contact"),
+    company,
+    contact: company || email.split("@")[0],
     email: fd.get("email"),
     phone: fd.get("phone"),
     address: fd.get("address"),
@@ -30,7 +33,6 @@ export function WholesaleApplicationFields({ defaultEmail = "" }: { defaultEmail
       {(
         [
           ["Company Name", "company", "text", false],
-          ["Contact Person", "contact", "text", true],
           ["Phone", "phone", "tel", true],
           ["Address", "address", "text", true],
           ["Company email (login)", "email", "email", true],
@@ -177,6 +179,7 @@ export function WholesaleRegisterForm() {
       }}
     >
       <WholesaleApplicationFields />
+      <LegalConsent className="md:col-span-2" />
       {error ? <p className="text-sm text-red-700 md:col-span-2">{error}</p> : null}
       <button type="submit" className="btn-gold mt-2 w-full md:col-span-2" disabled={loading}>
         {loading ? "Submitting…" : "Submit Application"}

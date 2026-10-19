@@ -135,7 +135,7 @@ export function Footer() {
         [t("footer.link.privacy"), "/privacy"],
         [t("footer.link.terms"), "/terms"],
         [t("footer.link.deletion"), "/data-deletion"],
-        ["Secure Payment", "/payment"],
+        ["Return Policy", "/returns"],
       ],
     },
   ];
@@ -219,7 +219,7 @@ export function Footer() {
           </div>
 
           {columns.map((col) => (
-            <div key={col.title} className={col.title === "Company" ? "max-sm:pl-11 max-sm:translate-x-1" : undefined}>
+            <div key={col.title}>
               <p className="text-[9px] uppercase tracking-[0.16em] text-[#C9A84C] sm:text-[11px] sm:tracking-[0.24em]">{col.title}</p>
               <ul className="mt-1.5 space-y-1 sm:mt-3 sm:space-y-2">
                 {col.links.map((link) => {

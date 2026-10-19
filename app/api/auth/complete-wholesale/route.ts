@@ -41,7 +41,8 @@ export async function POST(req: Request) {
       createdAt: new Date(),
     };
 
-    if (!doc.contact || !doc.phone || !doc.businessType || !doc.taxId || !doc.productInterest) {
+    if (!doc.contact) doc.contact = doc.company || doc.email.split("@")[0];
+    if (!doc.phone || !doc.businessType || !doc.taxId || !doc.productInterest) {
       return NextResponse.json({ error: "Please complete all required trade fields." }, { status: 400 });
     }
 

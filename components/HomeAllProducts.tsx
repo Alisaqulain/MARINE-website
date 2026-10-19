@@ -1,7 +1,7 @@
 "use client";
 
 import { CatalogCard } from "@/components/CatalogCard";
-import { products } from "@/lib/products";
+import { products as staticProducts, type Product } from "@/lib/products";
 import { canAccessWholesale, isRetailCustomer } from "@/lib/wholesale-access";
 import { wholesaleCatalogHref } from "@/lib/wholesale-links";
 import { useWholesaleGate } from "@/components/WholesaleGateProvider";
@@ -9,7 +9,7 @@ import { WholesaleNavLink } from "@/components/WholesaleNavLink";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const PAGE_SIZE = 8;
 const PAGE_WINDOW = 10;
@@ -23,6 +23,17 @@ export function HomeAllProducts() {
   const { data: session } = useSession();
   const wholesaleOk = canAccessWholesale(session?.user);
   const { promptSwitchToWholesale } = useWholesaleGate();
+  const [products, setProducts] = useState<Product[]>(staticProducts);
+
+  // Live catalogue: admin-added listings, deactivations and running sale prices.
+  useEffect(() => {
+    void fetch("/api/catalog/products")
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data.items) && data.items.length) setProducts(data.items);
+      })
+      .catch(() => {});
+  }, []);
 
   const totalPages = Math.max(1, Math.ceil(products.length / PAGE_SIZE));
   const items = products.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);

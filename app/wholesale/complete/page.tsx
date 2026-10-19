@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { BrandLogo } from "@/components/Logo";
 import { WholesaleApplicationFields, wholesaleApplicationPayload } from "@/components/WholesaleForms";
+import { LegalConsent } from "@/components/LegalConsent";
 
 function CompleteWholesaleInner() {
   const router = useRouter();
@@ -77,6 +78,7 @@ function CompleteWholesaleInner() {
           <span className="mb-1.5 block text-navy-700">Confirm password</span>
           <input className="input" name="confirm" type="password" required minLength={8} autoComplete="new-password" />
         </label>
+        <LegalConsent className="md:col-span-2" />
         {error ? <p className="text-sm text-red-700 md:col-span-2">{error}</p> : null}
         <button type="submit" className="btn-gold md:col-span-2" disabled={loading}>
           {loading ? "Saving…" : "Complete signup"}

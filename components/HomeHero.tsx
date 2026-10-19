@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { Briefcase, ChevronLeft, ChevronRight, Play, RotateCcw, ShoppingBag, Truck } from "lucide-react";
-import { useRef, useState } from "react";
+import { Briefcase, ChevronLeft, ChevronRight, Play, RotateCcw, ShoppingBag, Truck, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { WholesaleNavLink } from "@/components/WholesaleNavLink";
 
 const btnBase =
@@ -17,6 +17,8 @@ const heroBtnPad =
 
 const arrowCls =
   "absolute top-1/2 z-30 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-white/35 bg-[#081525]/50 text-white shadow-[0_4px_16px_rgba(0,0,0,0.28)] backdrop-blur-sm transition hover:bg-[#081525]/80 sm:h-10 sm:w-10 lg:h-11 lg:w-11";
+
+const STORY_EMBED = "https://www.instagram.com/reel/DecPczRB8N2/embed";
 
 const slides = [
   {
@@ -76,6 +78,19 @@ export function HomeHero() {
   const [i, setI] = useState(0);
   const touchX = useRef<number | null>(null);
   const slide = slides[i];
+  const [storyOpen, setStoryOpen] = useState(false);
+
+  useEffect(() => {
+    if (!storyOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setStoryOpen(false);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [storyOpen]);
 
   function prev() {
     setI((n) => (n === 0 ? slides.length - 1 : n - 1));
@@ -180,10 +195,9 @@ export function HomeHero() {
               </WholesaleNavLink>
             </div>
             {i === 0 ? (
-              <a
-                href="https://www.instagram.com/reel/DecPczRB8N2/?obrf=MjJoamdzNjB5cjQz"
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
+                type="button"
+                onClick={() => setStoryOpen(true)}
                 className="group -mt-1.5 flex flex-nowrap items-center gap-2 whitespace-nowrap sm:-mt-0.5 sm:gap-3"
               >
                 <span className="relative grid h-8 w-8 shrink-0 place-items-center sm:h-11 sm:w-11 lg:h-14 lg:w-14">
@@ -196,7 +210,7 @@ export function HomeHero() {
                 <span className="whitespace-nowrap font-serif text-[14px] font-semibold tracking-[0.02em] text-white underline decoration-[#F6BE52] decoration-2 underline-offset-[5px] drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)] transition group-hover:text-[#F6BE52] sm:text-[18px] sm:tracking-[0.04em] lg:text-[22px]">
                   Watch Our Story
                 </span>
-              </a>
+              </button>
             ) : null}
           </div>
         )}
@@ -240,6 +254,39 @@ export function HomeHero() {
           ))}
         </div>
       </div>
+
+      {storyOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Watch Our Story"
+          onClick={() => setStoryOpen(false)}
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-fadeIn"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-[400px]"
+          >
+            <button
+              type="button"
+              aria-label="Close video"
+              onClick={() => setStoryOpen(false)}
+              className="absolute -top-11 right-0 flex h-9 w-9 items-center justify-center rounded-full bg-white/15 text-white transition hover:bg-white/30"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <div className="h-[min(80vh,720px)] overflow-hidden rounded-xl bg-white shadow-2xl">
+              <iframe
+                src={STORY_EMBED}
+                title="Marina Muse — Our Story"
+                allow="autoplay; encrypted-media; picture-in-picture; clipboard-write"
+                allowFullScreen
+                className="h-full w-full border-0"
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 divide-x divide-[#031D38]/15 bg-[#C9A84C] text-[#031D38]">
         <Link

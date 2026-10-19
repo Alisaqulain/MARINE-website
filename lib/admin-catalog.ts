@@ -1,5 +1,6 @@
 import { products } from "@/lib/products";
 import type { Product } from "@/lib/products";
+import { getProductCategory } from "@/lib/catalog";
 
 export type AdminProductRow = {
   id: string;
@@ -76,6 +77,13 @@ function catalogProductToRow(p: Product): AdminProductRow {
     stock: p.stock,
     active: true,
     freeShipping: p.freeShipping !== false,
+    categories: [
+      ...new Set(
+        [getProductCategory(p), ...(p.categories ?? []), p.category, p.subcategory, p.collection].filter(
+          (slug): slug is string => Boolean(slug)
+        )
+      ),
+    ],
   };
 }
 

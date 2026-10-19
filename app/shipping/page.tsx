@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Image from "next/image";
-import { Box, Factory, FileText, Handshake, Home, MapPin, Plane, Ship } from "lucide-react";
+import { Box, Container, Factory, FileText, Globe, Handshake, Home, MapPin, Plane, Ship } from "lucide-react";
 import { BannerHero } from "@/components/BannerHero";
 
 export const metadata: Metadata = {
@@ -9,13 +9,16 @@ export const metadata: Metadata = {
     "Marina Muse delivers worldwide by air and sea from India — DHL, FedEx, TNT, UPS, FOB, Ex-Works, port-to-port and door-to-door.",
 };
 
-const ports = ["Mumbai", "New Delhi", "Roorkee", "TKD", "Etc..."];
+const seaPoints = [
+  { icon: Factory, title: "Our Factory / Dispatch Location", body: "Roorkee, Uttarakhand, India" },
+  { icon: Container, title: "Inland Container Depot", body: "Tughlakabad (TKD)" },
+];
 
 const options = [
   { icon: Plane, title: "Port to Port", body: "(Sea Freight)" },
   { icon: Home, title: "Door to Door", body: "(Home Delivery)" },
-  { icon: FileText, title: "FOB Shipping", body: "" },
-  { icon: Factory, title: "Ex-Works", body: "" },
+  { icon: FileText, title: "FOB Shipping", body: "(Free On Board)" },
+  { icon: Factory, title: "Ex-Works", body: "(Buyer’s Responsibility)" },
 ];
 
 const markets = [
@@ -76,9 +79,17 @@ export default function ShippingPage() {
                 <div className="flex h-12 w-12 items-center justify-center rounded-md bg-[#351C15] text-[11px] font-black text-[#FFB500]">
                   UPS
                 </div>
+                <div className="flex h-11 items-center gap-1.5 text-[#1F5FBF]">
+                  <Globe className="h-10 w-10" strokeWidth={1.6} />
+                  <span className="text-[13px] font-black leading-[1.05] tracking-wide">
+                    GLOBAL
+                    <br />
+                    SHIPPING
+                  </span>
+                </div>
               </div>
               <p className="mt-2 text-[11px] tracking-[0.12em] text-navy-500">
-                DHL EXPRESS &nbsp;|&nbsp; FedEx EXPRESS &nbsp;|&nbsp; TNT &nbsp;|&nbsp; UPS &nbsp;|&nbsp; Etc...
+                DHL EXPRESS &nbsp;|&nbsp; FedEx EXPRESS &nbsp;|&nbsp; TNT &nbsp;|&nbsp; UPS &nbsp;|&nbsp; GLOBAL SHIPPING
               </p>
             </div>
           </div>
@@ -97,20 +108,20 @@ export default function ShippingPage() {
             </div>
             <div>
               <p className="text-[13px] text-navy-700">We offer shipping by Sea from</p>
-              <div className="mt-3 flex flex-wrap items-center gap-2.5">
-                {ports.map((p) => (
-                  <span
-                    key={p}
-                    className="inline-flex items-center gap-1.5 rounded-full bg-[#0B1D36] px-3.5 py-[7px] text-[13px] text-white"
-                  >
-                    <MapPin className="h-3.5 w-3.5 text-white" />
-                    {p}
-                  </span>
-                ))}
-                <span className="ml-2 inline-flex items-center gap-2 text-[13px] font-semibold text-[#0B1D36]">
-                  <Ship className="h-9 w-9" strokeWidth={1.4} />
-                  Major Indian Ports
+              <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:gap-y-3">
+                <span className="inline-flex w-fit items-center gap-2 rounded-full bg-[#0B1D36] px-5 py-2 text-[14px] font-semibold text-white sm:mr-5">
+                  <MapPin className="h-4 w-4 text-white" />
+                  Mumbai
                 </span>
+                {seaPoints.map((p) => (
+                  <div key={p.title} className="flex items-center gap-3 sm:border-l sm:border-[#d7e2ee] sm:px-5">
+                    <p.icon className="h-9 w-9 shrink-0 text-[#0B1D36]" strokeWidth={1.45} />
+                    <div className="text-[13px] leading-snug text-[#0B1D36]">
+                      <p>{p.title}</p>
+                      <p className="font-semibold">{p.body}</p>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -127,9 +138,9 @@ export default function ShippingPage() {
                 </p>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 sm:gap-0 sm:divide-x sm:divide-[#d7e2ee]">
               {options.map((o) => (
-                <div key={o.title} className="flex items-center gap-3 sm:flex-col sm:text-center">
+                <div key={o.title} className="flex items-center gap-3 sm:flex-col sm:px-2 sm:text-center">
                   <o.icon className="h-9 w-9 shrink-0 text-[#0B1D36]" strokeWidth={1.45} />
                   <div>
                     <p className="text-[14px] font-semibold text-[#0B1D36]">{o.title}</p>

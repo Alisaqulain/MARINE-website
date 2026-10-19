@@ -5,6 +5,14 @@ import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import { ImageOverlayText } from "@/components/ImageOverlayText";
 
+function pointerPercent(e: { clientX: number; clientY: number; currentTarget: Element }) {
+  const rect = e.currentTarget.getBoundingClientRect();
+  return {
+    x: Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100)),
+    y: Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100)),
+  };
+}
+
 export function ProductGalleryViewer({
   images,
   alt,
@@ -32,6 +40,7 @@ export function ProductGalleryViewer({
   const [zoomOpen, setZoomOpen] = useState(false);
   const [magnified, setMagnified] = useState(false);
   const [hoverZoom, setHoverZoom] = useState<{ x: number; y: number } | null>(null);
+  const [zoomOrigin, setZoomOrigin] = useState({ x: 50, y: 50 });
   const [tilt, setTilt] = useState({ x: 8, y: -18 });
   const [spin, setSpin] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -289,22 +298,37 @@ export function ProductGalleryViewer({
               <button
                 type="button"
                 aria-label={magnified ? "Zoom out" : "Zoom in"}
-                onClick={() => setMagnified((value) => !value)}
-                className="relative block h-full w-full cursor-zoom-in"
+                onClick={(e) => {
+                  setZoomOrigin(pointerPercent(e));
+                  setMagnified((value) => !value);
+                }}
+                onPointerMove={(e) => {
+                  if (magnified) setZoomOrigin(pointerPercent(e));
+                }}
+                className={`relative block h-full w-full overflow-hidden ${magnified ? "cursor-zoom-out" : "cursor-zoom-in"}`}
+                style={{ touchAction: magnified ? "none" : undefined }}
               >
-                <Image
-                  src={src}
-                  alt={alt}
-                  fill
-                  className={`object-contain transition-transform duration-200 ${magnified ? "scale-150 cursor-zoom-out" : ""}`}
-                  style={imageStyle}
-                  sizes="80vw"
-                  priority
-                />
-                <ImageOverlayText text={caption} x={textX} y={textY} />
+                <div
+                  className={`relative h-full w-full ${magnified ? "transition-none" : "transition-transform duration-200"}`}
+                  style={{
+                    transform: magnified ? "scale(2.5)" : undefined,
+                    transformOrigin: `${zoomOrigin.x}% ${zoomOrigin.y}%`,
+                  }}
+                >
+                  <Image
+                    src={src}
+                    alt={alt}
+                    fill
+                    className="object-contain"
+                    style={imageStyle}
+                    sizes="80vw"
+                    priority
+                  />
+                  <ImageOverlayText text={caption} x={textX} y={textY} />
+                </div>
               </button>
               <p className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 text-xs text-white/90">
-                {magnified ? "Click to zoom out" : "Click to zoom"}
+                {magnified ? "Move to look around · click to zoom out" : "Click to zoom"}
               </p>
               <button
                 type="button"

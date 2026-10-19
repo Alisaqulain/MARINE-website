@@ -1,4 +1,4 @@
-import type { AdminProduct } from "@/lib/db/types";
+import type { AdminProduct, CatalogOverride } from "@/lib/db/types";
 import { colorsFromImages } from "@/lib/listing-images";
 import { getDb } from "@/lib/mongodb";
 import { products, type Product } from "@/lib/products";
@@ -83,9 +83,29 @@ export function mergeStorefrontProducts(
   return [...bySlug.values()];
 }
 
+/** Slugs the admin deactivated: built-in catalogue items and saved listings alike. */
+async function loadDeactivatedSlugs(): Promise<Set<string>> {
+  try {
+    const db = await getDb();
+    const [overrides, docs] = await Promise.all([
+      db.collection<CatalogOverride>("catalog_overrides").find({ active: false }, { projection: { slug: 1 } }).toArray(),
+      db.collection<AdminProduct>("products").find({ active: false }, { projection: { slug: 1 } }).toArray(),
+    ]);
+    return new Set([...overrides, ...docs].map((d) => d.slug));
+  } catch {
+    return new Set();
+  }
+}
+
 export async function getStorefrontProducts(channel?: "retail" | "wholesale"): Promise<Product[]> {
-  const [mongo, sales] = await Promise.all([loadMongoStorefrontProducts(channel), loadActiveSales()]);
-  return mergeStorefrontProducts(products, mongo, channel).map((product) => applySales(product, sales));
+  const [mongo, sales, deactivated] = await Promise.all([
+    loadMongoStorefrontProducts(channel),
+    loadActiveSales(),
+    loadDeactivatedSlugs(),
+  ]);
+  const activeSlugs = new Set(mongo.map((p) => p.slug));
+  const catalog = products.filter((p) => activeSlugs.has(p.slug) || !deactivated.has(p.slug));
+  return mergeStorefrontProducts(catalog, mongo, channel).map((product) => applySales(product, sales));
 }
 
 export async function getStorefrontProduct(slug: string): Promise<Product | null> {
@@ -98,6 +118,7 @@ export async function getStorefrontProduct(slug: string): Promise<Product | null
       active: { $ne: false },
     });
     if (doc) product = adminToProduct(doc);
+    else if (staticOne && (await loadDeactivatedSlugs()).has(slug)) product = null;
   } catch {
     /* fall through */
   }

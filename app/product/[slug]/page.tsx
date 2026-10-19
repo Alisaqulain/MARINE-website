@@ -126,8 +126,10 @@ export default function ProductPage() {
   const unavailableLabel = b2b ? "Out of scope" : "Out of stock";
   const stockAlert = manuallyUnavailable
     ? unavailableLabel
-    : quantityAlert === "Out of stock" && b2b
-      ? "Out of scope"
+    : b2b
+      ? quantityAlert === "Out of stock"
+        ? "Out of scope"
+        : null
       : quantityAlert;
   const stockLabel = stockAlert
     ? stockAlert
@@ -247,7 +249,7 @@ export default function ProductPage() {
               <span className="text-navy-400">|</span>
               <span className="text-navy-500">{product.sku}</span>
             </div>
-            <PriceRow price={displayPrice} size="page" className="mt-3 md:mt-4" />
+            <PriceRow price={displayPrice} salePercent={product.salePercent} size="page" className="mt-3 md:mt-4" />
             {product.priceIndia != null || product.priceUs != null ? (
               <p className="mt-1 text-xs text-navy-600">
                 {product.priceIndia != null ? `India ${formatPrice(product.priceIndia)}` : null}
