@@ -3,41 +3,129 @@ import bcrypt from "bcryptjs";
 import { getDb } from "@/lib/mongodb";
 import { findUserByEmail } from "@/lib/auth-helpers";
 
+const MAX_ATTEMPTS = 5;
+
 export async function POST(req: Request) {
+  let body: {
+    email?: unknown;
+    otp?: unknown;
+    password?: unknown;
+  };
+
+  // Handle malformed JSON
   try {
-    const body = await req.json();
-    const email = String(body.email ?? "").trim().toLowerCase();
-    const otp = String(body.otp ?? "").trim();
-    const password = String(body.password ?? "");
+    body = await req.json();
+  } catch {
+    return NextResponse.json(
+      { error: "Invalid request body." },
+      { status: 400 },
+    );
+  }
 
-    if (!email || !otp || password.length < 8) {
-      return NextResponse.json({ error: "Email, code and new password (8+) are required." }, { status: 400 });
-    }
+  const email =
+    typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+  const otp = typeof body.otp === "string" ? body.otp.trim() : "";
+  const password = typeof body.password === "string" ? body.password : "";
 
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return NextResponse.json(
+      { error: "Please enter a valid email address." },
+      { status: 400 },
+    );
+  }
+
+  if (!/^\d{6}$/.test(otp)) {
+    return NextResponse.json(
+      { error: "Please enter the six-digit verification code." },
+      { status: 400 },
+    );
+  }
+
+  if (password.length < 8) {
+    return NextResponse.json(
+      { error: "Your new password must be at least 8 characters." },
+      { status: 400 },
+    );
+  }
+
+  try {
     const db = await getDb();
-    const record = await db.collection("password_otps").findOne({ email });
-    if (!record || String(record.otp) !== otp) {
-      return NextResponse.json({ error: "Invalid or expired code." }, { status: 400 });
+    const record = await db.collection("password_otps").findOne({
+      email,
+    });
+
+    if (!record) {
+      return NextResponse.json(
+        { error: "Invalid or expired code. Request a new one." },
+        { status: 400 },
+      );
     }
-    if (new Date(record.expiresAt as Date) < new Date()) {
-      return NextResponse.json({ error: "Code expired. Request a new one." }, { status: 400 });
+
+    if (
+      !record.expiresAt ||
+      new Date(record.expiresAt).getTime() <= Date.now()
+    ) {
+      await db.collection("password_otps").deleteOne({ email });
+
+      return NextResponse.json(
+        { error: "Code expired. Request a new one." },
+        { status: 400 },
+      );
+    }
+
+    if (Number(record.attempts ?? 0) >= MAX_ATTEMPTS) {
+      await db.collection("password_otps").deleteOne({ email });
+
+      return NextResponse.json(
+        { error: "Too many attempts. Please request a new code." },
+        { status: 429 },
+      );
+    }
+
+    if (String(record.otp) !== otp) {
+      await db
+        .collection("password_otps")
+        .updateOne({ _id: record._id }, { $inc: { attempts: 1 } });
+
+      return NextResponse.json(
+        { error: "Invalid or expired code." },
+        { status: 400 },
+      );
     }
 
     const user = await findUserByEmail(email);
+
     if (!user?._id) {
-      return NextResponse.json({ error: "Account not found." }, { status: 404 });
+      await db.collection("password_otps").deleteOne({ email });
+
+      return NextResponse.json(
+        { error: "Invalid or expired code. Request a new one." },
+        { status: 400 },
+      );
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
-    await db.collection("users").updateOne(
-      { _id: user._id },
-      { $set: { passwordHash, updatedAt: new Date() } }
-    );
+
+    await db
+      .collection("users")
+      .updateOne(
+        { _id: user._id },
+        { $set: { passwordHash, updatedAt: new Date() } },
+      );
+
+    // Remove the OTP after a successful password reset
     await db.collection("password_otps").deleteOne({ email });
 
     return NextResponse.json({ ok: true });
-  } catch (e) {
-    const message = e instanceof Error ? e.message : "Reset failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+  } catch (error) {
+    console.error("Reset-password request failed:", error);
+
+    return NextResponse.json(
+      {
+        error:
+          "Unable to reset your password right now. Please try again later.",
+      },
+      { status: 500 },
+    );
   }
 }

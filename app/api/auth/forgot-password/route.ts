@@ -1,17 +1,37 @@
 import { NextResponse } from "next/server";
+import { randomInt } from "crypto";
 import { getDb } from "@/lib/mongodb";
 import { findUserByEmail } from "@/lib/auth-helpers";
 import { sendPasswordOtp } from "@/lib/mail";
 
 export async function POST(req: Request) {
-  try {
-    const { email } = await req.json();
-    const normalized = String(email ?? "").trim().toLowerCase();
-    if (!normalized) {
-      return NextResponse.json({ error: "Email is required." }, { status: 400 });
-    }
+  let body: { email?: unknown };
 
+  // Handle invalid JSON separately
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json(
+      { error: "Invalid request body." },
+      { status: 400 },
+    );
+  }
+
+  // Validate and normalize email
+  const normalized =
+    typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
+    return NextResponse.json(
+      { error: "Please enter a valid email address." },
+      { status: 400 },
+    );
+  }
+
+  try {
     const user = await findUserByEmail(normalized);
+
+    // Use the same response whether the account exists or not
     if (!user) {
       return NextResponse.json({
         ok: true,
@@ -19,13 +39,24 @@ export async function POST(req: Request) {
       });
     }
 
-    const otp = String(Math.floor(100000 + Math.random() * 900000));
+    // Generate a cryptographically secure six-digit OTP
+    const otp = String(randomInt(100000, 1000000));
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
     const db = await getDb();
+
     await db.collection("password_otps").updateOne(
       { email: normalized },
-      { $set: { email: normalized, otp, expiresAt, createdAt: new Date() } },
-      { upsert: true }
+      {
+        $set: {
+          email: normalized,
+          otp,
+          expiresAt,
+          createdAt: new Date(),
+          attempts: 0,
+        },
+      },
+      { upsert: true },
     );
 
     await sendPasswordOtp(normalized, otp);
@@ -34,8 +65,16 @@ export async function POST(req: Request) {
       ok: true,
       message: "If that email exists, a code has been sent.",
     });
-  } catch (e) {
-    const message = e instanceof Error ? e.message : "Could not send reset code";
-    return NextResponse.json({ error: message }, { status: 500 });
+  } catch (error) {
+    // Keep technical details in server logs, not in the API response
+    console.error("Forgot-password request failed:", error);
+
+    return NextResponse.json(
+      {
+        error:
+          "Unable to process your request right now. Please try again later.",
+      },
+      { status: 500 },
+    );
   }
 }
