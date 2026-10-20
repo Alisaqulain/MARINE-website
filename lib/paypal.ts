@@ -66,7 +66,12 @@ export async function paypalAccessToken() {
   return data.access_token;
 }
 
-export async function createPayPalCheckout(input: { orderId: string; amount: number; email: string }) {
+export async function createPayPalCheckout(input: {
+  orderId: string;
+  amount: number;
+  email: string;
+  whatsapp?: boolean;
+}) {
   const token = await paypalAccessToken();
   const origin = getSiteOrigin();
   const res = await fetch(`${paypalBaseUrl()}/v2/checkout/orders`, {
@@ -88,7 +93,9 @@ export async function createPayPalCheckout(input: { orderId: string; amount: num
         brand_name: "Marina Muse International",
         shipping_preference: "NO_SHIPPING",
         user_action: "PAY_NOW",
-        return_url: `${origin}/checkout/paypal/return?order=${encodeURIComponent(input.orderId)}`,
+        return_url: `${origin}/checkout/paypal/return?order=${encodeURIComponent(input.orderId)}${
+          input.whatsapp ? "&wa=1" : ""
+        }`,
         cancel_url: `${origin}/checkout?paypal=cancelled`,
       },
     }),

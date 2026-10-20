@@ -18,6 +18,7 @@ function PayPalReturnInner() {
     started.current = true;
     const orderId = params.get("order") ?? "";
     const paypalOrderId = params.get("token") ?? "";
+    const wantsWhatsapp = params.get("wa") === "1";
     if (!orderId || !paypalOrderId) {
       setError("PayPal did not return a payment to confirm.");
       return;
@@ -41,7 +42,7 @@ function PayPalReturnInner() {
         }
         clear();
         const qs = new URLSearchParams({ order: data.order.id, token: data.token });
-        if (data.whatsappUrl) qs.set("wa", data.whatsappUrl);
+        if (wantsWhatsapp && data.whatsappUrl) qs.set("wa", data.whatsappUrl);
         router.replace(`/checkout/confirmation?${qs.toString()}`);
       })
       .catch((err: unknown) => {

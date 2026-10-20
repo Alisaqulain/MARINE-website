@@ -51,7 +51,12 @@ export async function POST(req: Request) {
   });
 
   try {
-    const paypal = await createPayPalCheckout({ orderId: order.id, amount: total, email: order.email });
+    const paypal = await createPayPalCheckout({
+      orderId: order.id,
+      amount: total,
+      email: order.email,
+      whatsapp: body.whatsapp === true,
+    });
     order.paypalOrderId = paypal.paypalOrderId;
     saveOrder(order);
     return NextResponse.json({ orderId: order.id, approveUrl: paypal.approveUrl });
