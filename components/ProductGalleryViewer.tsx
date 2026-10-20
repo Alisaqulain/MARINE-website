@@ -39,7 +39,6 @@ export function ProductGalleryViewer({
   const [mode, setMode] = useState<"photo" | "360" | "3d">("photo");
   const [zoomOpen, setZoomOpen] = useState(false);
   const [magnified, setMagnified] = useState(false);
-  const [hoverZoom, setHoverZoom] = useState<{ x: number; y: number } | null>(null);
   const [zoomOrigin, setZoomOrigin] = useState({ x: 50, y: 50 });
   const [tilt, setTilt] = useState({ x: 8, y: -18 });
   const [spin, setSpin] = useState(0);
@@ -110,14 +109,6 @@ export function ProductGalleryViewer({
   }
 
   function onPointerMove(e: PointerEvent<HTMLDivElement>) {
-    if (!interactive && e.pointerType === "mouse") {
-      const rect = e.currentTarget.getBoundingClientRect();
-      setHoverZoom({
-        x: Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100)),
-        y: Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100)),
-      });
-      return;
-    }
     const start = drag.current;
     if (!start) return;
     const dx = e.clientX - start.x;
@@ -170,10 +161,7 @@ export function ProductGalleryViewer({
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
-        onPointerLeave={() => {
-          endDrag();
-          setHoverZoom(null);
-        }}
+        onPointerLeave={endDrag}
       >
         <button
           type="button"
@@ -184,19 +172,8 @@ export function ProductGalleryViewer({
           className={`relative block h-full w-full ${interactive ? "cursor-grab active:cursor-grabbing" : "cursor-zoom-in"}`}
         >
           <div
-            className={`relative h-full w-full ease-out ${
-              hoverZoom ? "transition-none" : "transition-transform duration-150"
-            }`}
-            style={
-              hoverZoom
-                ? {
-                    transform: "scale(2.2)",
-                    transformOrigin: `${hoverZoom.x}% ${hoverZoom.y}%`,
-                  }
-                : transform
-                  ? { transform }
-                  : undefined
-            }
+            className="relative h-full w-full transition-transform duration-150 ease-out"
+            style={transform ? { transform } : undefined}
           >
             <Image
               src={src}
@@ -223,7 +200,6 @@ export function ProductGalleryViewer({
             onClick={() => {
               setMode(mode === "360" ? "photo" : "360");
               setDragging(false);
-              setHoverZoom(null);
             }}
             className={`rounded-md px-2.5 py-1 text-[10px] uppercase tracking-widest ${
               mode === "360" ? "bg-[#C9A84C] text-[#031D38]" : "bg-black/70 text-white"
@@ -236,7 +212,6 @@ export function ProductGalleryViewer({
             onClick={() => {
               setMode(mode === "3d" ? "photo" : "3d");
               setDragging(false);
-              setHoverZoom(null);
               setTilt({ x: 8, y: -18 });
             }}
             className={`rounded-md px-2.5 py-1 text-[10px] uppercase tracking-widest ${
@@ -299,11 +274,18 @@ export function ProductGalleryViewer({
                 type="button"
                 aria-label={magnified ? "Zoom out" : "Zoom in"}
                 onClick={(e) => {
-                  setZoomOrigin(pointerPercent(e));
-                  setMagnified((value) => !value);
+                  if (window.matchMedia("(hover: none)").matches) {
+                    setZoomOrigin(pointerPercent(e));
+                    setMagnified((value) => !value);
+                  }
                 }}
                 onPointerMove={(e) => {
-                  if (magnified) setZoomOrigin(pointerPercent(e));
+                  if (e.pointerType !== "mouse") return;
+                  setZoomOrigin(pointerPercent(e));
+                  if (!magnified) setMagnified(true);
+                }}
+                onPointerLeave={(e) => {
+                  if (e.pointerType === "mouse") setMagnified(false);
                 }}
                 className={`relative block h-full w-full overflow-hidden ${magnified ? "cursor-zoom-out" : "cursor-zoom-in"}`}
                 style={{ touchAction: magnified ? "none" : undefined }}
@@ -328,7 +310,7 @@ export function ProductGalleryViewer({
                 </div>
               </button>
               <p className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 text-xs text-white/90">
-                {magnified ? "Move to look around · click to zoom out" : "Click to zoom"}
+                {magnified ? "Move to look around" : "Move over the photo to zoom · tap on mobile"}
               </p>
               <button
                 type="button"

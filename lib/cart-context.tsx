@@ -120,7 +120,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (ready) localStorage.setItem(KEY, JSON.stringify(lines));
+    if (!ready) return;
+    try {
+      localStorage.setItem(KEY, JSON.stringify(lines));
+    } catch {
+      /* Checkout remains usable when browser storage is blocked or full. */
+    }
   }, [lines, ready]);
 
   const value = useMemo<CartContextValue>(() => {
