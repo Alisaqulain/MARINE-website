@@ -92,11 +92,13 @@ export function AdminCategoriesPanel() {
     apply(data);
   }
 
-  function Row({ node, depth }: { node: CategoryNode; depth: number }) {
+  // A plain render function, not a nested component: a component defined here would get a new
+  // identity on every keystroke, remounting the list and resetting its scroll position.
+  function renderRow(node: CategoryNode, depth: number) {
     const expanded = open[node.slug] ?? false;
     const isEditing = editing === node.id;
     return (
-      <div>
+      <div key={node.id}>
         <div
           className={`flex items-center gap-2 border-b border-[#f0f0f0] py-2 pr-3 ${
             expanded && depth === 0 ? "border-l-[3px] border-l-[#C9A84C] bg-[#faf7f2]" : "border-l-[3px] border-l-transparent"
@@ -116,7 +118,16 @@ export function AdminCategoriesPanel() {
             <span className="h-7 w-7 shrink-0" />
           )}
           {isEditing ? (
-            <input className="input min-w-0 flex-1 py-1.5 text-sm" value={draft} onChange={(e) => setDraft(e.target.value)} />
+            <input
+              className="input min-w-0 flex-1 py-1.5 text-sm"
+              value={draft}
+              autoFocus
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void saveEdit(node.id);
+                if (e.key === "Escape") setEditing(null);
+              }}
+            />
           ) : (
             <span className={`min-w-0 flex-1 text-sm ${depth === 0 ? "font-medium text-[#222]" : "text-[#555]"}`}>
               {node.name}
@@ -150,7 +161,7 @@ export function AdminCategoriesPanel() {
           )}
         </div>
         {expanded
-          ? node.children.map((child) => <Row key={child.id} node={child} depth={depth + 1} />)
+          ? node.children.map((child) => renderRow(child, depth + 1))
           : null}
       </div>
     );
@@ -187,9 +198,7 @@ export function AdminCategoriesPanel() {
       <div className="overflow-hidden rounded-xl border border-[#eee] bg-white shadow-sm">
         <p className="border-b border-[#f0f0f0] px-4 py-3 text-[15px] font-medium text-[#b0893a]">Product categories</p>
         <div className="max-h-[70vh] overflow-y-auto">
-          {tree.map((node) => (
-            <Row key={node.id} node={node} depth={0} />
-          ))}
+          {tree.map((node) => renderRow(node, 0))}
         </div>
       </div>
     </div>

@@ -20,7 +20,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { canAccessWholesale, isRetailCustomer } from "@/lib/wholesale-access";
 import { useWholesaleGate } from "@/components/WholesaleGateProvider";
-import { WholesaleNavLink } from "@/components/WholesaleNavLink";
 import {
   Check,
   Factory,
@@ -34,6 +33,8 @@ import {
   Truck,
 } from "lucide-react";
 import { ShopTabs } from "@/components/ShopTabs";
+import { WholesaleNavLink } from "@/components/WholesaleNavLink";
+import { ProductShareButtons } from "@/components/ProductShare";
 import { companyWhatsApp } from "@/lib/company";
 import { FreeShippingTag } from "@/components/FreeShippingTag";
 import { PriceRow } from "@/components/PriceRow";
@@ -61,7 +62,7 @@ export default function ProductPage() {
   const wholesaleOk = canAccessWholesale(session?.user);
   const b2b = b2bQuery && wholesaleOk;
   const { promptSwitchToWholesale } = useWholesaleGate();
-  const { add } = useCart();
+  const { add, buyNow } = useCart();
 
   useEffect(() => {
     if (!b2bQuery || wholesaleOk || status === "loading" || !slug) return;
@@ -149,19 +150,28 @@ export default function ProductPage() {
   const outOfStock = manuallyUnavailable || (product.quantity != null && product.quantity <= 0);
   const orderQty = Math.min(maxQty, Math.max(minQty, qty));
 
+  const lineOptions = {
+    b2b,
+    personalisation: personalisation === "yes" || personalisation === "no" ? personalisation : undefined,
+    message: personalisationMessage,
+    personalisationPrice: personalisationCharge ?? undefined,
+    name: product.name,
+    price: product.price,
+    image: product.image,
+  } as const;
+
   const handleAdd = () => {
     if (outOfStock) return;
-    add(product.slug, orderQty, {
-      b2b,
-      personalisation: personalisation === "yes" || personalisation === "no" ? personalisation : undefined,
-      message: personalisationMessage,
-      personalisationPrice: personalisationCharge ?? undefined,
-      name: product.name,
-      price: product.price,
-      image: product.image,
-    });
+    add(product.slug, orderQty, lineOptions);
     setAdded(true);
     setTimeout(() => setAdded(false), 1800);
+  };
+
+  // Buy now checks out only this product; the bag is left as it is.
+  const handleBuyNow = () => {
+    if (outOfStock) return;
+    buyNow(product.slug, orderQty, lineOptions);
+    router.push("/checkout?buy=now");
   };
 
   return (
@@ -248,6 +258,12 @@ export default function ProductPage() {
               <span className="text-navy-600">{product.rating.toFixed(1)} · {product.reviews} reviews</span>
               <span className="text-navy-400">|</span>
               <span className="text-navy-500">{product.sku}</span>
+            </div>
+            <div className="mt-3">
+              <ProductShareButtons
+                path={b2b ? `/product/${product.slug}?b2b=1` : `/product/${product.slug}`}
+                title={product.name}
+              />
             </div>
             <PriceRow price={displayPrice} salePercent={product.salePercent} size="page" className="mt-3 md:mt-4" />
             {product.priceIndia != null || product.priceUs != null ? (
@@ -369,9 +385,9 @@ export default function ProductPage() {
               {outOfStock ? (
                 <span className="btn-gold text-center opacity-50">Buy Now</span>
               ) : (
-                <Link href="/checkout" onClick={handleAdd} className="btn-gold text-center">
+                <button type="button" onClick={handleBuyNow} className="btn-gold text-center">
                   Buy Now
-                </Link>
+                </button>
               )}
             </div>
 
@@ -418,6 +434,8 @@ export default function ProductPage() {
               </Link>
             </div>
 
+            <ItemDetailsPreview product={product} wholesale={b2b} />
+
             <div className="mt-5 hidden flex-1 rounded-2xl border border-[#e6dfd2] bg-[#FAF7F2] p-4 md:p-5 lg:block">
               <h2 className="text-[13px] font-semibold uppercase tracking-[0.16em] text-[#8C6E28]">
                 What&apos;s included
@@ -447,21 +465,6 @@ export default function ProductPage() {
                   </div>
                 ))}
               </div>
-
-              <div className="mt-4 flex flex-wrap gap-2">
-                <Link href="/shipping" className="rounded-full border border-[#C9A84C]/50 bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-navy-800 hover:bg-[#C9A84C]/15">
-                  Shipping
-                </Link>
-                <Link href="/custom-manufacturing" className="rounded-full border border-[#C9A84C]/50 bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-navy-800 hover:bg-[#C9A84C]/15">
-                  Custom manufacturing
-                </Link>
-                <WholesaleNavLink
-                  callbackUrl={b2b ? "/wholesale/quote" : "/wholesale"}
-                  className="rounded-full border border-[#C9A84C]/50 bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-navy-800 hover:bg-[#C9A84C]/15"
-                >
-                  {b2b ? "Bulk quote" : "Wholesale"}
-                </WholesaleNavLink>
-              </div>
             </div>
           </div>
         </div>
@@ -472,9 +475,75 @@ export default function ProductPage() {
           items={products}
           categoryItems={category?.items}
           categoryLabel={category?.label}
-          currentProduct={product}
           wholesale={b2b}
         />
+      </div>
+    </div>
+  );
+}
+
+/** Etsy-style item details: a few faded lines that expand in place on "Learn more". */
+function ItemDetailsPreview({ product, wholesale }: { product: Product; wholesale: boolean }) {
+  const [expanded, setExpanded] = useState(false);
+  const specs = [
+    ["Material", product.material],
+    ["Finish", product.finish],
+    ["Dimensions", product.dimensions],
+    ...(expanded
+      ? [
+          ["Weight", product.weight],
+          ["Packaging", product.packaging],
+        ]
+      : []),
+  ].filter(([, value]) => value);
+  // Many products repeat the description as the story; show it once.
+  const description = [...new Set([product.description, product.story].map((t) => t?.trim()).filter(Boolean))].join(
+    "\n\n"
+  );
+  const pill =
+    "rounded-full border border-[#C9A84C]/50 bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-navy-800 hover:bg-[#C9A84C]/15";
+  return (
+    <div className="mt-5 rounded-2xl border border-[#e6dfd2] bg-[#FAF7F2] p-4 md:p-5">
+      <h2 className="text-[13px] font-semibold uppercase tracking-[0.16em] text-[#8C6E28]">Item details</h2>
+      <div className={`relative mt-3 ${expanded ? "" : "max-h-40 overflow-hidden"}`}>
+        {specs.length ? (
+          <dl className="space-y-0.5 text-[14px] text-[#222]">
+            {specs.map(([label, value]) => (
+              <div key={label}>
+                <dt className="inline font-medium">{label}: </dt>
+                <dd className="inline text-navy-700">{value}</dd>
+              </div>
+            ))}
+          </dl>
+        ) : null}
+        {description ? (
+          <>
+            <p className="mt-3 text-[14px] font-medium text-[#222]">Description:</p>
+            <p className="whitespace-pre-line text-[14px] leading-relaxed text-navy-700">{description}</p>
+          </>
+        ) : null}
+        {expanded ? null : (
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-[#FAF7F2] to-transparent" />
+        )}
+      </div>
+      <button
+        type="button"
+        aria-expanded={expanded}
+        onClick={() => setExpanded((v) => !v)}
+        className="mx-auto mt-2 block text-[15px] font-semibold text-[#222] hover:underline"
+      >
+        {expanded ? "Show less" : "Learn more about this item"}
+      </button>
+      <div className="mt-4 flex flex-wrap gap-2 border-t border-[#e6dfd2] pt-4">
+        <Link href="/shipping" className={pill}>
+          Shipping
+        </Link>
+        <Link href="/custom-manufacturing" className={pill}>
+          Custom manufacturing
+        </Link>
+        <WholesaleNavLink callbackUrl={wholesale ? "/wholesale/quote" : "/wholesale"} className={pill}>
+          {wholesale ? "Bulk quote" : "Wholesale"}
+        </WholesaleNavLink>
       </div>
     </div>
   );

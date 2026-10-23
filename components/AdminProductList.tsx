@@ -166,7 +166,8 @@ export function AdminProductList({
       {products.length === 0 ? (
         <p className="px-4 py-8 text-center text-sm text-navy-600">No products loaded. Check MongoDB connection on /test</p>
       ) : (
-        <div className="grid gap-4 p-4 sm:grid-cols-2 xl:grid-cols-4">
+        // grid-cols-1 (minmax(0,1fr)) stops long truncated text from stretching cards past the screen on phones.
+        <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 xl:grid-cols-4">
           {products.map((product) => {
             const id = String(product.id);
             const qty = product.quantity == null || product.quantity === "" ? undefined : Number(product.quantity);
@@ -179,14 +180,14 @@ export function AdminProductList({
             const renews = renewLabel(product.renewsAt);
             const sale = saleFor(String(product.slug));
             return (
-              <article key={id} className={`relative rounded-xl border border-[#eee] bg-white ${menu === id ? "z-30" : ""} ${product.active === false ? "opacity-60" : ""}`}>
+              <article key={id} className={`relative min-w-0 rounded-xl border border-[#eee] bg-white ${menu === id ? "z-30" : ""} ${product.active === false ? "opacity-60" : ""}`}>
                 <div className="relative aspect-[4/3] overflow-hidden rounded-t-xl bg-[#f6f3ec]">
                   {product.image ? (
                     <ProductImage
                       src={String(product.image)}
                       alt=""
                       fill
-                      className="object-cover"
+                      className="object-contain"
                       sizes="280px"
                       style={imageAdjustStyle(product.imageAdjust as { zoom: number; brightness: number; contrast: number } | undefined)}
                     />

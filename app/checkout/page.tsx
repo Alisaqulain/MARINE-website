@@ -8,8 +8,13 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 
 function CheckoutForm() {
-  const { items, subtotal, lines } = useCart();
-  const cancelled = useSearchParams().get("paypal") === "cancelled";
+  const cart = useCart();
+  const params = useSearchParams();
+  const buyNow = params.get("buy") === "now" && cart.buyNowLines.length > 0;
+  const items = buyNow ? cart.buyNowItems : cart.items;
+  const subtotal = buyNow ? cart.buyNowSubtotal : cart.subtotal;
+  const lines = buyNow ? cart.buyNowLines : cart.lines;
+  const cancelled = params.get("paypal") === "cancelled";
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [whatsapp, setWhatsapp] = useState(true);
@@ -49,6 +54,12 @@ function CheckoutForm() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Could not start PayPal.");
+      try {
+        // Tells the PayPal return page whether to clear the bag or only the buy-now item.
+        sessionStorage.setItem("marina-muse-checkout-mode", buyNow ? "buy-now" : "cart");
+      } catch {
+        /* ignore */
+      }
       window.location.href = String(data.approveUrl);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Payment failed.");

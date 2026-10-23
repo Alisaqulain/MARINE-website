@@ -139,8 +139,8 @@ export function AdminBlogPanel({ canEdit, canDelete }: { canEdit: boolean; canDe
           <span className="block font-semibold text-navy-900">Cover image</span>
           <div className="flex flex-wrap items-center gap-3">
             {draft.image ? (
-              <div className="relative h-20 w-32 overflow-hidden rounded-lg border border-[#e6dfd2]">
-                <ProductImage src={draft.image} alt="" fill sizes="128px" className="object-cover" />
+              <div className="relative h-20 w-32 overflow-hidden rounded-lg border border-[#e6dfd2] bg-[#f4f1ea]">
+                <ProductImage src={draft.image} alt="" fill sizes="128px" className="object-contain" />
               </div>
             ) : null}
             <button

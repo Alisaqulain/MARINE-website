@@ -25,13 +25,13 @@ export default async function BlogPage() {
         <div className="mx-auto grid max-w-[1100px] gap-8 md:grid-cols-3">
           {blogPosts.map((post) => (
             <article key={post.slug} className="overflow-hidden rounded-3xl bg-white shadow-soft">
-              <Link href={`/blog/${post.slug}`} className="relative block aspect-[16/10]">
+              <Link href={`/blog/${post.slug}`} className="relative block aspect-[16/10] bg-[#f4f1ea]">
                 <ProductImage
                   src={post.image}
                   alt={post.title}
                   fill
                   sizes="(max-width: 768px) 100vw, 33vw"
-                  className="object-cover object-[75%_center]"
+                  className="object-contain"
                 />
               </Link>
               <div className="p-5 md:p-6">

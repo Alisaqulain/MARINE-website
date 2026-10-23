@@ -10,6 +10,7 @@ import { ImageOverlayText } from "./ImageOverlayText";
 import { FreeShippingTag } from "./FreeShippingTag";
 import { PriceRow } from "./PriceRow";
 import { ProductName } from "./ProductName";
+import { ProductShareIcon } from "./ProductShare";
 
 export function CatalogCard({
   product,
@@ -59,6 +60,7 @@ export function CatalogCard({
         >
           <Heart className={`h-[22px] w-[22px] ${wished ? "fill-[#222222] text-[#222222]" : ""}`} />
         </button>
+        <ProductShareIcon path={href} title={product.name} className="absolute bottom-1.5 right-1.5" />
       </div>
       <Link href={href} className="mt-2 block min-w-0" aria-label={product.name}>
         <h3>

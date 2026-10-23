@@ -263,19 +263,19 @@ export function HomeHero() {
           onClick={() => setStoryOpen(false)}
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-fadeIn"
         >
+          <button
+            type="button"
+            aria-label="Close video"
+            onClick={() => setStoryOpen(false)}
+            className="fixed right-4 top-4 z-[101] flex h-11 w-11 items-center justify-center rounded-full bg-white text-[#0B1D36] shadow-lg transition hover:bg-[#F3E6C8]"
+          >
+            <X className="h-6 w-6" />
+          </button>
           <div
             onClick={(e) => e.stopPropagation()}
-            className="relative w-full max-w-[400px]"
+            className="relative w-full max-w-[400px] lg:w-[min(560px,calc((94vh-190px)*0.5625+2px))] lg:max-w-none"
           >
-            <button
-              type="button"
-              aria-label="Close video"
-              onClick={() => setStoryOpen(false)}
-              className="absolute -top-11 right-0 flex h-9 w-9 items-center justify-center rounded-full bg-white/15 text-white transition hover:bg-white/30"
-            >
-              <X className="h-5 w-5" />
-            </button>
-            <div className="h-[min(80vh,720px)] overflow-hidden rounded-xl bg-white shadow-2xl">
+            <div className="h-[min(80vh,720px)] overflow-hidden rounded-xl bg-white shadow-2xl lg:h-[94vh]">
               <iframe
                 src={STORY_EMBED}
                 title="Marina Muse — Our Story"

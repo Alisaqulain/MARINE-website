@@ -210,7 +210,7 @@ export function Footer() {
       </Link>
 
       <div className="mx-auto max-w-[1320px] px-4 py-4 sm:px-5 sm:py-6 md:py-8">
-        <div className="grid grid-cols-2 gap-x-2 gap-y-3 sm:grid-cols-3 sm:gap-x-6 sm:gap-y-6 lg:grid-cols-5 lg:gap-8">
+        <div className="grid grid-cols-2 gap-x-2 gap-y-3 sm:grid-cols-3 sm:gap-x-6 sm:gap-y-6 lg:grid-cols-[minmax(0,20rem)_repeat(4,max-content)] lg:justify-between lg:gap-8">
           <div className="col-span-2 sm:col-span-3 lg:col-span-1">
             <BrandLogo size="footer" />
             <p className="mt-1.5 max-w-sm text-[11px] leading-snug text-cream-100/70 sm:mt-3 sm:text-sm sm:leading-relaxed">

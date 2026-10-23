@@ -46,7 +46,57 @@ export type AdminProductRow = {
   featured?: boolean;
   renewsAt?: string;
   listedBy?: { userId: string; name: string; email: string };
+  createdAt?: string;
+  updatedAt?: string;
 };
+
+export const ADMIN_PRODUCT_SORTS = ["newest", "oldest", "updated", "name-asc", "name-desc", "price-asc", "price-desc"] as const;
+export type AdminProductSort = (typeof ADMIN_PRODUCT_SORTS)[number];
+
+export const ADMIN_PRODUCT_FILTERS = ["all", "added", "catalog", "in-stock", "low-stock", "out-of-stock", "hidden"] as const;
+export type AdminProductFilter = (typeof ADMIN_PRODUCT_FILTERS)[number];
+
+const time = (value?: string) => (value ? Date.parse(value) || 0 : 0);
+
+/** Built-in catalogue rows have no dates, so they sort as the oldest items. */
+export function sortAdminProducts(rows: AdminProductRow[], sort: AdminProductSort): AdminProductRow[] {
+  const copy = [...rows];
+  switch (sort) {
+    case "newest":
+      return copy.sort((a, b) => time(b.createdAt) - time(a.createdAt));
+    case "oldest":
+      return copy.sort((a, b) => time(a.createdAt) - time(b.createdAt));
+    case "updated":
+      return copy.sort((a, b) => time(b.updatedAt ?? b.createdAt) - time(a.updatedAt ?? a.createdAt));
+    case "name-desc":
+      return copy.sort((a, b) => b.name.localeCompare(a.name));
+    case "price-asc":
+      return copy.sort((a, b) => a.price - b.price);
+    case "price-desc":
+      return copy.sort((a, b) => b.price - a.price);
+    default:
+      return copy.sort((a, b) => a.name.localeCompare(b.name));
+  }
+}
+
+export function filterAdminProducts(rows: AdminProductRow[], filter: AdminProductFilter): AdminProductRow[] {
+  switch (filter) {
+    case "added":
+      return rows.filter((p) => p.source === "mongodb");
+    case "catalog":
+      return rows.filter((p) => p.source === "catalog");
+    case "in-stock":
+      return rows.filter((p) => !p.b2cOutOfStock && (p.quantity == null || p.quantity > 0));
+    case "low-stock":
+      return rows.filter((p) => p.quantity != null && p.quantity > 0 && p.quantity <= 5);
+    case "out-of-stock":
+      return rows.filter((p) => p.b2cOutOfStock || p.b2bOutOfScope || (p.quantity != null && p.quantity <= 0));
+    case "hidden":
+      return rows.filter((p) => p.active === false);
+    default:
+      return rows;
+  }
+}
 
 export function catalogProductsForAdmin(channel?: "retail" | "wholesale" | null): AdminProductRow[] {
   return products

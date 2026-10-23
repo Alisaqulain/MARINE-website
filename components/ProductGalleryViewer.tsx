@@ -231,24 +231,6 @@ export function ProductGalleryViewer({
           onClick={closeZoom}
         >
           <div className="flex h-full w-full" onClick={(e) => e.stopPropagation()}>
-            {images.length > 1 ? (
-              <div className="hidden w-[76px] shrink-0 flex-col gap-2 overflow-y-auto bg-black/50 p-2 md:flex">
-                {images.map((image, index) => (
-                  <button
-                    key={`rail-${image}-${index}`}
-                    type="button"
-                    aria-label={`Show image ${index + 1}`}
-                    onClick={() => showImage(index)}
-                    className={`relative aspect-square shrink-0 overflow-hidden rounded-md bg-white ${
-                      index === active ? "ring-2 ring-white" : "opacity-70 ring-1 ring-white/20"
-                    }`}
-                  >
-                    <Image src={image} alt="" fill className="object-cover" sizes="76px" />
-                  </button>
-                ))}
-              </div>
-            ) : null}
-
             <div className="relative min-w-0 flex-1 overflow-hidden bg-black">
               {images.length > 1 ? (
                 <>
@@ -274,18 +256,12 @@ export function ProductGalleryViewer({
                 type="button"
                 aria-label={magnified ? "Zoom out" : "Zoom in"}
                 onClick={(e) => {
-                  if (window.matchMedia("(hover: none)").matches) {
-                    setZoomOrigin(pointerPercent(e));
-                    setMagnified((value) => !value);
-                  }
+                  setZoomOrigin(pointerPercent(e));
+                  setMagnified((value) => !value);
                 }}
                 onPointerMove={(e) => {
-                  if (e.pointerType !== "mouse") return;
+                  if (e.pointerType !== "mouse" || !magnified) return;
                   setZoomOrigin(pointerPercent(e));
-                  if (!magnified) setMagnified(true);
-                }}
-                onPointerLeave={(e) => {
-                  if (e.pointerType === "mouse") setMagnified(false);
                 }}
                 className={`relative block h-full w-full overflow-hidden ${magnified ? "cursor-zoom-out" : "cursor-zoom-in"}`}
                 style={{ touchAction: magnified ? "none" : undefined }}
@@ -310,7 +286,7 @@ export function ProductGalleryViewer({
                 </div>
               </button>
               <p className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 text-xs text-white/90">
-                {magnified ? "Move to look around" : "Move over the photo to zoom · tap on mobile"}
+                {magnified ? "Move to look around · click to zoom out" : "Click the photo to zoom"}
               </p>
               <button
                 type="button"

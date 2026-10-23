@@ -29,8 +29,11 @@ import { AdminProductImagesField } from "@/components/AdminProductImageField";
 import { listingCategories } from "@/lib/listing-categories";
 import type { ListingImage } from "@/lib/listing-images";
 import { lowStockMessage } from "@/lib/product-display";
+import type { AdminProductFilter, AdminProductSort } from "@/lib/admin-catalog";
 
 type Panel = "customer" | "wholesale";
+
+const PRODUCT_DRAFT_KEY = "marina-admin-product-draft";
 
 type Tab =
   | "overview"
@@ -55,9 +58,15 @@ export function AdminDashboard() {
   const canDelete = !session?.user || session.user.role === "admin" || session.user.canDelete === true;
   const [panel, setPanel] = useState<Panel>("customer");
   const [tab, setTab] = useState<Tab>("overview");
+  const [restored, setRestored] = useState(false);
 
+  // Phones can reload the page after the OS camera/gallery returns, so the tab and panel are kept
+  // in the URL (and sessionStorage) to land back where the admin was instead of the overview.
   useEffect(() => {
-    const saved = sessionStorage.getItem("marina-admin-tab");
+    const url = new URLSearchParams(window.location.search);
+    const saved = url.get("tab") ?? sessionStorage.getItem("marina-admin-tab");
+    const savedPanel = url.get("panel") ?? sessionStorage.getItem("marina-admin-panel");
+    if (savedPanel === "customer" || savedPanel === "wholesale") setPanel(savedPanel);
     const allowed: Tab[] = [
       "overview",
       "products",
@@ -75,11 +84,22 @@ export function AdminDashboard() {
       "team",
     ];
     if (saved && allowed.includes(saved as Tab)) setTab(saved as Tab);
+    setRestored(true);
   }, []);
 
   useEffect(() => {
-    sessionStorage.setItem("marina-admin-tab", tab);
-  }, [tab]);
+    if (!restored) return;
+    try {
+      sessionStorage.setItem("marina-admin-tab", tab);
+      sessionStorage.setItem("marina-admin-panel", panel);
+    } catch {
+      /* ignore */
+    }
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", tab);
+    url.searchParams.set("panel", panel);
+    window.history.replaceState(window.history.state, "", url);
+  }, [tab, panel, restored]);
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -100,6 +120,8 @@ export function AdminDashboard() {
   });
   const [productSearch, setProductSearch] = useState("");
   const [productSearchInput, setProductSearchInput] = useState("");
+  const [productSort, setProductSort] = useState<AdminProductSort>("newest");
+  const [productFilter, setProductFilter] = useState<AdminProductFilter>("all");
   const [productCatalogTotal, setProductCatalogTotal] = useState(0);
   const emptyProductForm = () => ({
     name: "",
@@ -132,6 +154,31 @@ export function AdminDashboard() {
   const [categoryQuery, setCategoryQuery] = useState("");
   const [extraCategories, setExtraCategories] = useState<{ slug: string; name: string }[]>([]);
   const [editing, setEditing] = useState<{ mongoId: string | null; slug: string } | null>(null);
+  const [draftRestored, setDraftRestored] = useState(false);
+
+  // Keep the unsaved Add/Edit product form across a page reload (e.g. after the phone camera).
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(PRODUCT_DRAFT_KEY);
+      if (raw) {
+        const saved = JSON.parse(raw) as { form?: Partial<ReturnType<typeof emptyProductForm>>; editing?: typeof editing };
+        if (saved.form) setProductForm({ ...emptyProductForm(), ...saved.form });
+        if (saved.editing) setEditing(saved.editing);
+      }
+    } catch {
+      /* ignore */
+    }
+    setDraftRestored(true);
+  }, []);
+
+  useEffect(() => {
+    if (!draftRestored) return;
+    try {
+      sessionStorage.setItem(PRODUCT_DRAFT_KEY, JSON.stringify({ form: productForm, editing }));
+    } catch {
+      /* ignore */
+    }
+  }, [productForm, editing, draftRestored]);
   const [visitors, setVisitors] = useState<Record<string, unknown>[]>([]);
   const [visitorPage, setVisitorPage] = useState(1);
   const [visitorSummary, setVisitorSummary] = useState({ totalVisitors: 0, today: 0, last7Days: 0 });
@@ -158,7 +205,7 @@ export function AdminDashboard() {
       fetch("/api/testimonials").then((x) => x.json()),
       fetch(`/api/admin/customers?segment=${segment}`).then((x) => x.json()),
       fetch(
-        `/api/admin/products?channel=${channel}&page=${productPage}&pageSize=10${productSearch ? `&q=${encodeURIComponent(productSearch)}` : ""}`
+        `/api/admin/products?channel=${channel}&page=${productPage}&pageSize=10&sort=${productSort}&filter=${productFilter}${productSearch ? `&q=${encodeURIComponent(productSearch)}` : ""}`
       ).then((x) => x.json()),
     ]);
     setQuotes(q.items ?? []);
@@ -172,7 +219,7 @@ export function AdminDashboard() {
       p.pagination ?? { total: p.items?.length ?? 0, totalPages: 1, pageSize: 10 }
     );
     if (typeof p.counts?.total === "number") setProductCatalogTotal(p.counts.total);
-  }, [panel, productPage, productSearch]);
+  }, [panel, productPage, productSearch, productSort, productFilter]);
 
   useEffect(() => {
     void load();
@@ -192,7 +239,7 @@ export function AdminDashboard() {
 
   useEffect(() => {
     setProductPage(1);
-  }, [panel, productSearch]);
+  }, [panel, productSearch, productSort, productFilter]);
 
   useEffect(() => {
     void fetch("/api/categories")
@@ -582,6 +629,40 @@ export function AdminDashboard() {
                       </button>
                     ) : null}
                   </form>
+                </div>
+                <div className="grid grid-cols-2 gap-2 border-b bg-white px-4 py-3 sm:flex sm:flex-wrap sm:items-center">
+                  <label className="flex min-w-0 flex-col gap-1 text-[11px] font-semibold uppercase tracking-wide text-navy-600 sm:flex-row sm:items-center sm:gap-2">
+                    Sort
+                    <select
+                      className="input min-h-9 py-1.5 text-sm font-normal normal-case tracking-normal"
+                      value={productSort}
+                      onChange={(e) => setProductSort(e.target.value as AdminProductSort)}
+                    >
+                      <option value="newest">Newest first</option>
+                      <option value="oldest">Oldest first</option>
+                      <option value="updated">Recently updated</option>
+                      <option value="name-asc">Name A–Z</option>
+                      <option value="name-desc">Name Z–A</option>
+                      <option value="price-asc">Price: low to high</option>
+                      <option value="price-desc">Price: high to low</option>
+                    </select>
+                  </label>
+                  <label className="flex min-w-0 flex-col gap-1 text-[11px] font-semibold uppercase tracking-wide text-navy-600 sm:flex-row sm:items-center sm:gap-2">
+                    Show
+                    <select
+                      className="input min-h-9 py-1.5 text-sm font-normal normal-case tracking-normal"
+                      value={productFilter}
+                      onChange={(e) => setProductFilter(e.target.value as AdminProductFilter)}
+                    >
+                      <option value="all">All products</option>
+                      <option value="added">Added in admin</option>
+                      <option value="catalog">Built-in catalogue</option>
+                      <option value="in-stock">In stock</option>
+                      <option value="low-stock">Low stock (1–5)</option>
+                      <option value="out-of-stock">Out of stock / scope</option>
+                      <option value="hidden">Deactivated</option>
+                    </select>
+                  </label>
                 </div>
                 <AdminListPagination
                   className="border-t bg-white px-4 py-3"

@@ -1,4 +1,4 @@
-import { DISCOUNT_PERCENT, formatPrice, listPrice } from "@/lib/products";
+import { formatPrice } from "@/lib/products";
 
 const sizes = {
   card: {
@@ -18,23 +18,23 @@ export function PriceRow({
   className = "",
 }: {
   price: number;
-  /** When an admin sale is running, show its real discount instead of the standing one. */
+  /** The struck-through price and discount only appear while an admin sale is running. */
   salePercent?: number;
   size?: keyof typeof sizes;
   className?: string;
 }) {
   const s = sizes[size];
   const onSale = salePercent != null && salePercent > 0 && salePercent < 100;
-  const was = onSale ? Number((price / (1 - salePercent / 100)).toFixed(2)) : listPrice(price);
+  const was = onSale ? Number((price / (1 - salePercent / 100)).toFixed(2)) : null;
   return (
     <p className={`flex flex-wrap items-baseline gap-x-1 leading-tight sm:gap-x-1.5 ${className}`}>
-      <span className={`font-bold text-[#2F6B1F] ${s.price}`}>{formatPrice(price)}</span>
-      <span className={`whitespace-nowrap text-[#595959] ${s.rest}`}>
-        <span className="line-through">{formatPrice(was)}</span>
-        <span className={`ml-0.5 ${onSale ? "font-semibold text-red-700" : ""}`}>
-          ({onSale ? `Sale ${salePercent}%` : `${DISCOUNT_PERCENT}%`} off)
+      <span className={`font-bold ${onSale ? "text-[#2F6B1F]" : "text-[#222222]"} ${s.price}`}>{formatPrice(price)}</span>
+      {was != null ? (
+        <span className={`whitespace-nowrap text-[#595959] ${s.rest}`}>
+          <span className="line-through">{formatPrice(was)}</span>
+          <span className="ml-0.5 font-semibold text-red-700">({salePercent}% off)</span>
         </span>
-      </span>
+      ) : null}
     </p>
   );
 }

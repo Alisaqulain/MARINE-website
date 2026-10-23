@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Camera, ChevronLeft, ChevronRight, ImageIcon, Pencil, Trash2, X } from "lucide-react";
+import { Camera, ChevronLeft, ChevronRight, Crop, ImageIcon, Pencil, Trash2, X } from "lucide-react";
 import { ProductImage } from "@/components/ProductImage";
 import type { ListingImage } from "@/lib/listing-images";
 import { resolveMediaUrl } from "@/lib/media-url";
@@ -18,13 +18,13 @@ function CameraCapture({
   onClose: () => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [error, setError] = useState(stream ? "" : "Camera permission was blocked. Allow the camera, or use Gallery / files.");
+  const [error, setError] = useState(stream ? "" : "Camera permission was blocked. Allow the camera, or use the gallery button.");
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !stream) return;
     video.srcObject = stream;
-    void video.play().catch(() => setError("Camera is not ready. Use Gallery / files."));
+    void video.play().catch(() => setError("Camera is not ready. Use the gallery button."));
     return () => {
       stream.getTracks().forEach((track) => track.stop());
     };
@@ -80,36 +80,32 @@ function CameraCapture({
 }
 
 /**
- * Phones: one button — the OS sheet already offers Camera, Photo library and Files.
- * Desktop: separate webcam and file buttons (getUserMedia needs HTTPS and is unreliable on phones).
+ * Camera opens inside the page (getUserMedia) on phones and desktops alike. Handing off to the
+ * phone's own camera app can make the browser reload the admin page and lose the form.
+ * Gallery opens the file picker; the multi-image field accepts several photos at once.
  */
 function PhotoPickerButtons({
   uploading,
+  multiple = false,
   onCamera,
   onPick,
 }: {
   uploading: boolean;
+  multiple?: boolean;
   onCamera: () => void;
   onPick: () => void;
 }) {
   const cls =
-    "inline-flex items-center justify-center gap-2 rounded-xl border border-[#C9A84C]/50 bg-[#FAF7F2] px-3 py-3 text-sm font-medium text-navy-800 hover:border-[#C9A84C] disabled:opacity-60 sm:px-4";
+    "inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-[#C9A84C]/50 bg-[#FAF7F2] px-3 py-3 text-sm font-medium text-navy-800 hover:border-[#C9A84C] disabled:opacity-60 sm:flex-none sm:px-4";
   return (
     <div className="flex flex-wrap gap-2">
-      <button type="button" disabled={uploading} onClick={onPick} className={`${cls} flex-1 sm:flex-none`}>
-        <ImageIcon className="h-4 w-4 shrink-0" />
-        {uploading ? (
-          "Uploading…"
-        ) : (
-          <>
-            <span className="sm:hidden">Take or choose photo</span>
-            <span className="hidden sm:inline">Gallery / files</span>
-          </>
-        )}
-      </button>
-      <button type="button" disabled={uploading} onClick={onCamera} className={`${cls} hidden sm:inline-flex`}>
+      <button type="button" disabled={uploading} onClick={onCamera} className={cls}>
         <Camera className="h-4 w-4 shrink-0" />
-        Webcam
+        Take photo
+      </button>
+      <button type="button" disabled={uploading} onClick={onPick} className={cls}>
+        <ImageIcon className="h-4 w-4 shrink-0" />
+        {uploading ? "Uploading…" : multiple ? "Choose photos (multiple)" : "Choose from gallery"}
       </button>
     </div>
   );
@@ -131,7 +127,7 @@ export function AdminProductImageField({
   async function openCamera() {
     setError("");
     if (!navigator.mediaDevices?.getUserMedia) {
-      setError("This browser cannot open the camera here. Use Gallery / files instead.");
+      setError("This browser cannot open the camera here. Use the gallery button instead.");
       return;
     }
     try {
@@ -141,7 +137,7 @@ export function AdminProductImageField({
       });
       setCameraStream(stream);
     } catch {
-      setError("Camera permission was blocked. Allow the camera, or use Gallery / files.");
+      setError("Camera permission was blocked. Allow the camera, or use the gallery button.");
     }
   }
 
@@ -181,7 +177,7 @@ export function AdminProductImageField({
           }}
         />
       ) : null}
-      <p className="text-[11px] text-navy-500">On phones one button opens the camera or your gallery. Large photos are resized automatically.</p>
+      <p className="text-[11px] text-navy-500">Take a photo with the camera or choose one from your gallery. Large photos are resized automatically.</p>
       {value ? (
         <div className="flex items-start gap-3">
           <div className="relative h-24 w-24 overflow-hidden rounded-lg border border-[#e6dfd2]">
@@ -276,7 +272,7 @@ export function AdminProductImagesField({
   async function openCamera() {
     setError("");
     if (!navigator.mediaDevices?.getUserMedia) {
-      setError("This browser cannot open the camera here. Use Gallery / files instead.");
+      setError("This browser cannot open the camera here. Use the gallery button instead.");
       return;
     }
     try {
@@ -286,7 +282,7 @@ export function AdminProductImagesField({
       });
       setCameraStream(stream);
     } catch {
-      setError("Camera permission was blocked. Allow the camera, or use Gallery / files.");
+      setError("Camera permission was blocked. Allow the camera, or use the gallery button.");
     }
   }
 
@@ -319,10 +315,12 @@ export function AdminProductImagesField({
     setUploading(true);
     const added: ListingImage[] = [];
     try {
-      for (const file of files) {
+      for (const [i, file] of files.entries()) {
+        if (files.length > 1) setNotice(`Uploading ${i + 1} of ${files.length}…`);
         const uploaded = await uploadImageFile(file);
         added.push({ url: uploaded.url, name: "", color: "", text: "" });
         if (uploaded.warning) setNotice(uploaded.warning);
+        else if (i === files.length - 1) setNotice("");
       }
       onChange([...images, ...added]);
     } catch (err) {
@@ -337,9 +335,15 @@ export function AdminProductImagesField({
     <div className="space-y-2">
       <span className="block text-xs font-semibold uppercase tracking-wide text-navy-600">Product images</span>
       <p className="text-[11px] text-navy-500">
-        The first photo is the thumbnail. Drag to reorder. Edit opens brightness, colour, and zoom.
+        The first photo is the thumbnail. You can pick several photos at once. Drag to reorder. Edit opens
+        crop &amp; frame, brightness, colour, and zoom.
       </p>
-      <PhotoPickerButtons uploading={uploading} onCamera={() => void openCamera()} onPick={() => galleryRef.current?.click()} />
+      <PhotoPickerButtons
+        uploading={uploading}
+        multiple
+        onCamera={() => void openCamera()}
+        onPick={() => galleryRef.current?.click()}
+      />
       <input
         ref={galleryRef}
         type="file"
@@ -508,6 +512,7 @@ function ImageEditor({
   const [past, setPast] = useState<ListingImage[]>([]);
   const [future, setFuture] = useState<ListingImage[]>([]);
   const [mode, setMode] = useState<"adjust" | "transform">("adjust");
+  const [cropping, setCropping] = useState(false);
   const [tool, setTool] = useState<keyof ImageAdjust>("brightness");
 
   function remember() {
@@ -631,7 +636,11 @@ function ImageEditor({
             />
           </label>
         )}
-        <div className="mt-4 flex justify-center gap-2">
+        <div className="mt-4 flex flex-wrap justify-center gap-2">
+          <button type="button" onClick={() => setCropping(true)} className="inline-flex items-center gap-1.5 rounded-full border border-[#ddd] px-5 py-2 text-sm font-semibold">
+            <Crop className="h-4 w-4" />
+            Crop &amp; frame
+          </button>
           <button type="button" onClick={() => setMode("adjust")} className={`rounded-full px-5 py-2 text-sm font-semibold ${mode === "adjust" ? "bg-[#222] text-white" : "border border-[#ddd]"}`}>
             Adjust
           </button>
@@ -640,7 +649,207 @@ function ImageEditor({
           </button>
         </div>
       </div>
+      {cropping ? (
+        <CropTool
+          src={draft.url}
+          onCancel={() => setCropping(false)}
+          onCropped={(url) => {
+            remember();
+            setDraft({ ...draft, url });
+            setCropping(false);
+          }}
+        />
+      ) : null}
     </div>,
     document.body
+  );
+}
+
+type CropRect = { x: number; y: number; w: number; h: number };
+
+const CROP_FRAMES: { label: string; ratio: number | null }[] = [
+  { label: "Free", ratio: null },
+  { label: "Square 1:1", ratio: 1 },
+  { label: "Portrait 4:5", ratio: 4 / 5 },
+  { label: "Portrait 3:4", ratio: 3 / 4 },
+  { label: "Landscape 4:3", ratio: 4 / 3 },
+  { label: "Wide 16:9", ratio: 16 / 9 },
+];
+
+const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+
+/** Largest centred crop (in % of the image) with the given pixel aspect ratio. */
+function fitCrop(ratio: number | null, natW: number, natH: number): CropRect {
+  if (!ratio) return { x: 5, y: 5, w: 90, h: 90 };
+  const imageRatio = natW / natH;
+  let w = 90;
+  let h = 90;
+  if (ratio > imageRatio) h = (90 * imageRatio) / ratio;
+  else w = (90 * ratio) / imageRatio;
+  return { x: (100 - w) / 2, y: (100 - h) / 2, w, h };
+}
+
+/** Crops the photo to a frame, then uploads the cropped copy and hands back its URL. */
+function CropTool({
+  src,
+  onCancel,
+  onCropped,
+}: {
+  src: string;
+  onCancel: () => void;
+  onCropped: (url: string) => void;
+}) {
+  const resolved = resolveMediaUrl(src) || src;
+  const [nat, setNat] = useState<{ w: number; h: number } | null>(null);
+  const [ratio, setRatio] = useState<number | null>(null);
+  const [rect, setRect] = useState<CropRect>({ x: 5, y: 5, w: 90, h: 90 });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const boxRef = useRef<HTMLDivElement>(null);
+  const drag = useRef<{ kind: "move" | "resize"; x: number; y: number; rect: CropRect } | null>(null);
+
+  function chooseFrame(next: number | null) {
+    setRatio(next);
+    if (nat) setRect(fitCrop(next, nat.w, nat.h));
+  }
+
+  function startDrag(kind: "move" | "resize", e: React.PointerEvent<HTMLElement>) {
+    e.preventDefault();
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    drag.current = { kind, x: e.clientX, y: e.clientY, rect };
+  }
+
+  function onMove(e: React.PointerEvent<HTMLDivElement>) {
+    const start = drag.current;
+    const box = boxRef.current?.getBoundingClientRect();
+    if (!start || !box || !nat) return;
+    const dx = ((e.clientX - start.x) / box.width) * 100;
+    const dy = ((e.clientY - start.y) / box.height) * 100;
+    const r = start.rect;
+    if (start.kind === "move") {
+      setRect({ ...r, x: clamp(r.x + dx, 0, 100 - r.w), y: clamp(r.y + dy, 0, 100 - r.h) });
+      return;
+    }
+    let w = clamp(r.w + dx, 5, 100 - r.x);
+    let h = ratio ? (w * nat.w) / (nat.h * ratio) : clamp(r.h + dy, 5, 100 - r.y);
+    if (ratio && r.y + h > 100) {
+      h = 100 - r.y;
+      w = (h * nat.h * ratio) / nat.w;
+    }
+    setRect({ ...r, w, h });
+  }
+
+  function endDrag() {
+    drag.current = null;
+  }
+
+  async function apply() {
+    if (!nat) return;
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch(resolved);
+      if (!res.ok) throw new Error("");
+      const bitmap = await createImageBitmap(await res.blob());
+      const sx = (rect.x / 100) * bitmap.width;
+      const sy = (rect.y / 100) * bitmap.height;
+      const sw = (rect.w / 100) * bitmap.width;
+      const sh = (rect.h / 100) * bitmap.height;
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(sw));
+      canvas.height = Math.max(1, Math.round(sh));
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("");
+      ctx.drawImage(bitmap, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+      bitmap.close();
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.92));
+      if (!blob) throw new Error("");
+      const uploaded = await uploadImageFile(new File([blob], `crop-${Date.now()}.jpg`, { type: "image/jpeg" }));
+      onCropped(uploaded.url);
+    } catch (err) {
+      setError(
+        err instanceof Error && err.message
+          ? err.message
+          : "Could not crop this image. Pasted links from other websites cannot be cropped — upload the photo instead."
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[230] flex flex-col bg-[#111] text-white">
+      <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
+        <p className="text-sm font-medium">Crop &amp; frame</p>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            disabled={busy || !nat}
+            onClick={() => void apply()}
+            className="rounded-full bg-[#C9A84C] px-5 py-2 text-sm font-semibold text-[#111] disabled:opacity-50"
+          >
+            {busy ? "Saving…" : "Apply crop"}
+          </button>
+          <button type="button" onClick={onCancel} className="rounded-full border border-white/30 px-5 py-2 text-sm font-semibold">
+            Cancel
+          </button>
+        </div>
+      </div>
+      <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden p-4">
+        <div
+          ref={boxRef}
+          className="relative inline-block touch-none select-none overflow-hidden"
+          onPointerMove={onMove}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+        >
+          <img
+            src={resolved}
+            alt=""
+            draggable={false}
+            onLoad={(e) => {
+              const img = e.currentTarget;
+              setNat({ w: img.naturalWidth, h: img.naturalHeight });
+              setRect(fitCrop(ratio, img.naturalWidth, img.naturalHeight));
+            }}
+            className="block max-h-[calc(100dvh-220px)] max-w-full"
+          />
+          {nat ? (
+            <div
+              className="absolute cursor-move border-2 border-white shadow-[0_0_0_9999px_rgba(0,0,0,0.55)]"
+              style={{ left: `${rect.x}%`, top: `${rect.y}%`, width: `${rect.w}%`, height: `${rect.h}%` }}
+              onPointerDown={(e) => startDrag("move", e)}
+            >
+              <span className="pointer-events-none absolute inset-y-0 left-1/3 w-px bg-white/40" />
+              <span className="pointer-events-none absolute inset-y-0 left-2/3 w-px bg-white/40" />
+              <span className="pointer-events-none absolute inset-x-0 top-1/3 h-px bg-white/40" />
+              <span className="pointer-events-none absolute inset-x-0 top-2/3 h-px bg-white/40" />
+              <span
+                aria-label="Resize crop"
+                onPointerDown={(e) => startDrag("resize", e)}
+                className="absolute bottom-0 right-0 h-6 w-6 cursor-nwse-resize rounded-tl-md border-l-2 border-t-2 border-white bg-[#C9A84C]"
+              />
+            </div>
+          ) : null}
+        </div>
+      </div>
+      {error ? <p className="px-4 pb-2 text-center text-sm text-red-300">{error}</p> : null}
+      <div className="no-scrollbar flex gap-2 overflow-x-auto border-t border-white/10 px-4 py-4 sm:justify-center">
+        {CROP_FRAMES.map((frame) => (
+          <button
+            key={frame.label}
+            type="button"
+            onClick={() => chooseFrame(frame.ratio)}
+            className={`shrink-0 rounded-full px-4 py-2 text-xs font-semibold ${
+              ratio === frame.ratio ? "bg-white text-[#111]" : "border border-white/30 text-white"
+            }`}
+          >
+            {frame.label}
+          </button>
+        ))}
+      </div>
+      <p className="pb-4 text-center text-[11px] text-white/60">Drag the frame to move it · drag the gold corner to resize</p>
+    </div>
   );
 }

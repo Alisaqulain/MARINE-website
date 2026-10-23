@@ -10,6 +10,7 @@ import { ImageOverlayText } from "./ImageOverlayText";
 import { FreeShippingTag } from "./FreeShippingTag";
 import { PriceRow } from "./PriceRow";
 import { ProductName } from "./ProductName";
+import { ProductShareIcon } from "./ProductShare";
 
 export function ProductCard({ product }: { product: Product }) {
   const { has, toggle } = useWishlist();
@@ -48,6 +49,11 @@ export function ProductCard({ product }: { product: Product }) {
         >
           <Heart className={`h-[22px] w-[22px] ${wished ? "fill-[#222222] text-[#222222]" : ""}`} />
         </button>
+        <ProductShareIcon
+          path={`/product/${product.slug}`}
+          title={product.name}
+          className="absolute bottom-1.5 right-1.5"
+        />
       </div>
       <Link href={`/product/${product.slug}`} className="mt-2 block min-w-0" aria-label={product.name}>
         <h3>

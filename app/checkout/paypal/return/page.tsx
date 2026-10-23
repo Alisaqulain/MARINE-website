@@ -9,7 +9,7 @@ const SAVED_ORDERS = "marina-muse-orders";
 function PayPalReturnInner() {
   const params = useSearchParams();
   const router = useRouter();
-  const { clear } = useCart();
+  const { clear, clearBuyNow } = useCart();
   const started = useRef(false);
   const [error, setError] = useState("");
 
@@ -40,7 +40,15 @@ function PayPalReturnInner() {
         } catch {
           /* ignore */
         }
-        clear();
+        let mode = "cart";
+        try {
+          mode = sessionStorage.getItem("marina-muse-checkout-mode") ?? "cart";
+          sessionStorage.removeItem("marina-muse-checkout-mode");
+        } catch {
+          /* ignore */
+        }
+        if (mode === "buy-now") clearBuyNow();
+        else clear();
         const qs = new URLSearchParams({ order: data.order.id, token: data.token });
         if (wantsWhatsapp && data.whatsappUrl) qs.set("wa", data.whatsappUrl);
         router.replace(`/checkout/confirmation?${qs.toString()}`);
@@ -48,7 +56,7 @@ function PayPalReturnInner() {
       .catch((err: unknown) => {
         setError(err instanceof Error ? err.message : "Payment could not be confirmed.");
       });
-  }, [params, router, clear]);
+  }, [params, router, clear, clearBuyNow]);
 
   return (
     <div className="mx-auto max-w-xl px-4 py-24 text-center">

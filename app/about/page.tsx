@@ -7,7 +7,6 @@ import {
   Sparkles,
 } from "lucide-react";
 import { BannerHero } from "@/components/BannerHero";
-import { ShopCategoryLinks } from "@/components/ShopCategoryLinks";
 import { WholesaleNavLink } from "@/components/WholesaleNavLink";
 import { heroImg, img } from "@/lib/images";
 
@@ -31,47 +30,6 @@ const pillars = [
     icon: PackageCheck,
     title: "Export-ready quality",
     body: "Inspection, secure packing and worldwide dispatch for retail, wholesale and OEM orders.",
-  },
-];
-
-const ranges = [
-  {
-    title: "Armour",
-    image: img.knight,
-    items: [
-      { name: "Armor Breast Plates & Jackets", href: "/collections/armor-breast-plate" },
-      { name: "Armor Helmets", href: "/collections/armor-helmets" },
-      { name: "Muscle Armour", href: "/collections/muscle-armour" },
-      { name: "Full Suit of Armor", href: "/collections/full-suit-of-armor" },
-      { name: "Armory Props", href: "/collections/armory-props" },
-    ],
-  },
-  {
-    title: "Nautical instruments",
-    image: img.telescope,
-    items: [
-      { name: "Diving Helmets", href: "/collections/diving-helmets" },
-      { name: "Brass Nautical Telescopes", href: "/collections/telescopes" },
-      { name: "Brass Nautical Binoculars", href: "/collections/brass-binoculars" },
-      { name: "Compasses", href: "/collections/brass-compasses" },
-      { name: "Spotlights & Searchlights", href: "/collections/spotlight-searchlight" },
-      { name: "Nautical Brass Sextants", href: "/collections/nautical-instruments" },
-      { name: "Magnifying Glasses", href: "/collections/magnifying-glass" },
-    ],
-  },
-  {
-    title: "Maritime décor & gifts",
-    image: img.ship,
-    items: [
-      { name: "Sand Timers", href: "/collections/nautical-instruments" },
-      { name: "Clocks", href: "/collections/clocks" },
-      { name: "Ship Wheels", href: "/collections/ship-wheels" },
-      { name: "Ship Bells", href: "/collections/ship-bell" },
-      { name: "Ship Telegraphs", href: "/collections/nautical-decor" },
-      { name: "Walking Sticks & Shoe Horns", href: "/collections/walking-canes" },
-      { name: "Keyrings, Keychains & Pendants", href: "/collections/nautical-decor" },
-      { name: "Nautical Décor & Gifts", href: "/collections/nautical-decor" },
-    ],
   },
 ];
 
@@ -153,37 +111,6 @@ export default function AboutPage() {
               and durability.
             </p>
           </div>
-          <ShopCategoryLinks />
-          <div className="mt-8 grid gap-6 lg:grid-cols-3">
-            {ranges.map((range) => (
-              <article
-                key={range.title}
-                className="overflow-hidden rounded-3xl border border-[#eee7db] bg-[#FAF7F2]"
-              >
-                <div className="relative h-44">
-                  <Image src={range.image} alt={range.title} fill className="object-cover" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#081525]/80 to-transparent" />
-                  <h3 className="absolute bottom-4 left-5 font-serif text-2xl text-white">{range.title}</h3>
-                </div>
-                <ul className="space-y-2 p-5">
-                  {range.items.map((item) => (
-                    <li key={item.name}>
-                      <Link
-                        href={item.href}
-                        className="text-sm text-navy-700 transition hover:text-[#8C6E28]"
-                      >
-                        {item.name}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </article>
-            ))}
-          </div>
-          <p className="mt-8 text-center text-sm text-navy-600">
-            Additional handcrafted products are available on request, including custom sizes, materials
-            and finishes.
-          </p>
         </div>
       </section>
 

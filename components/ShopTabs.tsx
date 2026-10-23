@@ -1,16 +1,14 @@
-"use client";
+﻿"use client";
 
 import { CatalogCard } from "@/components/CatalogCard";
 import { ProductCard } from "@/components/ProductCard";
-import { company } from "@/lib/company";
-import { img } from "@/lib/images";
 import { getProduct, products, reviews, type Product } from "@/lib/products";
 import { Search, SlidersHorizontal, Star } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
-const tabs = ["Items", "Reviews", "About"] as const;
+const tabs = ["Items", "Reviews"] as const;
 const ITEMS_PAGE = 12;
 type ShopTab = (typeof tabs)[number];
 
@@ -18,13 +16,11 @@ export function ShopTabs({
   items,
   categoryItems,
   categoryLabel,
-  currentProduct,
   wholesale = false,
 }: {
   items: Product[];
   categoryItems?: Product[];
   categoryLabel?: string;
-  currentProduct?: Product;
   wholesale?: boolean;
 }) {
   const hasCategory = Boolean(categoryLabel && categoryItems && categoryItems.length > 0);
@@ -63,19 +59,19 @@ export function ShopTabs({
   return (
     <div className="bg-white">
       <div className="sticky top-[var(--site-nav)] z-20 bg-[#C9A84C] text-[#1a1408]">
-        <div className="grid grid-cols-3">
+        <div className="grid grid-cols-2">
           {tabs.map((t) => (
             <button
               key={t}
               type="button"
               onClick={() => setTab(t)}
-              className={`relative py-3 text-[14px] sm:py-3.5 sm:text-[15px] ${
+              className={`relative py-3 text-[13px] sm:py-3.5 sm:text-[15px] ${
                 tab === t ? "font-semibold text-[#1a1408]" : "font-normal text-[#1a1408]/70"
               }`}
             >
               {t}
               {tab === t ? (
-                <span className="absolute inset-x-6 bottom-0 h-[3px] rounded-full bg-[#1a1408]" />
+                <span className="absolute inset-x-3 bottom-0 h-[3px] rounded-full bg-[#1a1408] sm:inset-x-6" />
               ) : null}
             </button>
           ))}
@@ -180,8 +176,6 @@ export function ShopTabs({
       )}
 
       {tab === "Reviews" && <ReviewsPanel />}
-
-      {tab === "About" && <AboutPanel product={currentProduct} />}
     </div>
   );
 }
@@ -257,58 +251,6 @@ function ReviewsPanel() {
           );
         })}
       </div>
-    </div>
-  );
-}
-
-function AboutPanel({ product }: { product?: Product }) {
-  return (
-    <div className="px-4 pb-10 pt-5 lg:max-w-3xl lg:px-0 lg:pt-6">
-      <div className="flex items-center gap-3">
-        <span className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-full bg-[#0B1D36] text-[15px] font-semibold text-[#C9A84C]">
-          MM
-        </span>
-        <div>
-          <h2 className="text-[18px] font-semibold text-[#222]">{company.name}</h2>
-        </div>
-      </div>
-
-      <dl className="mt-5 text-[13px]">
-        <div className="inline-block rounded-lg bg-[#f7f7f7] px-3 py-2.5">
-          <dt className="text-[#888]">Established</dt>
-          <dd className="mt-0.5 font-medium text-[#222]">2011</dd>
-        </div>
-      </dl>
-
-      <p className="mt-5 text-[15px] leading-relaxed text-[#333]">
-        Exporter, manufacturer and supplier of handcrafted nautical, brass and armour pieces from our
-        factory in Roorkee, Uttarakhand, India. Under founder Mr. Mohammad Muaaz, we combine traditional
-        artisan work with export-ready finishing for retail, wholesale and OEM orders worldwide.
-      </p>
-
-      {product ? (
-        <>
-          <h3 className="mt-7 text-[16px] font-semibold text-[#222]">About this piece</h3>
-          <p className="mt-2 text-[15px] leading-relaxed text-[#333]">{product.description}</p>
-          <p className="mt-3 text-[15px] leading-relaxed text-[#333]">{product.story}</p>
-        </>
-      ) : null}
-
-      <div className="relative mt-6 aspect-[16/10] overflow-hidden rounded-xl bg-[#f3f3f3]">
-        <Image
-          key={product?.slug ?? "workshop"}
-          src={product?.image ?? img.workshop}
-          alt={product?.name ?? "Marina Muse workshop in Roorkee"}
-          fill
-          sizes="(max-width: 1024px) 100vw, 768px"
-          className="object-cover"
-        />
-      </div>
-      <p className="mt-2 text-[12px] text-[#888]">
-        {product ? `${product.name} — handcrafted in Roorkee` : "Our manufacturing facility, Roorkee"}
-      </p>
-
-      <p className="mt-6 text-[13px] leading-relaxed text-[#595959]">{company.address.join(", ")}</p>
     </div>
   );
 }

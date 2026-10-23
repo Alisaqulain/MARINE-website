@@ -3,9 +3,15 @@ import { auth } from "@/auth";
 import { requireAdminSession } from "@/lib/admin-auth";
 import { isDashboardRole } from "@/lib/staff-access";
 import {
+  ADMIN_PRODUCT_FILTERS,
+  ADMIN_PRODUCT_SORTS,
   catalogProductsForAdmin,
+  filterAdminProducts,
   mergeAdminProducts,
+  sortAdminProducts,
+  type AdminProductFilter,
   type AdminProductRow,
+  type AdminProductSort,
 } from "@/lib/admin-catalog";
 import { getDb } from "@/lib/mongodb";
 import type { AdminProduct, CatalogOverride } from "@/lib/db/types";
@@ -78,17 +84,28 @@ export async function GET(req: Request) {
     featured: p.featured,
     renewsAt: p.renewsAt,
     listedBy: p.listedBy,
+    createdAt: p.createdAt ? new Date(p.createdAt).toISOString() : undefined,
+    updatedAt: p.updatedAt ? new Date(p.updatedAt).toISOString() : undefined,
   }));
 
   const allItems = mergeAdminProducts(catalog, mongo);
   const q = searchParams.get("q")?.trim().toLowerCase();
-  let items = allItems;
+  const sortParam = searchParams.get("sort");
+  const sort: AdminProductSort = ADMIN_PRODUCT_SORTS.includes(sortParam as AdminProductSort)
+    ? (sortParam as AdminProductSort)
+    : "newest";
+  const filterParam = searchParams.get("filter");
+  const show: AdminProductFilter = ADMIN_PRODUCT_FILTERS.includes(filterParam as AdminProductFilter)
+    ? (filterParam as AdminProductFilter)
+    : "all";
+  let items = filterAdminProducts(allItems, show);
   if (q) {
     items = items.filter((p) => {
       const hay = `${p.name} ${p.slug} ${p.sku ?? ""}`.toLowerCase();
       return hay.includes(q);
     });
   }
+  items = sortAdminProducts(items, sort);
 
   const page = Math.max(1, Number(searchParams.get("page") ?? 1));
   const pageSize = Math.min(200, Math.max(5, Number(searchParams.get("pageSize") ?? 10)));

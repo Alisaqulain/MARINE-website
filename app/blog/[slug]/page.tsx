@@ -21,9 +21,16 @@ export default async function BlogPostPage({ params }: Props) {
 
   return (
     <article className="bg-[#FAF7F2] pb-12">
-      <div className="relative h-[28vh] min-h-[200px] overflow-hidden bg-navy-950">
-        <ProductImage src={post.image} alt={post.title} fill sizes="100vw" className="object-cover" />
-        <div className="absolute inset-0 bg-[#081525]/55" />
+      {/* Show the whole banner image, uncropped, at its natural aspect ratio. */}
+      <div className="bg-navy-950">
+        <ProductImage
+          src={post.image}
+          alt={post.title}
+          width={1920}
+          height={1080}
+          sizes="100vw"
+          className="mx-auto block h-auto max-h-[85vh] w-full object-contain"
+        />
       </div>
       <div className="mx-auto max-w-[720px] px-5">
         <p className="mt-8 text-[11px] uppercase tracking-[0.22em] text-[#8C6E28]">{post.date}</p>
