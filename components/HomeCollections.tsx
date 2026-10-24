@@ -1,6 +1,7 @@
 import { getProductCategory } from "@/lib/catalog";
 import { img } from "@/lib/images";
 import { products } from "@/lib/products";
+import { loadCategoryCatalog } from "@/lib/shop-categories";
 import { shopNowTree } from "@/lib/shop-now-data";
 import Image from "next/image";
 import Link from "next/link";
@@ -32,16 +33,18 @@ const tileArt: Record<string, TileArt> = {
   "lighting-lamps": { image: img.lightChandelier },
 };
 
-const categories = shopNowTree.flatMap((c) => {
-  if (c.slug === "brass-telescope-tripod") return [];
-  const fallback = products.find((p) => getProductCategory(p) === c.slug);
-  const art = tileArt[c.slug] ?? (fallback && { image: fallback.image });
-  return art ? [{ slug: c.slug, name: c.name, ...art }] : [];
-});
+const DEFAULT_TILE = "/contact-us-slide.jpeg";
 
-const half = Math.ceil(categories.length / 2);
-const firstRow = categories.slice(0, half);
-const secondRow = categories.slice(half);
+function collectionTiles(nodes: { slug: string; name: string }[]) {
+  return nodes.flatMap((c) => {
+    if (c.slug === "brass-telescope-tripod") return [];
+    const fallback = products.find(
+      (p) => getProductCategory(p) === c.slug || p.category === c.slug || p.categories?.includes(c.slug)
+    );
+    const art = tileArt[c.slug] ?? (fallback ? { image: fallback.image } : { image: DEFAULT_TILE });
+    return [{ slug: c.slug, name: c.name, ...art }];
+  });
+}
 
 function CategoryTile({
   slug,
@@ -79,7 +82,17 @@ function CategoryTile({
   );
 }
 
-export function HomeCollections() {
+export async function HomeCollections() {
+  let nodes = shopNowTree.map((c) => ({ slug: c.slug, name: c.name }));
+  const catalog = await loadCategoryCatalog();
+  if (catalog.tree.length) {
+    nodes = catalog.tree.map((c) => ({ slug: c.slug, name: c.name }));
+  }
+  const categories = collectionTiles(nodes);
+  const half = Math.max(1, Math.ceil(categories.length / 2));
+  const firstRow = categories.slice(0, half);
+  const secondRow = categories.slice(half);
+
   return (
     <section className="px-5 pb-6 pt-4 md:pb-8 md:pt-5">
       <div className="mx-auto max-w-[1320px]">
@@ -88,7 +101,7 @@ export function HomeCollections() {
         </h2>
 
         <div className="-mx-5 mt-6 space-y-5 lg:hidden">
-          {[firstRow, secondRow].map((row, r) => (
+          {[firstRow, secondRow].filter((row) => row.length > 0).map((row, r) => (
             <div
               key={r}
               className="no-scrollbar grid snap-x snap-mandatory auto-cols-[calc((100%-56px)/5)] grid-flow-col gap-x-2 overflow-x-auto scroll-px-4 px-4"
@@ -101,7 +114,7 @@ export function HomeCollections() {
         </div>
 
         <div className="mt-8 hidden space-y-6 lg:block">
-          {[firstRow, secondRow].map((row, r) => (
+          {[firstRow, secondRow].filter((row) => row.length > 0).map((row, r) => (
             <div key={r} className="grid gap-x-3" style={{ gridTemplateColumns: `repeat(${half}, minmax(0, 1fr))` }}>
               {row.map((c) => (
                 <CategoryTile key={c.slug} {...c} />

@@ -8,6 +8,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { WholesaleNavLink } from "@/components/WholesaleNavLink";
+import { useRegion } from "@/lib/region-context";
 
 type Msg = { from: "bot" | "you"; text: string; product?: string; quote?: boolean };
 
@@ -54,6 +55,7 @@ function reply(input: string): Msg[] {
 
 
 export function ChatWidget() {
+  const { priceFor } = useRegion();
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const [msgs, setMsgs] = useState<Msg[]>(starter);
@@ -145,7 +147,7 @@ export function ChatWidget() {
                         <div>
                           <p className="text-xs font-medium text-navy-900">{productMap[m.product].name}</p>
                           <p className="text-[11px] text-navy-600">
-                            {formatPrice(productMap[m.product].price)} · Custom Logo
+                            {formatPrice(priceFor(productMap[m.product]))} · Custom Logo
                           </p>
                           <Link href={`/product/${m.product}`} className="text-[11px] text-[#8C6E28]">
                             View details

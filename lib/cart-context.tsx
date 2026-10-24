@@ -9,6 +9,8 @@ import {
   type ReactNode,
 } from "react";
 import { B2B_MIN_ORDER_QTY, products, type Product } from "./products";
+import { regionalPrice, type PriceRegion } from "./region";
+import { useRegion } from "./region-context";
 
 export type CartLine = {
   slug: string;
@@ -19,6 +21,8 @@ export type CartLine = {
   personalisationPrice?: number;
   name?: string;
   price?: number;
+  priceIndia?: number;
+  priceUs?: number;
   image?: string;
 };
 
@@ -41,6 +45,8 @@ type AddOptions = {
   personalisationPrice?: number;
   name?: string;
   price?: number;
+  priceIndia?: number;
+  priceUs?: number;
   image?: string;
 };
 
@@ -72,15 +78,19 @@ function makeLine(slug: string, qty: number, opts?: AddOptions): CartLine {
     personalisationPrice: opts?.personalisationPrice,
     name: opts?.name,
     price: opts?.price,
+    priceIndia: opts?.priceIndia,
+    priceUs: opts?.priceUs,
     image: opts?.image,
   });
 }
 
-function toItems(lines: CartLine[]): CartItem[] {
+function toItems(lines: CartLine[], region: PriceRegion): CartItem[] {
   const items: CartItem[] = [];
   for (const l of lines) {
-    const product = productFromLine(l);
-    if (!product) continue;
+    const found = productFromLine(l);
+    if (!found) continue;
+    // Price for the visitor's location (India, United States or everywhere else).
+    const product = { ...found, price: regionalPrice(found, region) };
     items.push({
       product,
       qty: l.qty,
@@ -102,6 +112,8 @@ function productFromLine(line: CartLine): Product | undefined {
     name: line.name,
     sku: line.slug,
     price: line.price,
+    priceIndia: line.priceIndia,
+    priceUs: line.priceUs,
     rating: 0,
     reviews: 0,
     stock: "in-stock",
@@ -143,6 +155,7 @@ const KEY = "marina-muse-cart";
 const BUY_NOW_KEY = "marina-muse-buy-now";
 
 export function CartProvider({ children }: { children: ReactNode }) {
+  const { region } = useRegion();
   const [lines, setLines] = useState<CartLine[]>([]);
   const [buyNowLine, setBuyNowLine] = useState<CartLine | null>(null);
   const [ready, setReady] = useState(false);
@@ -179,9 +192,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, [buyNowLine, ready]);
 
   const value = useMemo<CartContextValue>(() => {
-    const items = toItems(lines);
+    const items = toItems(lines, region);
     const buyNowLines = buyNowLine ? [buyNowLine] : [];
-    const buyNowItems = toItems(buyNowLines);
+    const buyNowItems = toItems(buyNowLines, region);
     return {
       lines,
       add: (slug, qty = 1, opts) =>
@@ -215,7 +228,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       items,
       subtotal: items.reduce((n, i) => n + i.unitPrice * i.qty, 0),
     };
-  }, [lines, buyNowLine]);
+  }, [lines, buyNowLine, region]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }

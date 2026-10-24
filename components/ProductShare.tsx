@@ -59,15 +59,15 @@ export function ProductShareButtons({ path, title }: { path: string; title: stri
   }
 
   const cls =
-    "inline-flex items-center gap-1.5 rounded-full border border-[#e6dfd2] bg-white px-3 py-1.5 text-[12px] font-medium text-navy-800 transition hover:border-[#C9A84C]";
+    "inline-flex items-center gap-1.5 rounded-full bg-[#031D38] px-3 py-1.5 text-[12px] font-medium text-white transition hover:bg-[#0a3358]";
   return (
     <div className="flex flex-wrap items-center gap-2">
       <button type="button" onClick={share} className={cls}>
-        <Share2 className="h-3.5 w-3.5 text-[#8C6E28]" />
+        <Share2 className="h-3.5 w-3.5 text-white" />
         Share
       </button>
       <button type="button" onClick={copy} className={cls}>
-        {copied ? <Check className="h-3.5 w-3.5 text-emerald-700" /> : <Link2 className="h-3.5 w-3.5 text-[#8C6E28]" />}
+        {copied ? <Check className="h-3.5 w-3.5 text-[#C9A84C]" /> : <Link2 className="h-3.5 w-3.5 text-white" />}
         {copied ? "Link copied" : "Copy link"}
       </button>
     </div>

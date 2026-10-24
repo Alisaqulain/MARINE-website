@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { defaultTracking, getOrderDurable, saveOrder, sendOrderConfirmation } from "@/lib/orders";
+import { fulfillPaidOrder, getOrderDurable, sendOrderConfirmation } from "@/lib/orders";
 import { captureMatches, getPayPalOrder, paypalAccessToken, paypalBaseUrl, paypalConfigured } from "@/lib/paypal";
 
 export async function POST(req: Request) {
@@ -49,7 +49,11 @@ export async function POST(req: Request) {
   const paypalOrder = await getPayPalOrder(paypalOrderId);
   const customId = paypalOrder.purchase_units?.[0]?.custom_id ?? "";
   const order = customId ? await getOrderDurable(customId) : null;
-  if (!order || order.paypalOrderId !== paypalOrderId || order.status === "paid") {
+  if (!order || order.paypalOrderId !== paypalOrderId) {
+    return NextResponse.json({ ok: true });
+  }
+  if (order.status === "paid") {
+    if (!order.tracking?.trackingNumber) await fulfillPaidOrder(order);
     return NextResponse.json({ ok: true });
   }
   const check = captureMatches(order.amount, paypalOrder);
@@ -59,8 +63,7 @@ export async function POST(req: Request) {
   order.status = "paid";
   order.paypalCaptureId = check.captureId || resource?.id;
   order.paidAt = new Date().toISOString();
-  if (!order.tracking) order.tracking = defaultTracking();
-  saveOrder(order);
+  await fulfillPaidOrder(order);
   try {
     await sendOrderConfirmation(order);
   } catch (err) {

@@ -11,7 +11,8 @@ import { useT } from "@/lib/i18n/LocaleProvider";
 function AdminLoginInner() {
   const router = useRouter();
   const params = useSearchParams();
-  const callbackUrl = params.get("callbackUrl") ?? "/admin";
+  const requested = params.get("callbackUrl") ?? "/admin";
+  const callbackUrl = requested.startsWith("/admin") && !requested.startsWith("//") ? requested : "/admin";
   const t = useT();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);

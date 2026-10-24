@@ -87,10 +87,10 @@ export default function AboutPage() {
             </p>
             <div className="mt-8 grid gap-3 sm:flex sm:flex-wrap">
               <Link href="/shop" className="btn-gold w-full sm:w-auto">
-                B2C Retail Collection
+                Retail Collection
               </Link>
               <WholesaleNavLink callbackUrl="/wholesale" className="btn-navy w-full sm:w-auto">
-                B2B Wholesale Collection
+                Wholesale Collection
               </WholesaleNavLink>
             </div>
           </div>

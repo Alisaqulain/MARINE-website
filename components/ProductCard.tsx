@@ -11,9 +11,11 @@ import { FreeShippingTag } from "./FreeShippingTag";
 import { PriceRow } from "./PriceRow";
 import { ProductName } from "./ProductName";
 import { ProductShareIcon } from "./ProductShare";
+import { useRegion } from "@/lib/region-context";
 
 export function ProductCard({ product }: { product: Product }) {
   const { has, toggle } = useWishlist();
+  const { priceFor } = useRegion();
   const wished = has(product.slug);
   const availabilityMessage = product.b2cOutOfStock
     ? "Out of stock"
@@ -60,7 +62,7 @@ export function ProductCard({ product }: { product: Product }) {
           <ProductName name={product.name} className="text-[14px] font-normal leading-[1.35] text-[#222222]" />
         </h3>
       </Link>
-      <PriceRow price={product.price} salePercent={product.salePercent} className="mt-1" />
+      <PriceRow price={priceFor(product)} salePercent={product.salePercent} className="mt-1" />
       {availabilityMessage ? (
         <p className="mt-1 text-[12px] font-medium text-[#9a3412]">{availabilityMessage}</p>
       ) : null}

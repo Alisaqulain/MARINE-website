@@ -17,6 +17,7 @@ export const company = {
   phone: "+91 74570 99540",
   phoneTel: "+917457099540",
   whatsapp: "917457099540",
+  instagram: "https://www.instagram.com/marinamusestore1/",
 } as const;
 
 export const companyMailto = `mailto:${company.email}`;

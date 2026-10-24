@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import {
-  defaultTracking,
+  fulfillPaidOrder,
   getOrderDurable,
   publicOrder,
   saveOrder,
@@ -25,6 +25,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "This PayPal payment does not match the order." }, { status: 400 });
   }
   if (order.status === "paid") {
+    if (!order.tracking?.trackingNumber) await fulfillPaidOrder(order);
     return NextResponse.json({
       ok: true,
       order: publicOrder(order),
@@ -44,8 +45,7 @@ export async function POST(req: Request) {
     order.status = "paid";
     order.paypalCaptureId = check.captureId;
     order.paidAt = new Date().toISOString();
-    if (!order.tracking) order.tracking = defaultTracking();
-    saveOrder(order);
+    await fulfillPaidOrder(order);
     try {
       await sendOrderConfirmation(order);
     } catch (err) {

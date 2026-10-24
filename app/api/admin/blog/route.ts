@@ -20,7 +20,7 @@ export async function POST(req: Request) {
   if (!input.title || !input.slug) {
     return NextResponse.json({ error: "Title is required." }, { status: 400 });
   }
-  if (!input.body.length) {
+  if (input.published && !input.body.length) {
     return NextResponse.json({ error: "Write the article text." }, { status: 400 });
   }
   const col = await blogCollection();

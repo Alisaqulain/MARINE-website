@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { Briefcase, ChevronLeft, ChevronRight, Play, RotateCcw, ShoppingBag, Truck, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { Briefcase, ChevronLeft, ChevronRight, Play, RotateCcw, ShoppingBag, Truck } from "lucide-react";
+import { useRef, useState } from "react";
 import { WholesaleNavLink } from "@/components/WholesaleNavLink";
+import { company } from "@/lib/company";
 
 const btnBase =
   "inline-flex items-center justify-center whitespace-nowrap rounded-full text-center font-semibold uppercase transition duration-300";
@@ -17,8 +18,6 @@ const heroBtnPad =
 
 const arrowCls =
   "absolute top-1/2 z-30 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-white/35 bg-[#081525]/50 text-white shadow-[0_4px_16px_rgba(0,0,0,0.28)] backdrop-blur-sm transition hover:bg-[#081525]/80 sm:h-10 sm:w-10 lg:h-11 lg:w-11";
-
-const STORY_EMBED = "https://www.instagram.com/reel/DecPczRB8N2/embed";
 
 const slides = [
   {
@@ -78,19 +77,6 @@ export function HomeHero() {
   const [i, setI] = useState(0);
   const touchX = useRef<number | null>(null);
   const slide = slides[i];
-  const [storyOpen, setStoryOpen] = useState(false);
-
-  useEffect(() => {
-    if (!storyOpen) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setStoryOpen(false);
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", onKey);
-    return () => {
-      document.body.style.overflow = prevOverflow;
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [storyOpen]);
 
   function prev() {
     setI((n) => (n === 0 ? slides.length - 1 : n - 1));
@@ -185,19 +171,20 @@ export function HomeHero() {
                 href="/shop"
                 className={`${btnBase} ${i === 0 ? heroBtnPad : btnPad} shadow-[0_4px_12px_rgba(0,0,0,0.3)] ${slide.primaryCls}`}
               >
-                B2C Retail Collection
+                Retail Collection
               </Link>
               <WholesaleNavLink
                 callbackUrl="/wholesale"
                 className={`${btnBase} ${i === 0 ? heroBtnPad : btnPad} ${slide.secondaryCls}`}
               >
-                B2B Wholesale Collection
+                Wholesale Collection
               </WholesaleNavLink>
             </div>
             {i === 0 ? (
-              <button
-                type="button"
-                onClick={() => setStoryOpen(true)}
+              <a
+                href={company.instagram}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="group -mt-1.5 flex flex-nowrap items-center gap-2 whitespace-nowrap sm:-mt-0.5 sm:gap-3"
               >
                 <span className="relative grid h-8 w-8 shrink-0 place-items-center sm:h-11 sm:w-11 lg:h-14 lg:w-14">
@@ -210,7 +197,7 @@ export function HomeHero() {
                 <span className="whitespace-nowrap font-serif text-[14px] font-semibold tracking-[0.02em] text-white underline decoration-[#F6BE52] decoration-2 underline-offset-[5px] drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)] transition group-hover:text-[#F6BE52] sm:text-[18px] sm:tracking-[0.04em] lg:text-[22px]">
                   Watch Our Story
                 </span>
-              </button>
+              </a>
             ) : null}
           </div>
         )}
@@ -255,39 +242,6 @@ export function HomeHero() {
         </div>
       </div>
 
-      {storyOpen && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="Watch Our Story"
-          onClick={() => setStoryOpen(false)}
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-fadeIn"
-        >
-          <button
-            type="button"
-            aria-label="Close video"
-            onClick={() => setStoryOpen(false)}
-            className="fixed right-4 top-4 z-[101] flex h-11 w-11 items-center justify-center rounded-full bg-white text-[#0B1D36] shadow-lg transition hover:bg-[#F3E6C8]"
-          >
-            <X className="h-6 w-6" />
-          </button>
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="relative w-full max-w-[400px] lg:w-[min(560px,calc((94vh-190px)*0.5625+2px))] lg:max-w-none"
-          >
-            <div className="h-[min(80vh,720px)] overflow-hidden rounded-xl bg-white shadow-2xl lg:h-[94vh]">
-              <iframe
-                src={STORY_EMBED}
-                title="Marina Muse — Our Story"
-                allow="autoplay; encrypted-media; picture-in-picture; clipboard-write"
-                allowFullScreen
-                className="h-full w-full border-0"
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
       <div className="grid grid-cols-2 divide-x divide-[#031D38]/15 bg-[#C9A84C] text-[#031D38]">
         <Link
           href="/shipping"
@@ -317,14 +271,14 @@ export function HomeHero() {
           className="flex min-w-0 flex-1 items-center justify-center gap-1.5 px-2 py-2.5 transition hover:bg-[#0B1D36]"
         >
           <ShoppingBag className="h-4 w-4 shrink-0 text-[#C9A84C]" strokeWidth={1.7} />
-          <span className="text-center text-[9px] font-semibold leading-tight">B2C Retail Collection</span>
+          <span className="text-center text-[9px] font-semibold leading-tight">Retail Collection</span>
         </Link>
         <WholesaleNavLink
           callbackUrl="/wholesale"
           className="flex min-w-0 flex-1 items-center justify-center gap-1.5 px-2 py-2.5 transition hover:bg-[#0B1D36]"
         >
           <Briefcase className="h-4 w-4 shrink-0 text-[#C9A84C]" strokeWidth={1.7} />
-          <span className="text-center text-[9px] font-semibold leading-tight">B2B Wholesale Collection</span>
+          <span className="text-center text-[9px] font-semibold leading-tight">Wholesale Collection</span>
         </WholesaleNavLink>
       </div>
     </section>

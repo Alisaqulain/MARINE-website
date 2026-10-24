@@ -6,7 +6,7 @@ import { BannerHero } from "@/components/BannerHero";
 export const metadata: Metadata = {
   title: "Shipping",
   description:
-    "Marina Muse delivers worldwide by air and sea from India — DHL, FedEx, TNT, UPS, FOB, Ex-Works, port-to-port and door-to-door.",
+    "Marina Muse books worldwide air parcels through ShipGlobal — DHL, FedEx, TNT and UPS — plus sea freight from India.",
 };
 
 const seaPoints = [
@@ -64,7 +64,7 @@ export default function ShippingPage() {
               </div>
             </div>
             <div>
-              <p className="text-[13px] text-navy-700">We use trusted couriers for air shipments</p>
+              <p className="text-[13px] text-navy-700">Air parcels are booked through ShipGlobal and carried by</p>
             <div className="mt-3 flex flex-wrap items-center gap-3 md:gap-4">
                 <div className="flex h-11 items-center bg-[#FFCC00] px-3 text-[22px] font-black italic tracking-tight text-[#D40511]">
                   DHL
@@ -79,17 +79,17 @@ export default function ShippingPage() {
                 <div className="flex h-12 w-12 items-center justify-center rounded-md bg-[#351C15] text-[11px] font-black text-[#FFB500]">
                   UPS
                 </div>
-                <div className="flex h-11 items-center gap-1.5 text-[#1F5FBF]">
-                  <Globe className="h-10 w-10" strokeWidth={1.6} />
+                <a href="https://shipglobal.in/tracking/" className="flex h-11 items-center gap-1.5 text-[#0B1D36]" target="_blank" rel="noreferrer">
+                  <Globe className="h-10 w-10 text-[#1F5FBF]" strokeWidth={1.6} />
                   <span className="text-[13px] font-black leading-[1.05] tracking-wide">
-                    GLOBAL
+                    SHIP
                     <br />
-                    SHIPPING
+                    GLOBAL
                   </span>
-                </div>
+                </a>
               </div>
               <p className="mt-2 text-[11px] tracking-[0.12em] text-navy-500">
-                DHL EXPRESS &nbsp;|&nbsp; FedEx EXPRESS &nbsp;|&nbsp; TNT &nbsp;|&nbsp; UPS &nbsp;|&nbsp; GLOBAL SHIPPING
+                DHL EXPRESS &nbsp;|&nbsp; FedEx EXPRESS &nbsp;|&nbsp; TNT &nbsp;|&nbsp; UPS &nbsp;|&nbsp; via ShipGlobal
               </p>
             </div>
           </div>

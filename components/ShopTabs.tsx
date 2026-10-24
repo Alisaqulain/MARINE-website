@@ -80,7 +80,7 @@ export function ShopTabs({
 
       {tab === "Items" && (
         <div className="px-3 pb-8 pt-4 lg:px-0 lg:pt-6">
-          <label className="relative block lg:max-w-xl">
+          <label className="relative block w-full">
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}

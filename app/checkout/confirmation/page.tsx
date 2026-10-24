@@ -1,6 +1,7 @@
 "use client";
 
 import { formatPrice } from "@/lib/products";
+import { countryName } from "@/lib/countries";
 import { company } from "@/lib/company";
 import { CheckCircle2, Mail, MessageCircle } from "lucide-react";
 import Link from "next/link";
@@ -16,7 +17,9 @@ type OrderView = {
   address: string;
   city: string;
   postal: string;
+  state?: string;
   country: string;
+  tracking?: { carrier?: string; trackingNumber?: string; trackingUrl?: string };
   items: { slug: string; name: string; qty: number; unitPrice: number }[];
   amount: number;
   currency: string;
@@ -113,9 +116,29 @@ function ConfirmationBody() {
           <br />
           {order.address}
           <br />
-          {order.city}, {order.postal}
+          {order.city}
+          {order.state ? `, ${order.state}` : ""}, {order.postal}
           <br />
-          {order.country}
+          {countryName(order.country)}
+        </p>
+        <p className="mt-4 text-sm text-navy-700">
+          Shipped with ShipGlobal.
+          {order.tracking?.trackingNumber ? (
+            <>
+              {" "}
+              Tracking{" "}
+              {order.tracking.trackingUrl ? (
+                <a href={order.tracking.trackingUrl} className="text-[#8C6E28] underline" target="_blank" rel="noreferrer">
+                  {order.tracking.trackingNumber}
+                </a>
+              ) : (
+                order.tracking.trackingNumber
+              )}
+              .
+            </>
+          ) : (
+            " The tracking number appears here once the parcel is booked."
+          )}
         </p>
 
         <p className="mt-6 text-sm text-navy-600">

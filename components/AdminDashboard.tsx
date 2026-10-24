@@ -15,6 +15,7 @@ import {
   RotateCcw,
   Star,
   BookOpen,
+  Truck,
 } from "lucide-react";
 import Link from "next/link";
 import { signOut, useSession } from "next-auth/react";
@@ -22,6 +23,7 @@ import { AdminBlogPanel } from "@/components/AdminBlogPanel";
 import { AdminCategoriesPanel } from "@/components/AdminCategoriesPanel";
 import { AdminProductList } from "@/components/AdminProductList";
 import { AdminSalePanel } from "@/components/AdminSalePanel";
+import { AdminShipmentsPanel } from "@/components/AdminShipmentsPanel";
 import { AdminTeamPanel } from "@/components/AdminTeamPanel";
 import { BulkActions, deleteUrls, useRowSelection } from "@/components/AdminSelection";
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
@@ -45,6 +47,7 @@ type Tab =
   | "applications"
   | "contacts"
   | "returns"
+  | "shipments"
   | "testimonials"
   | "blog"
   | "users"
@@ -286,6 +289,7 @@ export function AdminDashboard() {
           { id: "quotes", label: "Bulk quotes", icon: FileText },
           { id: "applications", label: "Trade accounts", icon: Users },
           { id: "contacts", label: "Contact", icon: MessageSquare },
+          { id: "shipments", label: "ShipGlobal", icon: Truck },
           { id: "testimonials", label: "Reviews", icon: Star },
           { id: "blog", label: "Blog", icon: BookOpen },
           ...teamNav,
@@ -303,6 +307,7 @@ export function AdminDashboard() {
           { id: "users", label: "Customers", icon: Users },
           { id: "contacts", label: "Contact", icon: MessageSquare },
           { id: "returns", label: "Returns", icon: RotateCcw },
+          { id: "shipments", label: "ShipGlobal", icon: Truck },
           { id: "testimonials", label: "Reviews", icon: Star },
           { id: "blog", label: "Blog", icon: BookOpen },
           { id: "visitors", label: "Website visitors", icon: Eye },
@@ -966,6 +971,8 @@ export function AdminDashboard() {
           {tab === "sales" && canAddProduct ? <AdminSalePanel /> : null}
 
           {tab === "categories" && canAddProduct ? <AdminCategoriesPanel /> : null}
+
+          {tab === "shipments" ? <AdminShipmentsPanel /> : null}
 
           {tab === "quotes" ? (
             <AdminDataTable

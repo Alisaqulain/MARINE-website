@@ -23,7 +23,7 @@ import { WholesaleNavLink } from "@/components/WholesaleNavLink";
 
 const socials: { label: string; Icon: typeof Facebook; href?: string }[] = [
   { label: "Facebook", Icon: Facebook },
-  { label: "Instagram", Icon: Instagram, href: "https://www.instagram.com/reel/DecPczRB8N2/?obrf=MjJoamdzNjB5cjQz" },
+  { label: "Instagram", Icon: Instagram, href: company.instagram },
   { label: "YouTube", Icon: Youtube },
   { label: "LinkedIn", Icon: Linkedin },
 ];

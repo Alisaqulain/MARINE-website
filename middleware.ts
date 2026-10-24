@@ -39,7 +39,7 @@ export default auth((req) => {
   if (pathname.startsWith("/admin") && pathname !== "/admin/login") {
     if (!user) {
       const login = new URL("/admin/login", origin);
-      login.searchParams.set("callbackUrl", pathname);
+      login.searchParams.set("callbackUrl", `${pathname}${req.nextUrl.search}`);
       return NextResponse.redirect(login);
     }
     if (user.role !== "admin" && user.role !== "staff") {

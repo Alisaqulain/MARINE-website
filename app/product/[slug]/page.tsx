@@ -10,6 +10,7 @@ import {
   type Product,
 } from "@/lib/products";
 import { getProductCategory } from "@/lib/catalog";
+import { findNamedCategory } from "@/lib/category-label";
 import { findShopNowLabel, shopNowTree } from "@/lib/shop-now-data";
 import { useCart } from "@/lib/cart-context";
 import { useWishlist } from "@/lib/wishlist-context";
@@ -41,6 +42,8 @@ import { PriceRow } from "@/components/PriceRow";
 import { ProductGalleryViewer } from "@/components/ProductGalleryViewer";
 import { imageAdjustStyle, lowStockMessage } from "@/lib/product-display";
 import { imageIndexForColor } from "@/lib/listing-images";
+import { RichText } from "@/components/RichText";
+import { useRegion } from "@/lib/region-context";
 
 export default function ProductPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -63,6 +66,7 @@ export default function ProductPage() {
   const b2b = b2bQuery && wholesaleOk;
   const { promptSwitchToWholesale } = useWholesaleGate();
   const { add, buyNow } = useCart();
+  const { priceFor } = useRegion();
 
   useEffect(() => {
     if (!b2bQuery || wholesaleOk || status === "loading" || !slug) return;
@@ -85,10 +89,27 @@ export default function ProductPage() {
   const [personalisation, setPersonalisation] = useState<"" | "yes" | "no">("");
   const [personalisationMessage, setPersonalisationMessage] = useState("");
   const [qty, setQty] = useState(1);
+  const [liveCategoryName, setLiveCategoryName] = useState<string | null>(null);
 
   useEffect(() => {
     setQty(b2b ? B2B_MIN_ORDER_QTY : 1);
   }, [slug, b2b]);
+
+  useEffect(() => {
+    if (!product) return;
+    const categorySlug = getProductCategory(product);
+    let cancelled = false;
+    void fetch("/api/categories")
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return;
+        setLiveCategoryName(findNamedCategory(Array.isArray(data.tree) ? data.tree : [], categorySlug));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [product]);
 
   const category = useMemo(() => {
     if (!product) return null;
@@ -97,7 +118,7 @@ export default function ProductPage() {
     if (inTree) {
       return {
         label: findShopNowLabel(slug),
-        href: getCollection(slug) ? `/collections/${slug}` : `/collections/${product.collection}`,
+        href: `/shop?category=${slug}`,
         items: products.filter((p) => getProductCategory(p) === slug),
       };
     }
@@ -144,7 +165,8 @@ export default function ProductPage() {
     product.personalisationPrice != null && Number.isFinite(product.personalisationPrice)
       ? product.personalisationPrice
       : null;
-  const displayPrice = product.price + (personalisation === "yes" && personalisationCharge != null ? personalisationCharge : 0);
+  const basePrice = priceFor(product);
+  const displayPrice = basePrice + (personalisation === "yes" && personalisationCharge != null ? personalisationCharge : 0);
   const minQty = b2b ? B2B_MIN_ORDER_QTY : 1;
   const maxQty = product.quantity != null && product.quantity > 0 ? product.quantity : 99;
   const outOfStock = manuallyUnavailable || (product.quantity != null && product.quantity <= 0);
@@ -157,6 +179,8 @@ export default function ProductPage() {
     personalisationPrice: personalisationCharge ?? undefined,
     name: product.name,
     price: product.price,
+    priceIndia: product.priceIndia,
+    priceUs: product.priceUs,
     image: product.image,
   } as const;
 
@@ -185,7 +209,7 @@ export default function ProductPage() {
             <>
               <span className="mx-1.5 text-navy-400">/</span>
               <Link href={category.href} className="font-medium text-[#8C6E28] lg:font-normal lg:text-inherit">
-                {category.label}
+                {liveCategoryName || category.label}
               </Link>
             </>
           )}
@@ -266,20 +290,12 @@ export default function ProductPage() {
               />
             </div>
             <PriceRow price={displayPrice} salePercent={product.salePercent} size="page" className="mt-3 md:mt-4" />
-            {product.priceIndia != null || product.priceUs != null ? (
-              <p className="mt-1 text-xs text-navy-600">
-                {product.priceIndia != null ? `India ${formatPrice(product.priceIndia)}` : null}
-                {product.priceIndia != null && product.priceUs != null ? " · " : null}
-                {product.priceUs != null ? `United States ${formatPrice(product.priceUs)}` : null}
-                {" · "}Everywhere else {formatPrice(product.price)}
-              </p>
-            ) : null}
             {product.saleTerms ? <p className="mt-2 text-sm text-navy-700">{product.saleTerms}</p> : null}
             {personalisation === "no" ? (
-              <p className="mt-1 text-xs text-navy-600">No personalisation · {formatPrice(product.price)}</p>
+              <p className="mt-1 text-xs text-navy-600">No personalisation · {formatPrice(basePrice)}</p>
             ) : personalisation === "yes" && personalisationCharge != null ? (
               <p className="mt-1 text-xs text-navy-600">
-                Personalisation {formatPrice(personalisationCharge)} added to {formatPrice(product.price)}
+                Personalisation {formatPrice(personalisationCharge)} added to {formatPrice(basePrice)}
               </p>
             ) : null}
             {b2b && (
@@ -307,7 +323,7 @@ export default function ProductPage() {
                     onChange={(e) => setPersonalisation(e.target.value as "" | "yes" | "no")}
                   >
                     <option value="">Select an option</option>
-                    <option value="no">No Personalisation ({formatPrice(product.price)})</option>
+                    <option value="no">No Personalisation ({formatPrice(basePrice)})</option>
                     <option value="yes">Yes Personalisation ({formatPrice(personalisationCharge)})</option>
                   </select>
                 </label>
@@ -399,7 +415,7 @@ export default function ProductPage() {
                     new CustomEvent("marina-chat-open", { detail: { product: product.slug } })
                   )
                 }
-                className="inline-flex h-11 min-w-0 items-center justify-center gap-1 rounded-full border border-navy-800 px-2.5 text-center text-[9px] font-semibold uppercase leading-tight tracking-tight sm:h-12 sm:gap-1.5 sm:px-3 sm:text-[10px]"
+                className="inline-flex h-11 min-w-0 items-center justify-center gap-1 rounded-full bg-[#031D38] px-2.5 text-center text-[9px] font-semibold uppercase leading-tight tracking-tight text-white transition hover:bg-[#0a3358] sm:h-12 sm:gap-1.5 sm:px-3 sm:text-[10px]"
               >
                 <Sparkles className="h-3 w-3 shrink-0 text-[#C9A84C]" />
                 <span className="min-w-0">Ask Marina About This Product</span>
@@ -434,7 +450,9 @@ export default function ProductPage() {
               </Link>
             </div>
 
-            <ItemDetailsPreview product={product} wholesale={b2b} />
+            <ItemDetailsPreview wholesale={b2b} />
+
+            <ProductDescription text={product.description} />
 
             <div className="mt-5 hidden flex-1 rounded-2xl border border-[#e6dfd2] bg-[#FAF7F2] p-4 md:p-5 lg:block">
               <h2 className="text-[13px] font-semibold uppercase tracking-[0.16em] text-[#8C6E28]">
@@ -474,7 +492,7 @@ export default function ProductPage() {
         <ShopTabs
           items={products}
           categoryItems={category?.items}
-          categoryLabel={category?.label}
+          categoryLabel={liveCategoryName || category?.label}
           wholesale={b2b}
         />
       </div>
@@ -482,69 +500,49 @@ export default function ProductPage() {
   );
 }
 
-/** Etsy-style item details: a few faded lines that expand in place on "Learn more". */
-function ItemDetailsPreview({ product, wholesale }: { product: Product; wholesale: boolean }) {
-  const [expanded, setExpanded] = useState(false);
-  const specs = [
-    ["Material", product.material],
-    ["Finish", product.finish],
-    ["Dimensions", product.dimensions],
-    ...(expanded
-      ? [
-          ["Weight", product.weight],
-          ["Packaging", product.packaging],
-        ]
-      : []),
-  ].filter(([, value]) => value);
-  // Many products repeat the description as the story; show it once.
-  const description = [...new Set([product.description, product.story].map((t) => t?.trim()).filter(Boolean))].join(
-    "\n\n"
+/** Admin-written description under "Item details", collapsed until the buyer asks for more. */
+function ProductDescription({ text }: { text?: string }) {
+  const [open, setOpen] = useState(false);
+  const body = (text ?? "").trim();
+  if (!body) return null;
+  const long = body.length > 320;
+  return (
+    <section className="mt-5 border-t border-[#e6dfd2] pt-5">
+      <h2 className="text-[15px] font-semibold text-[#222222]">Item details</h2>
+      <p className="mt-3 text-[13px] font-medium text-navy-800">Description:</p>
+      <div className={`relative mt-2 ${long && !open ? "max-h-56 overflow-hidden" : ""}`}>
+        <RichText source={body} className="text-[14px] leading-relaxed text-navy-700" />
+        {long && !open ? (
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-white to-transparent" />
+        ) : null}
+      </div>
+      {long ? (
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="mt-3 text-[14px] font-medium text-[#222222] underline underline-offset-4"
+        >
+          {open ? "Show less" : "Show more"}
+        </button>
+      ) : null}
+    </section>
   );
+}
+
+function ItemDetailsPreview({ wholesale }: { wholesale: boolean }) {
   const pill =
     "rounded-full border border-[#C9A84C]/50 bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-navy-800 hover:bg-[#C9A84C]/15";
   return (
-    <div className="mt-5 rounded-2xl border border-[#e6dfd2] bg-[#FAF7F2] p-4 md:p-5">
-      <h2 className="text-[13px] font-semibold uppercase tracking-[0.16em] text-[#8C6E28]">Item details</h2>
-      <div className={`relative mt-3 ${expanded ? "" : "max-h-40 overflow-hidden"}`}>
-        {specs.length ? (
-          <dl className="space-y-0.5 text-[14px] text-[#222]">
-            {specs.map(([label, value]) => (
-              <div key={label}>
-                <dt className="inline font-medium">{label}: </dt>
-                <dd className="inline text-navy-700">{value}</dd>
-              </div>
-            ))}
-          </dl>
-        ) : null}
-        {description ? (
-          <>
-            <p className="mt-3 text-[14px] font-medium text-[#222]">Description:</p>
-            <p className="whitespace-pre-line text-[14px] leading-relaxed text-navy-700">{description}</p>
-          </>
-        ) : null}
-        {expanded ? null : (
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-[#FAF7F2] to-transparent" />
-        )}
-      </div>
-      <button
-        type="button"
-        aria-expanded={expanded}
-        onClick={() => setExpanded((v) => !v)}
-        className="mx-auto mt-2 block text-[15px] font-semibold text-[#222] hover:underline"
-      >
-        {expanded ? "Show less" : "Learn more about this item"}
-      </button>
-      <div className="mt-4 flex flex-wrap gap-2 border-t border-[#e6dfd2] pt-4">
-        <Link href="/shipping" className={pill}>
-          Shipping
-        </Link>
-        <Link href="/custom-manufacturing" className={pill}>
-          Custom manufacturing
-        </Link>
-        <WholesaleNavLink callbackUrl={wholesale ? "/wholesale/quote" : "/wholesale"} className={pill}>
-          {wholesale ? "Bulk quote" : "Wholesale"}
-        </WholesaleNavLink>
-      </div>
+    <div className="mt-5 flex flex-wrap gap-2">
+      <Link href="/shipping" className={pill}>
+        Shipping
+      </Link>
+      <Link href="/custom-manufacturing" className={pill}>
+        Custom manufacturing
+      </Link>
+      <WholesaleNavLink callbackUrl={wholesale ? "/wholesale/quote" : "/wholesale"} className={pill}>
+        {wholesale ? "Bulk quote" : "Wholesale"}
+      </WholesaleNavLink>
     </div>
   );
 }

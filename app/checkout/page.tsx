@@ -1,6 +1,7 @@
 "use client";
 
-import { formatPrice } from "@/lib/products";
+import { formatPrice, showsFreeShipping } from "@/lib/products";
+import { countries } from "@/lib/countries";
 import { useCart } from "@/lib/cart-context";
 import Link from "next/link";
 import { WholesaleNavLink } from "@/components/WholesaleNavLink";
@@ -42,6 +43,7 @@ function CheckoutForm() {
       phone: form.get("phone"),
       address: form.get("address"),
       city: form.get("city"),
+      state: form.get("state"),
       postal: form.get("postal"),
       country: form.get("country"),
       whatsapp,
@@ -84,9 +86,21 @@ function CheckoutForm() {
         <input className="input" name="address" required placeholder="Street address" />
         <div className="grid gap-4 sm:grid-cols-2">
           <input className="input" name="city" required placeholder="City" />
-          <input className="input" name="postal" required placeholder="Postal code" />
+          <input className="input" name="state" required placeholder="State / region" />
         </div>
-        <input className="input" name="country" required placeholder="Country" />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <input className="input" name="postal" required placeholder="Postal code" />
+          <select className="input" name="country" required defaultValue="">
+            <option value="" disabled>
+              Country
+            </option>
+            {countries.map((country) => (
+              <option key={country.code} value={country.code}>
+                {country.name}
+              </option>
+            ))}
+          </select>
+        </div>
         <label className="flex items-start gap-2 text-sm text-navy-700">
           <input
             type="checkbox"
@@ -139,9 +153,11 @@ function CheckoutForm() {
             <dt className="text-navy-600">Subtotal</dt>
             <dd>{formatPrice(subtotal)}</dd>
           </div>
-          <div className="flex justify-between">
+          <div className="flex justify-between gap-4">
             <dt className="text-navy-600">Shipping</dt>
-            <dd className="text-navy-700">Calculated at checkout</dd>
+            <dd className="text-right text-navy-700">
+              {items.every(({ product }) => showsFreeShipping(product)) ? "Free · ShipGlobal" : "ShipGlobal"}
+            </dd>
           </div>
         </dl>
         <div className="mt-4 flex justify-between border-t border-cream-300 pt-4 font-serif text-lg">

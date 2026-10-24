@@ -11,6 +11,7 @@ import { FreeShippingTag } from "./FreeShippingTag";
 import { PriceRow } from "./PriceRow";
 import { ProductName } from "./ProductName";
 import { ProductShareIcon } from "./ProductShare";
+import { useRegion } from "@/lib/region-context";
 
 export function CatalogCard({
   product,
@@ -20,6 +21,7 @@ export function CatalogCard({
   wholesale?: boolean;
 }) {
   const { has, toggle } = useWishlist();
+  const { priceFor } = useRegion();
   const wished = has(product.slug);
   const href = wholesale ? `/product/${product.slug}?b2b=1` : `/product/${product.slug}`;
   const unavailable = wholesale ? product.b2bOutOfScope : product.b2cOutOfStock;
@@ -70,7 +72,7 @@ export function CatalogCard({
           />
         </h3>
       </Link>
-      <PriceRow price={product.price} salePercent={product.salePercent} className="mt-1" />
+      <PriceRow price={priceFor(product)} salePercent={product.salePercent} className="mt-1" />
       {availabilityMessage ? (
         <p className="mt-1 text-[12px] font-medium text-[#9a3412]">{availabilityMessage}</p>
       ) : null}

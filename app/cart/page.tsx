@@ -89,7 +89,7 @@ export default function CartPage() {
           </div>
           <div className="flex justify-between gap-4">
             <dt className="text-navy-600">Shipping</dt>
-            <dd className="text-navy-700">Calculated at checkout</dd>
+            <dd className="text-right text-navy-700">ShipGlobal at checkout</dd>
           </div>
         </dl>
         <div className="mt-4 flex justify-between font-serif text-lg">

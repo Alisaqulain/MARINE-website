@@ -3,6 +3,7 @@
 import { CatalogCard } from "@/components/CatalogCard";
 import { getProductCategory } from "@/lib/catalog";
 import { productInCategory } from "@/lib/product-display";
+import { findNamedCategory, type NamedCategory } from "@/lib/category-label";
 import { findShopNowLabel, shopNowSubtree, shopNowTree } from "@/lib/shop-now-data";
 import { products as staticProducts, type Product } from "@/lib/products";
 import { Camera, ChevronDown, ChevronRight, LayoutGrid, LayoutList, Search } from "lucide-react";
@@ -20,7 +21,7 @@ export function ShopNowCatalog({ retail = false }: { retail?: boolean }) {
   const [limit, setLimit] = useState(PAGE_SIZE);
   const [query, setQuery] = useState("");
   const [extraCategories, setExtraCategories] = useState<{ slug: string; name: string }[]>([]);
-  const [remoteTree, setRemoteTree] = useState<{ slug: string; name: string; children: { slug: string; name: string; children?: { slug: string; name: string }[] }[] }[] | null>(null);
+  const [remoteTree, setRemoteTree] = useState<NamedCategory[] | null>(null);
   const visualSearchRef = useRef<HTMLInputElement>(null);
 
   const categoryTree = useMemo(() => {
@@ -100,8 +101,10 @@ export function ShopNowCatalog({ retail = false }: { retail?: boolean }) {
   }, [parent, sub, sort, query, catalogProducts]);
 
   const filtered = Boolean(sub || parent);
-  const extraTitle = extraCategories.find((item) => item.slug === (sub || parent))?.name;
-  const title = filtered ? extraTitle || findShopNowLabel(sub || parent) : "All products";
+  const activeSlug = sub || parent;
+  const title = filtered
+    ? findNamedCategory(categoryTree, activeSlug) || findShopNowLabel(activeSlug)
+    : "All products";
   const Title = retail ? "h1" : "h2";
 
   function showAll() {
@@ -114,7 +117,7 @@ export function ShopNowCatalog({ retail = false }: { retail?: boolean }) {
     const node = categoryTree.find((c) => c.slug === slug);
     setParent(slug);
     setSub(null);
-    if (!node?.children.length) {
+    if (!node?.children?.length) {
       setOpen(null);
       return;
     }
@@ -193,7 +196,7 @@ export function ShopNowCatalog({ retail = false }: { retail?: boolean }) {
               <span className="text-[11px] text-[#999]">{catalogProducts.length}</span>
             </button>
             {categoryTree.map((c) => {
-              const hasChildren = c.children.length > 0;
+              const hasChildren = (c.children?.length ?? 0) > 0;
               const expanded = hasChildren && open === c.slug;
               const parentActive = parent === c.slug && !sub;
               const inBranch = parent === c.slug;
@@ -221,7 +224,7 @@ export function ShopNowCatalog({ retail = false }: { retail?: boolean }) {
                   </button>
                   {expanded ? (
                     <div className="bg-white pb-1 md:bg-[#fcfcfc]">
-                      {c.children.map((child) => {
+                      {(c.children ?? []).map((child) => {
                         const types = child.children ?? [];
                         const childOpen = types.length > 0 && shopNowSubtree(child.slug).includes(sub ?? "");
                         return (

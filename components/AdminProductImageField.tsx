@@ -1,112 +1,90 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Camera, ChevronLeft, ChevronRight, Crop, ImageIcon, Pencil, Trash2, X } from "lucide-react";
+import { Camera, ChevronLeft, ChevronRight, Crop, ImageIcon, Pencil, Trash2 } from "lucide-react";
 import { ProductImage } from "@/components/ProductImage";
 import type { ListingImage } from "@/lib/listing-images";
 import { resolveMediaUrl } from "@/lib/media-url";
 import { imageAdjustStyle, NEUTRAL_IMAGE_ADJUST, type ImageAdjust } from "@/lib/product-display";
 
-function CameraCapture({
-  stream,
-  onCapture,
-  onClose,
-}: {
-  stream: MediaStream | null;
-  onCapture: (file: File) => void;
-  onClose: () => void;
-}) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [error, setError] = useState(stream ? "" : "Camera permission was blocked. Allow the camera, or use the gallery button.");
-
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !stream) return;
-    video.srcObject = stream;
-    void video.play().catch(() => setError("Camera is not ready. Use the gallery button."));
-    return () => {
-      stream.getTracks().forEach((track) => track.stop());
-    };
-  }, [stream]);
-
-  function snap() {
-    const video = videoRef.current;
-    if (!video || !video.videoWidth) {
-      setError("Camera is not ready yet.");
+/** Phones often reload the admin page when the camera or gallery closes. Keep the dashboard address first. */
+function rememberAdminDashboard() {
+  if (typeof window === "undefined") return;
+  try {
+    const here = new URL(window.location.href);
+    const tab = here.searchParams.get("tab") || sessionStorage.getItem("marina-admin-tab") || "add-product";
+    const panel = here.searchParams.get("panel") || sessionStorage.getItem("marina-admin-panel") || "customer";
+    sessionStorage.setItem("marina-admin-tab", tab);
+    sessionStorage.setItem("marina-admin-panel", panel);
+    if (!here.pathname.startsWith("/admin")) {
+      window.location.assign(`/admin?tab=${encodeURIComponent(tab)}&panel=${encodeURIComponent(panel)}`);
       return;
     }
-    const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.drawImage(video, 0, 0);
-    canvas.toBlob(
-      (blob) => {
-        if (!blob) {
-          setError("Could not save the photo.");
-          return;
-        }
-        onCapture(new File([blob], `camera-${Date.now()}.jpg`, { type: "image/jpeg" }));
-      },
-      "image/jpeg",
-      0.92
-    );
+    here.searchParams.set("tab", tab);
+    here.searchParams.set("panel", panel);
+    window.history.replaceState(window.history.state, "", here);
+  } catch {
+    /* ignore */
   }
-
-  if (typeof document === "undefined") return null;
-
-  return createPortal(
-    <div className="fixed inset-0 z-[200] flex flex-col bg-black">
-      <div className="flex items-center justify-between px-4 py-3 text-white">
-        <p className="text-sm font-medium">Take product photo</p>
-        <button type="button" aria-label="Close camera" onClick={onClose} className="rounded-full p-2">
-          <X className="h-5 w-5" />
-        </button>
-      </div>
-      <div className="relative min-h-0 flex-1 bg-black">
-        <video ref={videoRef} playsInline muted autoPlay className="h-full w-full object-contain" />
-      </div>
-      {error ? <p className="px-4 py-2 text-center text-sm text-red-200">{error}</p> : null}
-      <div className="flex justify-center px-4 py-5">
-        <button type="button" onClick={snap} className="btn-gold px-8" disabled={Boolean(error)}>
-          Use this photo
-        </button>
-      </div>
-    </div>,
-    document.body
-  );
 }
 
 /**
- * Camera opens inside the page (getUserMedia) on phones and desktops alike. Handing off to the
- * phone's own camera app can make the browser reload the admin page and lose the form.
- * Gallery opens the file picker; the multi-image field accepts several photos at once.
+ * Native file inputs, not an in-page camera. A clipped hidden input never opens the phone
+ * camera or gallery. The input fills the button so the tap is a real user gesture.
  */
 function PhotoPickerButtons({
   uploading,
   multiple = false,
-  onCamera,
-  onPick,
+  onFiles,
 }: {
   uploading: boolean;
   multiple?: boolean;
-  onCamera: () => void;
-  onPick: () => void;
+  onFiles: (files: File[]) => void;
 }) {
   const cls =
-    "inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-[#C9A84C]/50 bg-[#FAF7F2] px-3 py-3 text-sm font-medium text-navy-800 hover:border-[#C9A84C] disabled:opacity-60 sm:flex-none sm:px-4";
+    "relative inline-flex min-h-12 flex-1 cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-xl border border-[#C9A84C]/50 bg-[#FAF7F2] px-3 py-3 text-sm font-medium text-navy-800 hover:border-[#C9A84C] sm:flex-none sm:px-4";
+  const inputCls = "absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0";
+
+  function take(list: FileList | null) {
+    const files = list ? [...list] : [];
+    if (files.length) onFiles(files);
+  }
+
   return (
-    <div className="flex flex-wrap gap-2">
-      <button type="button" disabled={uploading} onClick={onCamera} className={cls}>
+    <div className={`flex flex-wrap gap-2 ${uploading ? "pointer-events-none opacity-60" : ""}`}>
+      <label className={cls}>
         <Camera className="h-4 w-4 shrink-0" />
         Take photo
-      </button>
-      <button type="button" disabled={uploading} onClick={onPick} className={cls}>
+        <input
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className={inputCls}
+          disabled={uploading}
+          onClick={rememberAdminDashboard}
+          onChange={(e) => {
+            take(e.target.files);
+            e.target.value = "";
+          }}
+        />
+      </label>
+      <label className={cls}>
         <ImageIcon className="h-4 w-4 shrink-0" />
         {uploading ? "Uploading…" : multiple ? "Choose photos (multiple)" : "Choose from gallery"}
-      </button>
+        <input
+          type="file"
+          accept="image/*"
+          multiple={multiple}
+          className={inputCls}
+          disabled={uploading}
+          onClick={rememberAdminDashboard}
+          onChange={(e) => {
+            take(e.target.files);
+            e.target.value = "";
+          }}
+        />
+      </label>
     </div>
   );
 }
@@ -121,31 +99,6 @@ export function AdminProductImageField({
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const galleryRef = useRef<HTMLInputElement>(null);
-  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
-
-  async function openCamera() {
-    setError("");
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setError("This browser cannot open the camera here. Use the gallery button instead.");
-      return;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: { facingMode: { ideal: "environment" } },
-      });
-      setCameraStream(stream);
-    } catch {
-      setError("Camera permission was blocked. Allow the camera, or use the gallery button.");
-    }
-  }
-
-  function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (file) void uploadSingle(file);
-  }
 
   async function uploadSingle(file: File) {
     setError("");
@@ -165,19 +118,10 @@ export function AdminProductImageField({
   return (
     <div className="space-y-2">
       <span className="block text-xs font-semibold uppercase tracking-wide text-navy-600">Product image</span>
-      <PhotoPickerButtons uploading={uploading} onCamera={() => void openCamera()} onPick={() => galleryRef.current?.click()} />
-      <input ref={galleryRef} type="file" accept="image/*" className="sr-only" tabIndex={-1} onChange={onPickFile} />
-      {cameraStream ? (
-        <CameraCapture
-          stream={cameraStream}
-          onClose={() => setCameraStream(null)}
-          onCapture={(file) => {
-            setCameraStream(null);
-            void uploadSingle(file);
-          }}
-        />
-      ) : null}
-      <p className="text-[11px] text-navy-500">Take a photo with the camera or choose one from your gallery. Large photos are resized automatically.</p>
+      <PhotoPickerButtons uploading={uploading} onFiles={(files) => void uploadSingle(files[0])} />
+      <p className="text-[11px] text-navy-500">
+        Take a photo with the phone camera or choose one from your gallery. If the phone reloads this page, it opens the admin dashboard again. Large photos are resized automatically.
+      </p>
       {value ? (
         <div className="flex items-start gap-3">
           <div className="relative h-24 w-24 overflow-hidden rounded-lg border border-[#e6dfd2]">
@@ -264,27 +208,8 @@ export function AdminProductImagesField({
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [paste, setPaste] = useState("");
-  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [editing, setEditing] = useState<number | null>(null);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
-  const galleryRef = useRef<HTMLInputElement>(null);
-
-  async function openCamera() {
-    setError("");
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setError("This browser cannot open the camera here. Use the gallery button instead.");
-      return;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: { facingMode: { ideal: "environment" } },
-      });
-      setCameraStream(stream);
-    } catch {
-      setError("Camera permission was blocked. Allow the camera, or use the gallery button.");
-    }
-  }
 
   function update(index: number, patch: Partial<ListingImage>) {
     onChange(images.map((image, i) => (i === index ? { ...image, ...patch } : image)));
@@ -338,35 +263,7 @@ export function AdminProductImagesField({
         The first photo is the thumbnail. You can pick several photos at once. Drag to reorder. Edit opens
         crop &amp; frame, brightness, colour, and zoom.
       </p>
-      <PhotoPickerButtons
-        uploading={uploading}
-        multiple
-        onCamera={() => void openCamera()}
-        onPick={() => galleryRef.current?.click()}
-      />
-      <input
-        ref={galleryRef}
-        type="file"
-        accept="image/*"
-        multiple
-        className="sr-only"
-        tabIndex={-1}
-        onChange={(e) => {
-          const files = e.target.files ? [...e.target.files] : [];
-          e.target.value = "";
-          if (files.length) void addFiles(files);
-        }}
-      />
-      {cameraStream ? (
-        <CameraCapture
-          stream={cameraStream}
-          onClose={() => setCameraStream(null)}
-          onCapture={(file) => {
-            setCameraStream(null);
-            void addFiles([file]);
-          }}
-        />
-      ) : null}
+      <PhotoPickerButtons uploading={uploading} multiple onFiles={(files) => void addFiles(files)} />
       <div className="flex gap-2">
         <input
           className="input text-sm"
@@ -454,17 +351,29 @@ export function AdminProductImagesField({
             </div>
           </div>
         ))}
-        <button
-          type="button"
-          disabled={uploading}
-          onClick={() => galleryRef.current?.click()}
-          className="grid aspect-[4/3] w-36 shrink-0 place-items-center rounded-2xl border border-dashed border-[#cfc6b6] bg-[#faf8f4] text-center text-sm font-semibold text-navy-800"
+        <label
+          className={`relative grid aspect-[4/3] w-36 shrink-0 cursor-pointer place-items-center overflow-hidden rounded-2xl border border-dashed border-[#cfc6b6] bg-[#faf8f4] text-center text-sm font-semibold text-navy-800 ${
+            uploading ? "pointer-events-none opacity-60" : ""
+          }`}
         >
           <span>
             <ImageIcon className="mx-auto mb-1 h-5 w-5" />
             {uploading ? "Uploading…" : "Add photos"}
           </span>
-        </button>
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
+            disabled={uploading}
+            onClick={rememberAdminDashboard}
+            onChange={(e) => {
+              const files = e.target.files ? [...e.target.files] : [];
+              e.target.value = "";
+              if (files.length) void addFiles(files);
+            }}
+          />
+        </label>
       </div>
       {editing != null && images[editing] ? (
         <ImageEditor

@@ -2,5 +2,6 @@ node_modules
 .next
 out
 .env.local
+data/labels
 *.log
 .DS_Store

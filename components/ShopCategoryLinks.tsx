@@ -28,13 +28,13 @@ export function ShopCategoryLinks() {
               href={`/shop?category=${category.slug}`}
               className="rounded-full border border-[#e6dfd2] bg-white px-3 py-1.5 text-sm text-navy-800 hover:border-[#C9A84C]"
             >
-              B2C · {category.name}
+              {category.name}
             </Link>
             <WholesaleNavLink
               callbackUrl={`/wholesale?category=${category.slug}`}
               className="rounded-full border border-[#e6dfd2] bg-white px-3 py-1.5 text-sm text-navy-800 hover:border-[#C9A84C]"
             >
-              B2B · {category.name}
+              Wholesale · {category.name}
             </WholesaleNavLink>
           </li>
         ))}

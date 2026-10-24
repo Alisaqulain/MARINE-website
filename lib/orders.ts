@@ -1,6 +1,8 @@
+import { regionalPrice, type PriceRegion } from "@/lib/region";
 import { getProduct } from "@/lib/products";
 import { getStorefrontProduct } from "@/lib/storefront-catalog";
 import { company, companyWhatsApp } from "@/lib/company";
+import { countryName } from "@/lib/countries";
 
 export type OrderItem = {
   slug: string;
@@ -22,6 +24,15 @@ export type OrderTracking = {
   updatedAt?: string;
 };
 
+export type OrderShipment = {
+  provider: "shipglobal";
+  waybill?: string;
+  orderNumber?: string;
+  trackingUrl?: string;
+  error?: string;
+  bookedAt?: string;
+};
+
 export type OrderRecord = {
   id: string;
   token: string;
@@ -31,6 +42,7 @@ export type OrderRecord = {
   phone: string;
   address: string;
   city: string;
+  state?: string;
   postal: string;
   country: string;
   items: OrderItem[];
@@ -46,6 +58,7 @@ export type OrderRecord = {
   createdAt: string;
   emailSent?: boolean;
   tracking?: OrderTracking;
+  shipment?: OrderShipment;
 };
 
 export function defaultTracking(): OrderTracking {
@@ -144,7 +157,8 @@ export function trackOrderByEmail(orderId: string, email: string) {
 }
 
 export async function pricedItemsAsync(
-  lines: { slug: string; qty: number; b2b?: boolean; personalisation?: string; message?: string }[]
+  lines: { slug: string; qty: number; b2b?: boolean; personalisation?: string; message?: string }[],
+  region: PriceRegion = "other"
 ) {
   const items: OrderItem[] = [];
   let amount = 0;
@@ -160,7 +174,7 @@ export async function pricedItemsAsync(
         ? Math.max(0, product.personalisationPrice)
         : 0;
     const message = personalisation === "yes" ? String(line.message ?? "").trim().slice(0, 300) : undefined;
-    const unitPrice = product.price + charge;
+    const unitPrice = regionalPrice(product, region) + charge;
     items.push({
       slug: product.slug,
       name: product.name,
@@ -197,8 +211,38 @@ export function pricedItems(lines: { slug: string; qty: number; b2b?: boolean }[
 }
 
 export function publicOrder(order: OrderRecord) {
-  const { token: _t, ...rest } = order;
+  const { token: _token, shipment: _shipment, ...rest } = order;
   return rest;
+}
+
+export async function listRecentOrders(limit = 40): Promise<OrderRecord[]> {
+  try {
+    const { getDb } = await import("@/lib/mongodb");
+    const db = await getDb();
+    const docs = await db.collection("orders").find({}).sort({ createdAt: -1 }).limit(limit).toArray();
+    return docs.map((doc) => {
+      const { _id: _ignored, ...order } = doc as OrderRecord & { _id?: unknown };
+      return order;
+    });
+  } catch {
+    return [...store().values()].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)).slice(0, limit);
+  }
+}
+
+/** Books the parcel with ShipGlobal, then saves the order. Never throws. */
+export async function fulfillPaidOrder(order: OrderRecord) {
+  try {
+    const { bookShipGlobalShipment } = await import("@/lib/shipglobal");
+    await bookShipGlobalShipment(order);
+  } catch (err) {
+    console.error("[shipglobal]", err);
+    order.shipment = {
+      provider: "shipglobal",
+      error: err instanceof Error ? err.message : "ShipGlobal booking failed.",
+    };
+  }
+  if (!order.tracking) order.tracking = defaultTracking();
+  saveOrder(order);
 }
 
 export async function sendOrderConfirmation(order: OrderRecord) {
@@ -215,7 +259,10 @@ export async function sendOrderConfirmation(order: OrderRecord) {
     `Payment Status: ${order.status === "paid" ? "Paid" : order.status}`,
     `Amount Paid: $${order.amount.toFixed(2)} ${order.currency}`,
     `Product Details:\n${lines}`,
-    `Shipping Address: ${order.name}, ${order.address}, ${order.city}, ${order.postal}, ${order.country}`,
+    `Shipping Address: ${order.name}, ${order.address}, ${order.city}${order.state ? `, ${order.state}` : ""}, ${order.postal}, ${countryName(order.country)}`,
+    order.tracking?.trackingNumber
+      ? `ShipGlobal tracking: ${order.tracking.trackingNumber}${order.tracking.trackingUrl ? `\n${order.tracking.trackingUrl}` : ""}`
+      : "ShipGlobal tracking is added when the parcel is booked.",
     `Estimated Delivery: ${order.estimatedDelivery}`,
     `Customer Support: ${support}`,
   ].join("\n\n");

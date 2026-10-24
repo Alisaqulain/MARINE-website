@@ -75,8 +75,8 @@ export function HomeAllProducts() {
           <div className="inline-flex rounded-full border border-[#031D38]/15 bg-[#FAF7F2] p-1">
             {(
               [
-                ["b2c", "B2C · Retail"],
-                ["b2b", "B2B · Wholesale"],
+                ["b2c", "Retail"],
+                ["b2b", "Wholesale"],
               ] as const
             ).map(([key, label]) => (
               <button

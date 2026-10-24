@@ -1,3 +1,4 @@
+import { detectRegion } from "@/lib/geo";
 import { NextResponse } from "next/server";
 import { estimatedDelivery, newOrderId, newToken, pricedItemsAsync, saveOrder } from "@/lib/orders";
 import { createPayPalCheckout, paypalConfigured } from "@/lib/paypal";
@@ -9,6 +10,7 @@ function checkoutFields(body: Record<string, unknown>) {
     phone: String(body.phone ?? "").trim(),
     address: String(body.address ?? "").trim(),
     city: String(body.city ?? "").trim(),
+    state: String(body.state ?? "").trim(),
     postal: String(body.postal ?? "").trim(),
     country: String(body.country ?? "").trim(),
   };
@@ -27,7 +29,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 
-  const { items, amount: total } = await pricedItemsAsync(Array.isArray(body.lines) ? body.lines : []);
+  const { items, amount: total } = await pricedItemsAsync(
+    Array.isArray(body.lines) ? body.lines : [],
+    await detectRegion(req)
+  );
   if (!items.length || total <= 0) {
     return NextResponse.json({ error: "Your cart has no valid products." }, { status: 400 });
   }

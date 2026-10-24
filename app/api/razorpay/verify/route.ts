@@ -1,7 +1,7 @@
 import { createHmac } from "crypto";
 import { NextResponse } from "next/server";
 import {
-  defaultTracking,
+  fulfillPaidOrder,
   getOrder,
   publicOrder,
   saveOrder,
@@ -42,8 +42,7 @@ export async function POST(req: Request) {
   order.status = "paid";
   order.razorpayPaymentId = razorpay_payment_id;
   order.paidAt = new Date().toISOString();
-  if (!order.tracking) order.tracking = defaultTracking();
-  saveOrder(order);
+  await fulfillPaidOrder(order);
 
   try {
     await sendOrderConfirmation(order);

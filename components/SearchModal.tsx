@@ -6,6 +6,7 @@ import { Search, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ProductImage } from "./ProductImage";
+import { useRegion } from "@/lib/region-context";
 
 export function SearchModal({
   open,
@@ -15,6 +16,7 @@ export function SearchModal({
   onClose: () => void;
 }) {
   const [q, setQ] = useState("");
+  const { priceFor } = useRegion();
   const [products, setProducts] = useState<Product[]>(staticProducts);
 
   useEffect(() => {
@@ -79,7 +81,7 @@ export function SearchModal({
                 <p className="font-medium text-navy-900">{p.name}</p>
                 <p className="text-xs text-navy-600">{p.sku}</p>
               </div>
-              <p className="font-serif text-lg text-navy-900">{formatPrice(p.price)}</p>
+              <p className="font-serif text-lg text-navy-900">{formatPrice(priceFor(p))}</p>
             </Link>
           ))}
         </div>
