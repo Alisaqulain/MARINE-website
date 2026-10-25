@@ -3,6 +3,23 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowRight, CalendarDays, ChevronRight, Clock, Tag } from "lucide-react";
 import { ProductImage } from "@/components/ProductImage";
+import { resolveMediaUrl } from "@/lib/media-url";
+
+/** Same-site media should stay a relative path so the banner loads on any host. */
+function bannerSrc(src: string) {
+  const resolved = resolveMediaUrl(src);
+  if (!resolved) return "";
+  if (resolved.startsWith("/")) return resolved;
+  try {
+    const url = new URL(resolved);
+    if (url.pathname.startsWith("/api/media/") || url.pathname.startsWith("/uploads/")) {
+      return `${url.pathname}${url.search}`;
+    }
+  } catch {
+    return resolved;
+  }
+  return resolved;
+}
 import { ArticleBody } from "@/components/ArticleBody";
 import { BlogProductCard } from "@/components/BlogProductCard";
 import { BlogShare } from "@/components/BlogShare";
@@ -44,10 +61,14 @@ export default async function BlogPostPage({ params }: Props) {
 
   return (
     <article className="bg-white pb-14">
-      <header className="relative overflow-hidden bg-[#081525]">
-        <ProductImage src={post.image} alt={post.title} fill sizes="100vw" className="object-cover opacity-70" />
-        <div className="absolute inset-0 bg-gradient-to-r from-[#081525] via-[#081525]/70 to-[#081525]/10" />
-        <div className="relative mx-auto max-w-[1100px] px-5 pb-8 pt-16 md:pb-12 md:pt-24">
+      <header className="grid bg-[#081525] text-white">
+        {bannerSrc(post.image) ? (
+          // Full banner. Height follows the picture so the top is not cropped.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={bannerSrc(post.image)} alt="" className="col-start-1 row-start-1 h-auto w-full" />
+        ) : null}
+        <div className="col-start-1 row-start-1 flex flex-col justify-end bg-gradient-to-r from-[#081525]/75 via-[#081525]/35 to-transparent">
+          <div className="mx-auto w-full max-w-[1100px] px-5 pb-6 pt-10 md:pb-8 md:pt-16">
           <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1 text-[12px] text-white/80">
             <Link href="/" className="hover:text-white">
               Home
@@ -78,6 +99,7 @@ export default async function BlogPostPage({ params }: Props) {
             <span className="inline-flex items-center gap-1.5">
               <Clock className="h-4 w-4" /> {readMinutes(post.body)} min read
             </span>
+          </div>
           </div>
         </div>
       </header>

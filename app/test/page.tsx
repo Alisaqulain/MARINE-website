@@ -1,10 +1,11 @@
 import { pingDatabase } from "@/lib/mongodb";
 import { pingPayPal } from "@/lib/paypal";
+import { pingShipGlobal } from "@/lib/shipglobal";
 
 export const dynamic = "force-dynamic";
 
 export default async function TestDbPage() {
-  const [result, paypal] = await Promise.all([pingDatabase(), pingPayPal()]);
+  const [result, paypal, shipping] = await Promise.all([pingDatabase(), pingPayPal(), pingShipGlobal()]);
 
   return (
     <div className="mx-auto max-w-lg px-5 py-16">
@@ -115,6 +116,22 @@ export default async function TestDbPage() {
       >
         <p className="text-sm font-semibold uppercase tracking-wider">{paypal.ok ? "Connected" : "Not connected"}</p>
         <p className="mt-2 whitespace-pre-wrap break-words text-sm">{paypal.message}</p>
+      </div>
+      <h2 className="mt-14 font-serif text-3xl text-navy-900">Shipping connection test</h2>
+      <p className="mt-4 text-navy-600">
+        This checks POST /customers.php on the ShipGlobal label API. The password and token are not shown, and this check does not create a shipment.
+      </p>
+      <p className="mt-2 text-xs text-navy-500">
+        HTTP {shipping.httpStatus ?? "—"} · Token: {shipping.tokenReceived ? "received" : "not received"} · Service:{" "}
+        {shipping.service} · {shipping.endpoint}
+      </p>
+      <div
+        className={`mt-8 rounded-2xl border px-6 py-5 ${
+          shipping.ok ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-red-200 bg-red-50 text-red-900"
+        }`}
+      >
+        <p className="text-sm font-semibold uppercase tracking-wider">{shipping.ok ? "Connected" : "Not connected"}</p>
+        <p className="mt-2 whitespace-pre-wrap break-words text-sm">{shipping.message}</p>
       </div>
     </div>
   );

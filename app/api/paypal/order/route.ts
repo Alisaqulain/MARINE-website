@@ -1,7 +1,16 @@
 import { detectRegion } from "@/lib/geo";
+import { getSiteOrigin } from "@/lib/auth-url";
 import { NextResponse } from "next/server";
 import { estimatedDelivery, newOrderId, newToken, pricedItemsAsync, saveOrder } from "@/lib/orders";
 import { createPayPalCheckout, paypalConfigured } from "@/lib/paypal";
+
+function requestOrigin(req: Request) {
+  const host = (req.headers.get("x-forwarded-host") || req.headers.get("host") || "").split(",")[0].trim();
+  if (!host) return getSiteOrigin();
+  const forwarded = req.headers.get("x-forwarded-proto")?.split(",")[0].trim();
+  const proto = forwarded || (/^(localhost|127\.0\.0\.1)(:\d+)?$/i.test(host) ? "http" : "https");
+  return `${proto}://${host}`;
+}
 
 function checkoutFields(body: Record<string, unknown>) {
   return {
@@ -60,6 +69,13 @@ export async function POST(req: Request) {
       orderId: order.id,
       amount: total,
       email: order.email,
+      name: order.name,
+      address: order.address,
+      city: order.city,
+      state: order.state?.trim() || order.city,
+      postal: order.postal,
+      country: order.country,
+      origin: requestOrigin(req),
       whatsapp: body.whatsapp === true,
     });
     order.paypalOrderId = paypal.paypalOrderId;

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/admin-auth";
 import { fulfillPaidOrder, getOrderDurable, listRecentOrders } from "@/lib/orders";
-import { shipGlobalConfigured } from "@/lib/shipglobal";
+import { pingShipGlobal, shipGlobalConfigured } from "@/lib/shipglobal";
 
 function view(order: Awaited<ReturnType<typeof listRecentOrders>>[number]) {
   return {
@@ -25,8 +25,13 @@ export async function GET() {
   const { error } = await requireAdminSession("view");
   if (error) return error;
   const orders = await listRecentOrders(50);
+  const connection = await pingShipGlobal();
   return NextResponse.json({
     configured: shipGlobalConfigured(),
+    connected: connection.ok,
+    connectionMessage: connection.message,
+    httpStatus: connection.httpStatus,
+    tokenReceived: connection.tokenReceived,
     items: orders.map(view),
   });
 }

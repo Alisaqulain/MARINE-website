@@ -1,5 +1,7 @@
 "use client";
 
+import { ProductImage } from "@/components/ProductImage";
+import { uploadImageFile } from "@/components/AdminProductImageField";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
@@ -7,9 +9,68 @@ type CategoryNode = {
   id: string;
   name: string;
   slug: string;
+  image?: string;
   builtin: boolean;
   children: CategoryNode[];
 };
+
+function CategoryImageField({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (url: string) => void;
+}) {
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function onFile(file?: File) {
+    if (!file) return;
+    setError("");
+    setUploading(true);
+    try {
+      const uploaded = await uploadImageFile(file);
+      onChange(uploaded.url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <span className="block text-navy-600">Image</span>
+      <label className="relative inline-flex min-h-11 cursor-pointer items-center overflow-hidden rounded-full border border-[#C9A84C]/50 bg-[#FAF7F2] px-4 py-2 text-sm font-medium text-navy-800">
+        {uploading ? "Uploading…" : value ? "Change image" : "Upload image"}
+        <input
+          type="file"
+          accept="image/*"
+          className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
+          disabled={uploading}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = "";
+            void onFile(file);
+          }}
+        />
+      </label>
+      {value ? (
+        <div className="flex items-center gap-3">
+          <div className="relative h-16 w-16 overflow-hidden rounded-lg border border-[#e6dfd2]">
+            <ProductImage src={value} alt="" fill sizes="64px" className="object-cover" />
+          </div>
+          <button type="button" className="text-xs font-semibold text-red-700 underline" onClick={() => onChange("")}>
+            Remove image
+          </button>
+        </div>
+      ) : (
+        <p className="text-[11px] text-navy-500">This photo is used on the homepage collection slider.</p>
+      )}
+      {error ? <p className="text-xs text-red-700">{error}</p> : null}
+    </div>
+  );
+}
 
 function flatten(nodes: CategoryNode[], depth = 0): { slug: string; name: string; depth: number }[] {
   return nodes.flatMap((node) => [
@@ -27,6 +88,8 @@ export function AdminCategoriesPanel() {
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
+  const [draftImage, setDraftImage] = useState("");
+  const [image, setImage] = useState("");
 
   const parents = useMemo(() => flatten(tree), [tree]);
 
@@ -51,7 +114,7 @@ export function AdminCategoriesPanel() {
     const res = await fetch("/api/admin/categories", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, parentSlug }),
+      body: JSON.stringify({ name, parentSlug, image }),
     });
     const data = await res.json().catch(() => ({}));
     setLoading(false);
@@ -60,6 +123,7 @@ export function AdminCategoriesPanel() {
       return;
     }
     setName("");
+    setImage("");
     if (parentSlug) setOpen((current) => ({ ...current, [parentSlug]: true }));
     apply(data);
   }
@@ -69,7 +133,7 @@ export function AdminCategoriesPanel() {
     const res = await fetch(`/api/admin/categories/${encodeURIComponent(id)}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: draft }),
+      body: JSON.stringify({ name: draft, image: draftImage }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
@@ -117,17 +181,25 @@ export function AdminCategoriesPanel() {
           ) : (
             <span className="h-7 w-7 shrink-0" />
           )}
+          {node.image && !isEditing ? (
+            <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-md border border-[#e6dfd2]">
+              <ProductImage src={node.image} alt="" fill sizes="40px" className="object-cover" />
+            </div>
+          ) : null}
           {isEditing ? (
-            <input
-              className="input min-w-0 flex-1 py-1.5 text-sm"
-              value={draft}
-              autoFocus
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") void saveEdit(node.id);
-                if (e.key === "Escape") setEditing(null);
-              }}
-            />
+            <div className="min-w-0 flex-1 space-y-2 py-1">
+              <input
+                className="input py-1.5 text-sm"
+                value={draft}
+                autoFocus
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void saveEdit(node.id);
+                  if (e.key === "Escape") setEditing(null);
+                }}
+              />
+              <CategoryImageField value={draftImage} onChange={setDraftImage} />
+            </div>
           ) : (
             <span className={`min-w-0 flex-1 text-sm ${depth === 0 ? "font-medium text-[#222]" : "text-[#555]"}`}>
               {node.name}
@@ -150,6 +222,7 @@ export function AdminCategoriesPanel() {
                 onClick={() => {
                   setEditing(node.id);
                   setDraft(node.name);
+                  setDraftImage(node.image ?? "");
                 }}
               >
                 Edit
@@ -189,6 +262,9 @@ export function AdminCategoriesPanel() {
             ))}
           </select>
         </label>
+        <div className="text-xs">
+          <CategoryImageField value={image} onChange={setImage} />
+        </div>
         {error ? <p className="text-sm text-red-700">{error}</p> : null}
         <button type="submit" className="btn-gold w-full" disabled={loading}>
           {loading ? "Saving…" : parentSlug ? "Add subcategory" : "Add category"}

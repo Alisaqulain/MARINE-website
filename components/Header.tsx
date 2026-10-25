@@ -53,7 +53,7 @@ export function Header() {
           <BrandLogo size="header" priority />
         </Link>
 
-        <nav className="hidden min-w-0 flex-1 items-center justify-center gap-x-1 lg:flex xl:gap-x-1.5 2xl:gap-x-3">
+        <nav className="hidden min-w-0 flex-1 items-center justify-center gap-x-2 overflow-x-auto lg:flex xl:gap-x-3.5 2xl:gap-x-5">
           {nav.map((item) => {
             const cls = `whitespace-nowrap py-2 text-[11px] font-medium uppercase tracking-[0.02em] transition-colors 2xl:text-xs 2xl:tracking-[0.04em] ${
               isActive(pathname, item.href) ? "text-[#C9A84C]" : "text-white/80 hover:text-[#C9A84C]"

@@ -15,6 +15,7 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const name = String(body.name ?? "").trim();
   const parentSlug = String(body.parentSlug ?? "").trim();
+  const image = String(body.image ?? "").trim();
   if (!name) {
     return NextResponse.json({ error: "Category name is required." }, { status: 400 });
   }
@@ -26,6 +27,7 @@ export async function POST(req: Request) {
     name,
     slug,
     parentSlug: parentSlug || undefined,
+    image: image || undefined,
     createdAt: new Date(),
   });
   return NextResponse.json({ ok: true, ...(await loadCategoryCatalog()) });

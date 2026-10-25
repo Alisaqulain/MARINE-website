@@ -766,18 +766,20 @@ export function AdminDashboard() {
                 </fieldset>
                 <fieldset className="space-y-2">
                   <legend className="text-xs font-semibold uppercase tracking-wide text-navy-600">Price and inventory</legend>
-                  <p className="text-[10px] text-navy-500">Set your item price, and how many are available for sale. Prices are in US$.</p>
+                  <p className="text-[10px] text-navy-500">
+                    Three prices, all in US dollars. Visitors in India see the India price, visitors in the United States see the US price, and every other country sees the Other price.
+                  </p>
                   <div className="grid gap-2 sm:grid-cols-3">
                     <label className="block text-xs">
-                      <span className="mb-1 block text-navy-600">India · US$</span>
+                      <span className="mb-1 block text-navy-600">1. India · US$</span>
                       <input className="input" type="number" step="0.01" min={0} value={productForm.priceIndia} onChange={(e) => setProductForm({ ...productForm, priceIndia: e.target.value })} />
                     </label>
                     <label className="block text-xs">
-                      <span className="mb-1 block text-navy-600">United States · US$</span>
+                      <span className="mb-1 block text-navy-600">2. United States · US$</span>
                       <input className="input" type="number" step="0.01" min={0} value={productForm.priceUs} onChange={(e) => setProductForm({ ...productForm, priceUs: e.target.value })} />
                     </label>
                     <label className="block text-xs">
-                      <span className="mb-1 block text-navy-600">Everywhere else · US$</span>
+                      <span className="mb-1 block text-navy-600">3. Other countries · US$</span>
                       <input className="input" type="number" step="0.01" min={0} value={productForm.price} onChange={(e) => setProductForm({ ...productForm, price: e.target.value })} required />
                     </label>
                   </div>
@@ -942,8 +944,8 @@ export function AdminDashboard() {
                   FREE shipping (show badge on retail shop cards)
                 </label>
                 <textarea
-                  className="input min-h-20"
-                  placeholder="Description"
+                  className="input min-h-28 whitespace-pre-wrap"
+                  placeholder="Description. Press Enter for a new line. Spacing is kept on the product page."
                   value={productForm.description}
                   onChange={(e) => setProductForm({ ...productForm, description: e.target.value })}
                 />

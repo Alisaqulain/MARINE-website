@@ -70,15 +70,36 @@ export async function createPayPalCheckout(input: {
   orderId: string;
   amount: number;
   email: string;
+  name: string;
+  address: string;
+  city: string;
+  state: string;
+  postal: string;
+  country: string;
+  origin: string;
   whatsapp?: boolean;
 }) {
   const token = await paypalAccessToken();
-  const origin = getSiteOrigin();
+  const origin = input.origin.replace(/\/$/, "") || getSiteOrigin();
+  const value = input.amount.toFixed(2);
+  const country = input.country.trim().toUpperCase();
+  const address = {
+    address_line_1: input.address.slice(0, 300),
+    admin_area_2: input.city.slice(0, 120),
+    admin_area_1: input.state.slice(0, 300),
+    postal_code: input.postal.slice(0, 60),
+    country_code: country,
+  };
+  const returnUrl = `${origin}/checkout/paypal/return?order=${encodeURIComponent(input.orderId)}${
+    input.whatsapp ? "&wa=1" : ""
+  }`;
+  const cancelUrl = `${origin}/checkout?paypal=cancelled`;
   const res = await fetch(`${paypalBaseUrl()}/v2/checkout/orders`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
+      Prefer: "return=representation",
     },
     body: JSON.stringify({
       intent: "CAPTURE",
@@ -86,17 +107,27 @@ export async function createPayPalCheckout(input: {
         {
           custom_id: input.orderId,
           invoice_id: input.orderId,
-          amount: { currency_code: "USD", value: input.amount.toFixed(2) },
+          amount: { currency_code: "USD", value },
+          shipping: {
+            name: { full_name: input.name.slice(0, 300) },
+            address,
+          },
         },
       ],
-      application_context: {
-        brand_name: "Marina Muse International",
-        shipping_preference: "NO_SHIPPING",
-        user_action: "PAY_NOW",
-        return_url: `${origin}/checkout/paypal/return?order=${encodeURIComponent(input.orderId)}${
-          input.whatsapp ? "&wa=1" : ""
-        }`,
-        cancel_url: `${origin}/checkout?paypal=cancelled`,
+      payment_source: {
+        paypal: {
+          email_address: input.email,
+          address,
+          experience_context: {
+            brand_name: "Marina Muse International",
+            shipping_preference: "SET_PROVIDED_ADDRESS",
+            user_action: "PAY_NOW",
+            payment_method_preference: "IMMEDIATE_PAYMENT_REQUIRED",
+            landing_page: "NO_PREFERENCE",
+            return_url: returnUrl,
+            cancel_url: cancelUrl,
+          },
+        },
       },
     }),
   });

@@ -15,21 +15,24 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const decoded = decodeURIComponent(id);
   const body = await req.json().catch(() => ({}));
   const name = String(body.name ?? "").trim();
+  const image = "image" in body ? String(body.image ?? "").trim() : undefined;
   if (!name) {
     return NextResponse.json({ error: "Category name is required." }, { status: 400 });
   }
   const db = await getDb();
   const slug = builtinSlug(decoded);
+  const fields: Record<string, unknown> = { name, updatedAt: new Date() };
+  if (image !== undefined) fields.image = image;
   if (slug) {
     await db.collection("category_overrides").updateOne(
       { slug },
-      { $set: { slug, name, deleted: false, updatedAt: new Date() } },
+      { $set: { slug, deleted: false, ...fields } },
       { upsert: true }
     );
   } else if (ObjectId.isValid(decoded)) {
     await db.collection("shop_categories").updateOne(
       { _id: new ObjectId(decoded) },
-      { $set: { name, updatedAt: new Date() } }
+      { $set: fields }
     );
   } else {
     return NextResponse.json({ error: "Category not found." }, { status: 404 });

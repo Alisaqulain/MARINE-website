@@ -6,12 +6,14 @@ export type ShopCategory = {
   name: string;
   slug: string;
   parentSlug?: string;
+  image?: string;
 };
 
 export type CategoryNode = {
   id: string;
   name: string;
   slug: string;
+  image?: string;
   builtin: boolean;
   children: CategoryNode[];
 };
@@ -43,8 +45,8 @@ export function uniqueCategorySlug(name: string, taken: Set<string>) {
   return slug;
 }
 
-type CustomDoc = { _id: unknown; name?: string; slug?: string; parentSlug?: string };
-type OverrideDoc = { slug?: string; name?: string; deleted?: boolean };
+type CustomDoc = { _id: unknown; name?: string; slug?: string; parentSlug?: string; image?: string };
+type OverrideDoc = { slug?: string; name?: string; image?: string; deleted?: boolean };
 
 function customNodes(parentSlug: string | undefined, docs: CustomDoc[], seen: Set<string>): CategoryNode[] {
   return docs
@@ -52,10 +54,12 @@ function customNodes(parentSlug: string | undefined, docs: CustomDoc[], seen: Se
     .map((doc) => {
       const slug = String(doc.slug);
       seen.add(slug);
+      const image = String(doc.image ?? "").trim();
       return {
         id: String(doc._id),
         name: String(doc.name ?? slug),
         slug,
+        image: image || undefined,
         builtin: false,
         children: customNodes(slug, docs, seen),
       };
@@ -66,6 +70,7 @@ function builtinNodes(
   nodes: ShopNowChild[],
   hidden: Set<string>,
   renames: Map<string, string>,
+  images: Map<string, string>,
   docs: CustomDoc[],
   seen: Set<string>
 ): CategoryNode[] {
@@ -73,13 +78,15 @@ function builtinNodes(
   for (const node of nodes) {
     if (hidden.has(node.slug)) continue;
     const children = [
-      ...builtinNodes(node.children ?? [], hidden, renames, docs, seen),
+      ...builtinNodes(node.children ?? [], hidden, renames, images, docs, seen),
       ...customNodes(node.slug, docs, seen),
     ];
+    const image = images.get(node.slug);
     out.push({
       id: `builtin__${node.slug}`,
       name: renames.get(node.slug) || node.name,
       slug: node.slug,
+      image: image || undefined,
       builtin: true,
       children,
     });
@@ -97,22 +104,24 @@ export async function loadCategoryCatalog(): Promise<{ items: ShopCategory[]; tr
     const custom = docs as CustomDoc[];
     const hidden = new Set<string>();
     const renames = new Map<string, string>();
+    const images = new Map<string, string>();
     for (const row of overrides as OverrideDoc[]) {
       const slug = String(row.slug ?? "");
       if (!slug) continue;
       if (row.deleted) hidden.add(slug);
       if (row.name) renames.set(slug, String(row.name));
+      if (row.image) images.set(slug, String(row.image));
     }
     const seen = new Set<string>();
     const tree = [
-      ...builtinNodes(shopNowTree, hidden, renames, custom, seen),
+      ...builtinNodes(shopNowTree, hidden, renames, images, custom, seen),
       ...customNodes(undefined, custom, seen),
     ];
     const items: ShopCategory[] = [];
     const walk = (nodes: CategoryNode[], parentSlug?: string) => {
       for (const node of nodes) {
         if (!node.builtin) {
-          items.push({ id: node.id, name: node.name, slug: node.slug, parentSlug });
+          items.push({ id: node.id, name: node.name, slug: node.slug, parentSlug, image: node.image });
         }
         walk(node.children, node.slug);
       }

@@ -42,7 +42,7 @@ html {
 /* Keep the desktop menu fully visible at 100% zoom. */
 @media (min-width: 1024px) {
   header nav {
-    column-gap: 0.25rem;
+    column-gap: 0.45rem;
   }
   header nav a {
     font-size: 11px;
@@ -55,7 +55,7 @@ html {
 
 @media (min-width: 1280px) {
   header nav {
-    column-gap: 0.375rem;
+    column-gap: 1rem;
   }
   header a > span.relative.inline-block {
     height: 4.25rem;

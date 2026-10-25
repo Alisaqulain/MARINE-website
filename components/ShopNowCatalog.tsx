@@ -102,9 +102,8 @@ export function ShopNowCatalog({ retail = false }: { retail?: boolean }) {
 
   const filtered = Boolean(sub || parent);
   const activeSlug = sub || parent;
-  const title = filtered
-    ? findNamedCategory(categoryTree, activeSlug) || findShopNowLabel(activeSlug)
-    : "All products";
+  const liveName = findNamedCategory(categoryTree, activeSlug);
+  const title = filtered ? liveName || (remoteTree ? "Shop" : findShopNowLabel(activeSlug)) : "All products";
   const Title = retail ? "h1" : "h2";
 
   function showAll() {
@@ -269,12 +268,12 @@ export function ShopNowCatalog({ retail = false }: { retail?: boolean }) {
         </aside>
 
         <div className="min-w-0 flex-1 px-4 py-4 md:py-6 lg:px-6">
-          <div className="mb-2 flex flex-col gap-2 md:mb-4 lg:flex-row lg:items-center lg:gap-4">
-            <Title className="min-w-0 shrink-0 font-serif text-lg leading-tight text-navy-900 sm:text-2xl lg:max-w-[38%]">
+          <div className="mb-4 flex flex-col gap-4">
+            <Title className="whitespace-nowrap font-serif text-lg leading-tight text-navy-900 sm:text-2xl">
               {title}
-              <span className="ml-1.5 text-[11px] font-normal text-[#999] sm:ml-2 sm:text-[13px]">({list.length})</span>
+              <span className="ml-2 text-[11px] font-normal text-[#999] sm:text-[13px]">({list.length})</span>
             </Title>
-            <div className="flex min-w-0 flex-1 items-center gap-1.5 lg:mx-2 lg:gap-2">
+            <div className="flex w-full min-w-0 items-center gap-3">
               <label className="relative min-w-0 flex-1">
                 <span className="sr-only">{retail ? "Search B2C products" : "Search B2B products"}</span>
                 <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#999] md:left-3 md:h-4 md:w-4" />

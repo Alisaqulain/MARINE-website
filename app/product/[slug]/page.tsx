@@ -42,7 +42,6 @@ import { PriceRow } from "@/components/PriceRow";
 import { ProductGalleryViewer } from "@/components/ProductGalleryViewer";
 import { imageAdjustStyle, lowStockMessage } from "@/lib/product-display";
 import { imageIndexForColor } from "@/lib/listing-images";
-import { RichText } from "@/components/RichText";
 import { useRegion } from "@/lib/region-context";
 
 export default function ProductPage() {
@@ -500,7 +499,6 @@ export default function ProductPage() {
   );
 }
 
-/** Admin-written description under "Item details", collapsed until the buyer asks for more. */
 function ProductDescription({ text }: { text?: string }) {
   const [open, setOpen] = useState(false);
   const body = (text ?? "").trim();
@@ -509,9 +507,8 @@ function ProductDescription({ text }: { text?: string }) {
   return (
     <section className="mt-5 border-t border-[#e6dfd2] pt-5">
       <h2 className="text-[15px] font-semibold text-[#222222]">Item details</h2>
-      <p className="mt-3 text-[13px] font-medium text-navy-800">Description:</p>
-      <div className={`relative mt-2 ${long && !open ? "max-h-56 overflow-hidden" : ""}`}>
-        <RichText source={body} className="text-[14px] leading-relaxed text-navy-700" />
+      <div className={`relative mt-3 ${long && !open ? "max-h-56 overflow-hidden" : ""}`}>
+        <p className="whitespace-pre-wrap text-[14px] leading-relaxed text-navy-700">{body}</p>
         {long && !open ? (
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-white to-transparent" />
         ) : null}

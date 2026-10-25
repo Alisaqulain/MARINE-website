@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { isPriceRegion, REGION_COOKIE, regionalPrice, type PriceRegion } from "./region";
+import { isPriceRegion, REGION_COOKIE, regionFromCountry, regionalPrice, type PriceRegion } from "./region";
 
 type RegionContextValue = {
   region: PriceRegion;
@@ -29,17 +29,37 @@ export function RegionProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const saved = readCookie();
-    if (saved) {
-      setRegion(saved);
-      return;
-    }
+    if (saved) setRegion(saved);
     let cancelled = false;
-    void fetch("/api/geo")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (!cancelled && isPriceRegion(data?.region)) setRegion(data.region);
-      })
-      .catch(() => {});
+
+    function remember(next: PriceRegion) {
+      if (cancelled) return;
+      setRegion(next);
+      document.cookie = `${REGION_COOKIE}=${next}; path=/; max-age=${60 * 60 * 24}; samesite=lax`;
+    }
+
+    void (async () => {
+      try {
+        const res = await fetch("/api/geo");
+        const data = res.ok ? await res.json() : null;
+        if (data?.country && isPriceRegion(data.region)) {
+          remember(data.region);
+          return;
+        }
+      } catch {
+        /* try the browser lookup */
+      }
+      if (saved || cancelled) return;
+      try {
+        const res = await fetch("https://api.country.is/", { signal: AbortSignal.timeout(4000) });
+        const data = res.ok ? await res.json() : null;
+        const code = typeof data?.country === "string" ? data.country : "";
+        if (/^[A-Za-z]{2}$/.test(code)) remember(regionFromCountry(code));
+      } catch {
+        /* keep the default price */
+      }
+    })();
+
     return () => {
       cancelled = true;
     };

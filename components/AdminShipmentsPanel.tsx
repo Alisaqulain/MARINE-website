@@ -22,6 +22,7 @@ type ShipmentRow = {
 export function AdminShipmentsPanel() {
   const [items, setItems] = useState<ShipmentRow[]>([]);
   const [configured, setConfigured] = useState(true);
+  const [connection, setConnection] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
 
@@ -33,6 +34,7 @@ export function AdminShipmentsPanel() {
       return;
     }
     setConfigured(data.configured !== false);
+    setConnection(typeof data.connectionMessage === "string" ? data.connectionMessage : "");
     setItems(Array.isArray(data.items) ? data.items : []);
   }
 
@@ -66,9 +68,10 @@ export function AdminShipmentsPanel() {
         </p>
         {configured ? null : (
           <p className="mt-3 text-sm text-red-700">
-            Add SHIPGLOBAL_EMAIL and SHIPGLOBAL_PASSWORD to the server environment, then restart the site. Use the login from the ShipGlobal label portal.
+            Add SHIPGLOBAL_EMAIL and SHIPGLOBAL_PASSWORD to the server environment, then restart the site.
           </p>
         )}
+        {connection ? <p className="mt-3 text-sm text-navy-700">{connection}</p> : null}
         {error ? <p className="mt-3 text-sm text-red-700">{error}</p> : null}
       </div>
       <div className="overflow-x-auto rounded-xl border border-[#eee] bg-white shadow-sm">
