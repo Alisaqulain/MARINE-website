@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/admin-auth";
-import { deleteAllWebsiteVisitors, deleteWebsiteVisitor, listWebsiteVisitors } from "@/lib/page-views";
+import {
+  deleteAllWebsiteVisitors,
+  deleteWebsiteVisitor,
+  listingViewStats,
+  listWebsiteVisitors,
+} from "@/lib/page-views";
 
 export async function GET(req: Request) {
   const { error } = await requireAdminSession();
@@ -9,8 +14,8 @@ export async function GET(req: Request) {
   const page = Math.max(1, Number(searchParams.get("page")) || 1);
   const pageSize = Math.min(100, Math.max(5, Number(searchParams.get("pageSize")) || 25));
   try {
-    const data = await listWebsiteVisitors(page, pageSize);
-    return NextResponse.json(data);
+    const [data, listings] = await Promise.all([listWebsiteVisitors(page, pageSize), listingViewStats()]);
+    return NextResponse.json({ ...data, listingViews: listings });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not load visitors.";
     return NextResponse.json({ error: message }, { status: 500 });

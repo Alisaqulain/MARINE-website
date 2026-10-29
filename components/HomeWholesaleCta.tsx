@@ -83,7 +83,7 @@ export function HomeWholesaleCta() {
             >
               Open wholesale (B2B) account
             </button>
-            <Link href="/shop" className="btn-outline mt-3 w-full">
+            <Link href="/retail" className="btn-outline mt-3 w-full">
               Continue retail shopping
             </Link>
           </div>
@@ -92,7 +92,7 @@ export function HomeWholesaleCta() {
             <p className="text-center text-sm text-cream-100/90">
               Welcome back, {session?.user?.name?.split(" ")[0] ?? "there"}.
             </p>
-            <Link href="/shop" className="btn-gold mt-4 w-full">
+            <Link href="/retail" className="btn-gold mt-4 w-full">
               Continue shopping
             </Link>
           </div>

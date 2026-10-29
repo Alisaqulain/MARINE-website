@@ -234,6 +234,78 @@ export async function deleteAllWebsiteVisitors() {
   }
 }
 
+function listingSlugFromPath(path: string): string | null {
+  const clean = path.split("?")[0] || "";
+  if (clean.startsWith("/wholesale/product/")) {
+    const slug = clean.slice("/wholesale/product/".length);
+    return slug || null;
+  }
+  if (clean.startsWith("/product/")) {
+    const slug = clean.slice("/product/".length);
+    return slug || null;
+  }
+  return null;
+}
+
+/** Listing views for /product/slug and /wholesale/product/slug — Etsy-style “shoppers viewed your listings”. */
+export async function listingViewStats() {
+  try {
+    const db = await getDb();
+    const rows = await db
+      .collection("page_views")
+      .aggregate<{ _id: string; views: number }>([
+        { $match: { path: { $regex: "/product/" } } },
+        {
+          $group: {
+            _id: {
+              $let: {
+                vars: {
+                  withoutQuery: { $arrayElemAt: [{ $split: ["$path", "?"] }, 0] },
+                },
+                in: {
+                  $cond: [
+                    {
+                      $regexMatch: {
+                        input: "$$withoutQuery",
+                        regex: "^/wholesale/product/",
+                      },
+                    },
+                    { $arrayElemAt: [{ $split: ["$$withoutQuery", "/wholesale/product/"] }, 1] },
+                    { $arrayElemAt: [{ $split: ["$$withoutQuery", "/product/"] }, 1] },
+                  ],
+                },
+              },
+            },
+            views: { $sum: 1 },
+          },
+        },
+        { $match: { _id: { $type: "string", $ne: "" } } },
+        { $sort: { views: -1 } },
+        { $limit: 200 },
+      ])
+      .toArray();
+    const totalViews = rows.reduce((sum, row) => sum + row.views, 0);
+    return {
+      totalViews,
+      listings: rows.map((row) => ({ slug: String(row._id), views: row.views })),
+    };
+  } catch {
+    const map = new Map<string, number>();
+    for (const row of memoryStore()) {
+      const slug = listingSlugFromPath(row.path);
+      if (!slug) continue;
+      map.set(slug, (map.get(slug) || 0) + 1);
+    }
+    const listings = [...map.entries()]
+      .map(([slug, views]) => ({ slug, views }))
+      .sort((a, b) => b.views - a.views);
+    return {
+      totalViews: listings.reduce((sum, row) => sum + row.views, 0),
+      listings,
+    };
+  }
+}
+
 export async function deleteWebsiteVisitor(id: string) {
   try {
     const db = await getDb();

@@ -9,15 +9,19 @@ import { WholesaleNavLink } from "@/components/WholesaleNavLink";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 const PAGE_SIZE = 8;
 const PAGE_WINDOW = 10;
 const MOBILE_WINDOW = 7;
 
+type SortKey = "newest" | "name" | "price-asc" | "price-desc";
+
 export function HomeAllProducts() {
   const [mode, setMode] = useState<"b2c" | "b2b">("b2c");
   const [page, setPage] = useState(1);
+  const [sort, setSort] = useState<SortKey>("newest");
+  const [goPage, setGoPage] = useState("");
   const ref = useRef<HTMLElement>(null);
   const router = useRouter();
   const { data: session } = useSession();
@@ -25,7 +29,6 @@ export function HomeAllProducts() {
   const { promptSwitchToWholesale } = useWholesaleGate();
   const [products, setProducts] = useState<Product[]>(staticProducts);
 
-  // Live catalogue: admin-added listings, deactivations and running sale prices.
   useEffect(() => {
     void fetch("/api/catalog/products")
       .then((r) => r.json())
@@ -35,12 +38,22 @@ export function HomeAllProducts() {
       .catch(() => {});
   }, []);
 
-  const totalPages = Math.max(1, Math.ceil(products.length / PAGE_SIZE));
-  const items = products.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const sorted = useMemo(() => {
+    const next = [...products];
+    if (sort === "name") next.sort((a, b) => a.name.localeCompare(b.name));
+    else if (sort === "price-asc") next.sort((a, b) => a.price - b.price);
+    else if (sort === "price-desc") next.sort((a, b) => b.price - a.price);
+    // newest: API already returns mongo/new items first
+    return next;
+  }, [products, sort]);
 
-  const start = Math.max(1, Math.min(page - Math.floor(PAGE_WINDOW / 2), totalPages - PAGE_WINDOW + 1));
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const items = sorted.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  const start = Math.max(1, Math.min(safePage - Math.floor(PAGE_WINDOW / 2), totalPages - PAGE_WINDOW + 1));
   const pages = Array.from({ length: Math.min(PAGE_WINDOW, totalPages) }, (_, i) => start + i);
-  const mobileStart = Math.max(1, Math.min(page - Math.floor(MOBILE_WINDOW / 2), totalPages - MOBILE_WINDOW + 1));
+  const mobileStart = Math.max(1, Math.min(safePage - Math.floor(MOBILE_WINDOW / 2), totalPages - MOBILE_WINDOW + 1));
   const onMobile = (n: number) => n >= mobileStart && n < mobileStart + MOBILE_WINDOW;
 
   function go(next: number) {
@@ -71,7 +84,7 @@ export function HomeAllProducts() {
           <h2 className="font-serif text-[1.75rem] text-navy-900 md:text-5xl">All Products</h2>
         </div>
 
-        <div className="mt-6 flex flex-col items-center gap-2">
+        <div className="mt-6 flex flex-col items-center gap-3">
           <div className="inline-flex rounded-full border border-[#031D38]/15 bg-[#FAF7F2] p-1">
             {(
               [
@@ -93,6 +106,22 @@ export function HomeAllProducts() {
               </button>
             ))}
           </div>
+          <label className="flex items-center gap-2 text-xs text-navy-700">
+            Sort
+            <select
+              className="input min-h-9 py-1.5 text-sm"
+              value={sort}
+              onChange={(e) => {
+                setSort(e.target.value as SortKey);
+                setPage(1);
+              }}
+            >
+              <option value="newest">Newest first</option>
+              <option value="name">Name A–Z</option>
+              <option value="price-asc">Price: low to high</option>
+              <option value="price-desc">Price: high to low</option>
+            </select>
+          </label>
         </div>
 
         <div className="mt-8 grid grid-cols-2 gap-x-3 gap-y-7 sm:gap-x-5 lg:grid-cols-4">
@@ -102,13 +131,13 @@ export function HomeAllProducts() {
         </div>
 
         <nav aria-label="Pagination" className="mt-10 flex flex-wrap items-center justify-center gap-x-1 gap-y-2 text-sm">
-          {page > 1 && (
-            <button type="button" onClick={() => go(page - 1)} className="px-2 py-1 text-[#1a0dab] hover:underline">
+          {safePage > 1 && (
+            <button type="button" onClick={() => go(safePage - 1)} className="px-2 py-1 text-[#1a0dab] hover:underline">
               Previous
             </button>
           )}
           {pages.map((n) =>
-            n === page ? (
+            n === safePage ? (
               <span key={n} aria-current="page" className="min-w-[1.75rem] px-1.5 py-1 text-center font-semibold text-[#222222]">
                 {n}
               </span>
@@ -121,14 +150,38 @@ export function HomeAllProducts() {
               >
                 {n}
               </button>
-            ),
+            )
           )}
-          {page < totalPages && (
-            <button type="button" onClick={() => go(page + 1)} className="px-2 py-1 text-[#1a0dab] hover:underline">
+          {safePage < totalPages && (
+            <button type="button" onClick={() => go(safePage + 1)} className="px-2 py-1 text-[#1a0dab] hover:underline">
               Next
             </button>
           )}
         </nav>
+
+        <form
+          className="mt-4 flex items-center justify-center gap-2 text-sm"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const next = Number(goPage);
+            if (Number.isFinite(next)) go(next);
+            setGoPage("");
+          }}
+        >
+          <label className="text-navy-700">
+            Go to page
+            <input
+              className="input ml-2 inline-block w-20 min-h-9 py-1.5"
+              inputMode="numeric"
+              value={goPage}
+              onChange={(e) => setGoPage(e.target.value.replace(/\D/g, ""))}
+              placeholder={`1–${totalPages}`}
+            />
+          </label>
+          <button type="submit" className="btn-outline px-3 py-1.5 text-xs">
+            Go
+          </button>
+        </form>
 
         <div className="mt-6 text-center">
           {displayMode === "b2b" ? (
@@ -139,7 +192,7 @@ export function HomeAllProducts() {
               View full wholesale catalogue →
             </WholesaleNavLink>
           ) : (
-            <Link href="/shop" className="text-xs font-semibold uppercase tracking-[0.2em] text-[#3A6EA5] hover:underline">
+            <Link href="/retail" className="text-xs font-semibold uppercase tracking-[0.2em] text-[#3A6EA5] hover:underline">
               View full retail catalogue →
             </Link>
           )}

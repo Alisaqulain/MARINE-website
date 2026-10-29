@@ -1,11 +1,17 @@
 import { pingDatabase } from "@/lib/mongodb";
 import { pingPayPal } from "@/lib/paypal";
 import { pingShipGlobal } from "@/lib/shipglobal";
+import { pingPhase2 } from "@/lib/ai/status";
 
 export const dynamic = "force-dynamic";
 
 export default async function TestDbPage() {
-  const [result, paypal, shipping] = await Promise.all([pingDatabase(), pingPayPal(), pingShipGlobal()]);
+  const [result, paypal, shipping, phase2] = await Promise.all([
+    pingDatabase(),
+    pingPayPal(),
+    pingShipGlobal(),
+    pingPhase2(),
+  ]);
 
   return (
     <div className="mx-auto max-w-lg px-5 py-16">
@@ -132,6 +138,25 @@ export default async function TestDbPage() {
       >
         <p className="text-sm font-semibold uppercase tracking-wider">{shipping.ok ? "Connected" : "Not connected"}</p>
         <p className="mt-2 whitespace-pre-wrap break-words text-sm">{shipping.message}</p>
+      </div>
+      <h2 className="mt-14 font-serif text-3xl text-navy-900">Phase 2 connections</h2>
+      <p className="mt-4 text-navy-600">
+        Each card is connected only when that service accepts the saved settings. Secrets are not shown. No call, ad, or Merchant Center upload is started.
+      </p>
+      <div className="mt-8 space-y-4">
+        {phase2.map((item) => (
+          <div
+            key={item.name}
+            className={`rounded-2xl border px-6 py-5 ${
+              item.ok ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-red-200 bg-red-50 text-red-900"
+            }`}
+          >
+            <p className="text-sm font-semibold uppercase tracking-wider">{item.ok ? "Connected" : "Not connected"}</p>
+            <p className="mt-1 text-sm font-medium">{item.name}</p>
+            <p className="mt-1 text-xs">Add: {item.env}</p>
+            <p className="mt-2 whitespace-pre-wrap break-words text-sm">{item.message}</p>
+          </div>
+        ))}
       </div>
     </div>
   );

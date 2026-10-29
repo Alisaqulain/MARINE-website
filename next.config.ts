@@ -2,6 +2,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ["mongodb"],
+  async redirects() {
+    return [{ source: "/shop", destination: "/retail", permanent: false }];
+  },
   images: {
     qualities: [75, 95],
     remotePatterns: [

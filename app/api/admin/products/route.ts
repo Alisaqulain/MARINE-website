@@ -17,6 +17,13 @@ import { getDb } from "@/lib/mongodb";
 import type { AdminProduct, CatalogOverride } from "@/lib/db/types";
 import { slugify } from "@/lib/slugify";
 import { parseProductExtras } from "@/lib/product-fields";
+import { loadActiveSales, saleAppliesTo } from "@/lib/sales";
+
+function money(value: unknown) {
+  if (value == null || value === "") return undefined;
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.max(0, n) : undefined;
+}
 
 export async function GET(req: Request) {
   const session = await auth();
@@ -62,6 +69,8 @@ export async function GET(req: Request) {
     price: p.price,
     compareAt: p.compareAt,
     wholesaleFrom: p.wholesaleFrom,
+    wholesalePriceIndia: p.wholesalePriceIndia,
+    wholesalePriceUs: p.wholesalePriceUs,
     quantity: p.quantity,
     b2cOutOfStock: p.b2cOutOfStock,
     b2bOutOfScope: p.b2bOutOfScope,
@@ -98,7 +107,12 @@ export async function GET(req: Request) {
   const show: AdminProductFilter = ADMIN_PRODUCT_FILTERS.includes(filterParam as AdminProductFilter)
     ? (filterParam as AdminProductFilter)
     : "all";
-  let items = filterAdminProducts(allItems, show);
+  const sales = show === "on-sale" ? await loadActiveSales() : [];
+  const onSaleSlugs =
+    show === "on-sale"
+      ? new Set(allItems.filter((item) => sales.some((sale) => saleAppliesTo(sale, item.slug))).map((item) => item.slug))
+      : undefined;
+  let items = filterAdminProducts(allItems, show, onSaleSlugs, channel);
   if (q) {
     items = items.filter((p) => {
       const hay = `${p.name} ${p.slug} ${p.sku ?? ""}`.toLowerCase();
@@ -131,33 +145,68 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Product name is required." }, { status: 400 });
   }
 
+  const scope = body.priceScope === "wholesale" ? "wholesale" : "retail";
   const extras = parseProductExtras(body);
-  const doc: Omit<AdminProduct, "_id"> = {
+  const wholesaleFrom = money(body.wholesaleFrom);
+  const retailPrice = money(body.price) ?? wholesaleFrom ?? 0;
+
+  const db = await getDb();
+  const col = db.collection<AdminProduct>("products");
+  const existing = await col.findOne({ slug });
+
+  const shared = {
     slug,
     name,
-    sku: String(body.sku ?? ""),
-    price: Number(body.price ?? 0),
-    compareAt:
-      body.compareAt != null && body.compareAt !== "" ? Number(body.compareAt) : undefined,
-    wholesaleFrom:
-      body.wholesaleFrom != null && body.wholesaleFrom !== "" ? Number(body.wholesaleFrom) : undefined,
-    quantity: extras.quantity,
-    b2cOutOfStock: extras.b2cOutOfStock,
-    b2bOutOfScope: extras.b2bOutOfScope,
-    image: extras.images?.[0]?.url || String(body.image ?? ""),
-    images: extras.images,
+    sku: String(body.sku ?? existing?.sku ?? ""),
+    image: extras.images?.[0]?.url || String(body.image ?? existing?.image ?? ""),
+    images: extras.images ?? existing?.images,
     personalisationPrice: extras.personalisationPrice,
-    description: String(body.description ?? ""),
-    channel: "both",
+    description: String(body.description ?? existing?.description ?? ""),
+    channel: "both" as const,
     stock: extras.stock,
     active: body.active !== false,
     freeShipping: body.freeShipping !== false,
-    categories: extras.categories,
-    imageAdjust: extras.imageAdjust,
-    colors: extras.colors,
-    materials: extras.materials,
-    sizes: extras.sizes,
-    tags: extras.tags,
+    categories: extras.categories ?? existing?.categories,
+    imageAdjust: extras.imageAdjust ?? existing?.imageAdjust,
+    colors: extras.colors ?? existing?.colors,
+    materials: extras.materials ?? existing?.materials,
+    sizes: extras.sizes ?? existing?.sizes,
+    tags: extras.tags ?? existing?.tags,
+    b2cOutOfStock: extras.b2cOutOfStock,
+    b2bOutOfScope: extras.b2bOutOfScope,
+    updatedAt: now,
+  };
+
+  if (existing) {
+    const set: Partial<AdminProduct> = {
+      ...shared,
+      listedBy: existing.listedBy,
+      createdAt: existing.createdAt,
+    };
+    if (scope === "retail") {
+      set.price = retailPrice;
+      set.priceIndia = extras.priceIndia;
+      set.priceUs = extras.priceUs;
+      set.compareAt = money(body.compareAt);
+      set.quantity = extras.quantity;
+    } else {
+      set.wholesaleFrom = wholesaleFrom;
+      set.wholesalePriceIndia = extras.wholesalePriceIndia;
+      set.wholesalePriceUs = extras.wholesalePriceUs;
+      set.quantity = extras.quantity;
+    }
+    await col.updateOne({ _id: existing._id }, { $set: set });
+    return NextResponse.json({ id: String(existing._id), updated: true });
+  }
+
+  const doc: Omit<AdminProduct, "_id"> = {
+    ...shared,
+    price: scope === "retail" ? retailPrice : wholesaleFrom ?? 0,
+    compareAt: money(body.compareAt),
+    wholesaleFrom,
+    wholesalePriceIndia: extras.wholesalePriceIndia,
+    wholesalePriceUs: extras.wholesalePriceUs,
+    quantity: extras.quantity,
     priceIndia: extras.priceIndia,
     priceUs: extras.priceUs,
     listedBy: {
@@ -166,19 +215,7 @@ export async function POST(req: Request) {
       email: session.user.email || "",
     },
     createdAt: now,
-    updatedAt: now,
   };
-
-  const db = await getDb();
-  const col = db.collection<AdminProduct>("products");
-  const existing = await col.findOne({ slug: doc.slug });
-  if (existing) {
-    await col.updateOne(
-      { _id: existing._id },
-      { $set: { ...doc, listedBy: existing.listedBy ?? doc.listedBy, createdAt: existing.createdAt, updatedAt: now } }
-    );
-    return NextResponse.json({ id: String(existing._id), updated: true });
-  }
   const result = await col.insertOne(doc);
   return NextResponse.json({ id: String(result.insertedId) });
 }

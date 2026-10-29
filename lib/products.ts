@@ -33,6 +33,8 @@ export type Product = {
   description: string;
   story: string;
   wholesaleFrom?: number;
+  wholesalePriceIndia?: number;
+  wholesalePriceUs?: number;
   freeShipping?: boolean;
   moq?: number;
   featured?: boolean;

@@ -31,15 +31,25 @@ export function saleIsLive(sale: ShopSale, now = new Date()) {
 
 export function saleAppliesTo(sale: ShopSale, slug: string, now = new Date()) {
   if (!saleIsLive(sale, now)) return false;
-  if (sale.region.trim().toLowerCase() !== "everywhere") return false;
+  // Region-limited sales still show the discount on the site; checkout currency stays USD.
   if (sale.scope === "selected" && !sale.productSlugs.includes(slug)) return false;
   return true;
 }
 
-export function applySales<T extends { slug: string; price: number; compareAt?: number; priceIndia?: number; priceUs?: number; saleTerms?: string; salePercent?: number }>(
-  product: T,
-  sales: ShopSale[]
-): T {
+export function applySales<
+  T extends {
+    slug: string;
+    price: number;
+    compareAt?: number;
+    priceIndia?: number;
+    priceUs?: number;
+    wholesaleFrom?: number;
+    wholesalePriceIndia?: number;
+    wholesalePriceUs?: number;
+    saleTerms?: string;
+    salePercent?: number;
+  },
+>(product: T, sales: ShopSale[]): T {
   const matches = sales.filter((sale) => saleAppliesTo(sale, product.slug));
   if (!matches.length) return product;
   const best = matches.reduce((a, b) => (a.percent > b.percent ? a : b));
@@ -50,6 +60,10 @@ export function applySales<T extends { slug: string; price: number; compareAt?: 
     compareAt: product.compareAt != null && product.compareAt > product.price ? product.compareAt : product.price,
     priceIndia: product.priceIndia != null ? cut(product.priceIndia) : product.priceIndia,
     priceUs: product.priceUs != null ? cut(product.priceUs) : product.priceUs,
+    wholesaleFrom: product.wholesaleFrom != null ? cut(product.wholesaleFrom) : product.wholesaleFrom,
+    wholesalePriceIndia:
+      product.wholesalePriceIndia != null ? cut(product.wholesalePriceIndia) : product.wholesalePriceIndia,
+    wholesalePriceUs: product.wholesalePriceUs != null ? cut(product.wholesalePriceUs) : product.wholesalePriceUs,
     saleTerms: best.terms || undefined,
     salePercent: best.percent,
   };

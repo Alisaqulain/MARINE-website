@@ -11,7 +11,7 @@ export default auth((req) => {
   const user = req.auth?.user;
 
   if (wholesalePathRequiresAuth(pathname) && user?.role === "customer") {
-    return NextResponse.redirect(new URL("/shop?notice=retail-wholesale", origin));
+    return NextResponse.redirect(new URL("/retail?notice=retail-wholesale", origin));
   }
 
   if (wholesalePathRequiresAuth(pathname) && !user) {

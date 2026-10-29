@@ -11,10 +11,10 @@ const btnBase =
   "inline-flex items-center justify-center whitespace-nowrap rounded-full text-center font-semibold uppercase transition duration-300";
 
 const btnPad =
-  "box-border h-8 w-[10rem] px-2.5 text-[7.5px] tracking-[0.05em] sm:h-9 sm:w-[11.25rem] sm:text-[8px] md:h-9 md:w-[12.25rem] md:px-3 md:text-[9px] md:tracking-[0.08em] lg:h-10 lg:w-[13.5rem] lg:px-4 lg:text-[10px]";
+  "box-border h-9 w-[11.5rem] px-2.5 text-[10px] tracking-[0.05em] sm:h-9 sm:w-[11.25rem] sm:text-[8px] md:h-9 md:w-[12.25rem] md:px-3 md:text-[9px] md:tracking-[0.08em] lg:h-10 lg:w-[13.5rem] lg:px-4 lg:text-[10px]";
 
 const heroBtnPad =
-  "box-border h-10 w-[12.75rem] px-3 text-[9px] tracking-[0.06em] sm:h-11 sm:w-[14.75rem] sm:text-[11px] md:h-12 md:w-[16.25rem] md:px-4 md:text-[12px] md:tracking-[0.08em] lg:h-[3.25rem] lg:w-[18rem] lg:text-[13px]";
+  "box-border h-11 w-[14rem] px-3 text-[12px] tracking-[0.06em] sm:h-11 sm:w-[14.75rem] sm:text-[11px] md:h-12 md:w-[16.25rem] md:px-4 md:text-[12px] md:tracking-[0.08em] lg:h-[3.25rem] lg:w-[18rem] lg:text-[13px]";
 
 const arrowCls =
   "absolute top-1/2 z-30 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-white/35 bg-[#081525]/50 text-white shadow-[0_4px_16px_rgba(0,0,0,0.28)] backdrop-blur-sm transition hover:bg-[#081525]/80 sm:h-10 sm:w-10 lg:h-11 lg:w-11";
@@ -168,7 +168,7 @@ export function HomeHero() {
               } ${slide.mobileDock ? "sm:flex-col sm:items-stretch sm:justify-start" : ""}`}
             >
               <Link
-                href="/shop"
+                href="/retail"
                 className={`${btnBase} ${i === 0 ? heroBtnPad : btnPad} shadow-[0_4px_12px_rgba(0,0,0,0.3)] ${slide.primaryCls}`}
               >
                 Retail Collection
@@ -267,18 +267,18 @@ export function HomeHero() {
 
       <div className="flex divide-x divide-[#C9A84C]/35 border-t border-[#C9A84C]/40 bg-[#031D38] text-[#F3E6C8] sm:hidden">
         <Link
-          href="/shop"
-          className="flex min-w-0 flex-1 items-center justify-center gap-1.5 px-2 py-2.5 transition hover:bg-[#0B1D36]"
+          href="/retail"
+          className="flex min-w-0 flex-1 items-center justify-center gap-1.5 px-2 py-3.5 transition hover:bg-[#0B1D36]"
         >
-          <ShoppingBag className="h-4 w-4 shrink-0 text-[#C9A84C]" strokeWidth={1.7} />
-          <span className="text-center text-[9px] font-semibold leading-tight">Retail Collection</span>
+          <ShoppingBag className="h-5 w-5 shrink-0 text-[#C9A84C]" strokeWidth={1.7} />
+          <span className="text-center text-[15px] font-bold leading-tight tracking-wide">Retail Collection</span>
         </Link>
         <WholesaleNavLink
           callbackUrl="/wholesale"
-          className="flex min-w-0 flex-1 items-center justify-center gap-1.5 px-2 py-2.5 transition hover:bg-[#0B1D36]"
+          className="flex min-w-0 flex-1 items-center justify-center gap-1.5 px-2 py-3.5 transition hover:bg-[#0B1D36]"
         >
-          <Briefcase className="h-4 w-4 shrink-0 text-[#C9A84C]" strokeWidth={1.7} />
-          <span className="text-center text-[9px] font-semibold leading-tight">Wholesale Collection</span>
+          <Briefcase className="h-5 w-5 shrink-0 text-[#C9A84C]" strokeWidth={1.7} />
+          <span className="text-center text-[15px] font-bold leading-tight tracking-wide">Wholesale Collection</span>
         </WholesaleNavLink>
       </div>
     </section>

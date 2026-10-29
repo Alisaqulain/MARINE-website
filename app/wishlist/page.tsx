@@ -12,7 +12,7 @@ export default function WishlistPage() {
       <div className="mx-auto max-w-xl px-4 py-24 text-center">
         <h1 className="font-serif text-3xl md:text-5xl">Your wishlist is empty</h1>
         <p className="mt-3 text-navy-600">Tap the heart on any product image to save it here.</p>
-        <Link href="/shop" className="btn-gold mt-8">
+        <Link href="/retail" className="btn-gold mt-8">
           Shop Now
         </Link>
       </div>

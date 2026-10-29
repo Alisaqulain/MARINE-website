@@ -59,6 +59,8 @@ export type OrderRecord = {
   emailSent?: boolean;
   tracking?: OrderTracking;
   shipment?: OrderShipment;
+  /** First-party attribution session. Optional and unused by payment. */
+  sessionId?: string;
 };
 
 export function defaultTracking(): OrderTracking {

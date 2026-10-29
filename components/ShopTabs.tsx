@@ -50,11 +50,25 @@ export function ShopTabs({
         p.material.toLowerCase().includes(q)
       );
     });
+    const outMarked = (p: (typeof next)[number]) =>
+      wholesale ? p.b2bOutOfScope === true : p.b2cOutOfStock === true;
+    if (sort === "on-sale") next = next.filter((p) => (p.salePercent ?? 0) > 0);
+    if (sort === "in-stock") {
+      next = next.filter((p) => !outMarked(p) && (p.quantity == null || p.quantity > 0));
+    }
+    if (sort === "out-of-stock") {
+      next = next.filter((p) => outMarked(p) || (p.quantity != null && p.quantity <= 0));
+    }
+    if (sort === "low-stock") {
+      next = next.filter(
+        (p) => !outMarked(p) && p.quantity != null && p.quantity > 0 && p.quantity <= 5
+      );
+    }
     if (sort === "price-asc") next = [...next].sort((a, b) => a.price - b.price);
     if (sort === "price-desc") next = [...next].sort((a, b) => b.price - a.price);
     if (sort === "rating") next = [...next].sort((a, b) => b.rating - a.rating);
     return next;
-  }, [base, query, sort]);
+  }, [base, query, sort, wholesale]);
 
   return (
     <div className="bg-white">
@@ -143,6 +157,10 @@ export function ShopTabs({
               <option value="price-asc">Price: Low to high</option>
               <option value="price-desc">Price: High to low</option>
               <option value="rating">Top rated</option>
+              <option value="on-sale">Run a sale</option>
+              <option value="in-stock">In stock</option>
+              <option value="out-of-stock">Out of stock</option>
+              <option value="low-stock">Low stock (1–5)</option>
             </select>
           ) : null}
 

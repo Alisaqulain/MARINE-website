@@ -25,7 +25,7 @@ export function ShopCategoryLinks() {
         {categories.map((category) => (
           <li key={category.slug} className="flex flex-wrap justify-center gap-2">
             <Link
-              href={`/shop?category=${category.slug}`}
+              href={`/retail?category=${category.slug}`}
               className="rounded-full border border-[#e6dfd2] bg-white px-3 py-1.5 text-sm text-navy-800 hover:border-[#C9A84C]"
             >
               {category.name}

@@ -1,17 +1,32 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { isPriceRegion, REGION_COOKIE, regionFromCountry, regionalPrice, type PriceRegion } from "./region";
+import {
+  displayPriceFor,
+  isPriceRegion,
+  REGION_COOKIE,
+  regionFromCountry,
+  type PriceRegion,
+} from "./region";
+
+type PricedProduct = {
+  price: number;
+  priceIndia?: number;
+  priceUs?: number;
+  wholesaleFrom?: number;
+  wholesalePriceIndia?: number;
+  wholesalePriceUs?: number;
+};
 
 type RegionContextValue = {
   region: PriceRegion;
   /** Price for the visitor's location, in US dollars. */
-  priceFor: (product: { price: number; priceIndia?: number; priceUs?: number }) => number;
+  priceFor: (product: PricedProduct, wholesale?: boolean) => number;
 };
 
 const RegionContext = createContext<RegionContextValue>({
   region: "other",
-  priceFor: (product) => product.price,
+  priceFor: (product, wholesale = false) => displayPriceFor(product, "other", wholesale),
 });
 
 function readCookie(): PriceRegion | null {
@@ -66,7 +81,9 @@ export function RegionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <RegionContext.Provider value={{ region, priceFor: (product) => regionalPrice(product, region) }}>
+    <RegionContext.Provider
+      value={{ region, priceFor: (product, wholesale = false) => displayPriceFor(product, region, wholesale) }}
+    >
       {children}
     </RegionContext.Provider>
   );

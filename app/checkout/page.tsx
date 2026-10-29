@@ -24,7 +24,7 @@ function CheckoutForm() {
     return (
       <div className="mx-auto max-w-xl px-4 py-24 text-center">
         <h1 className="font-serif text-3xl md:text-4xl">Nothing to check out</h1>
-        <Link href="/shop" className="btn-gold mt-8">
+        <Link href="/retail" className="btn-gold mt-8">
           Shop
         </Link>
       </div>
@@ -47,6 +47,13 @@ function CheckoutForm() {
       postal: form.get("postal"),
       country: form.get("country"),
       whatsapp,
+      sessionId: (() => {
+        try {
+          return sessionStorage.getItem("marina-attr-session") || undefined;
+        } catch {
+          return undefined;
+        }
+      })(),
     };
     try {
       const res = await fetch("/api/paypal/order", {

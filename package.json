@@ -9,7 +9,8 @@
     "dev": "next dev --turbopack",
     "build": "next build && node scripts/verify-build-static.mjs",
     "start": "next start -H 0.0.0.0",
-    "check:mongo": "node scripts/check-mongo-env.mjs"
+    "check:mongo": "node scripts/check-mongo-env.mjs",
+    "check:whatsapp": "node scripts/check-whatsapp-coexistence.ts"
   },
   "dependencies": {
     "autoprefixer": "^10.4.21",

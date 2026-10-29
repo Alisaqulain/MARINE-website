@@ -11,6 +11,8 @@ export type AdminProductRow = {
   price: number;
   compareAt?: number;
   wholesaleFrom?: number;
+  wholesalePriceIndia?: number;
+  wholesalePriceUs?: number;
   quantity?: number;
   b2cOutOfStock?: boolean;
   b2bOutOfScope?: boolean;
@@ -53,7 +55,7 @@ export type AdminProductRow = {
 export const ADMIN_PRODUCT_SORTS = ["newest", "oldest", "updated", "name-asc", "name-desc", "price-asc", "price-desc"] as const;
 export type AdminProductSort = (typeof ADMIN_PRODUCT_SORTS)[number];
 
-export const ADMIN_PRODUCT_FILTERS = ["all", "added", "catalog", "in-stock", "low-stock", "out-of-stock", "hidden"] as const;
+export const ADMIN_PRODUCT_FILTERS = ["all", "added", "catalog", "in-stock", "low-stock", "out-of-stock", "on-sale", "hidden"] as const;
 export type AdminProductFilter = (typeof ADMIN_PRODUCT_FILTERS)[number];
 
 const time = (value?: string) => (value ? Date.parse(value) || 0 : 0);
@@ -79,18 +81,34 @@ export function sortAdminProducts(rows: AdminProductRow[], sort: AdminProductSor
   }
 }
 
-export function filterAdminProducts(rows: AdminProductRow[], filter: AdminProductFilter): AdminProductRow[] {
+export function filterAdminProducts(
+  rows: AdminProductRow[],
+  filter: AdminProductFilter,
+  onSaleSlugs?: Set<string>,
+  channel?: "retail" | "wholesale" | null
+): AdminProductRow[] {
+  const markedOut =
+    channel === "wholesale"
+      ? (p: AdminProductRow) => p.b2bOutOfScope === true
+      : channel === "retail"
+        ? (p: AdminProductRow) => p.b2cOutOfStock === true
+        : (p: AdminProductRow) => p.b2cOutOfStock === true || p.b2bOutOfScope === true;
+
   switch (filter) {
     case "added":
       return rows.filter((p) => p.source === "mongodb");
     case "catalog":
       return rows.filter((p) => p.source === "catalog");
     case "in-stock":
-      return rows.filter((p) => !p.b2cOutOfStock && (p.quantity == null || p.quantity > 0));
+      return rows.filter((p) => !markedOut(p) && (p.quantity == null || p.quantity > 0));
     case "low-stock":
-      return rows.filter((p) => p.quantity != null && p.quantity > 0 && p.quantity <= 5);
+      return rows.filter(
+        (p) => !markedOut(p) && p.quantity != null && p.quantity > 0 && p.quantity <= 5
+      );
     case "out-of-stock":
-      return rows.filter((p) => p.b2cOutOfStock || p.b2bOutOfScope || (p.quantity != null && p.quantity <= 0));
+      return rows.filter((p) => markedOut(p) || (p.quantity != null && p.quantity <= 0));
+    case "on-sale":
+      return rows.filter((p) => onSaleSlugs?.has(p.slug));
     case "hidden":
       return rows.filter((p) => p.active === false);
     default:
@@ -118,6 +136,8 @@ function catalogProductToRow(p: Product): AdminProductRow {
     price: p.price,
     compareAt: p.compareAt,
     wholesaleFrom: p.wholesaleFrom,
+    wholesalePriceIndia: p.wholesalePriceIndia,
+    wholesalePriceUs: p.wholesalePriceUs,
     quantity: undefined,
     b2cOutOfStock: p.b2cOutOfStock,
     b2bOutOfScope: p.b2bOutOfScope,

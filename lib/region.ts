@@ -16,9 +16,35 @@ export function isPriceRegion(value: unknown): value is PriceRegion {
 
 type Priced = { price: number; priceIndia?: number; priceUs?: number };
 
+type WholesalePriced = Priced & {
+  wholesaleFrom?: number;
+  wholesalePriceIndia?: number;
+  wholesalePriceUs?: number;
+};
+
 /** India / US price when the admin set one, otherwise the default ("other countries") price. */
 export function regionalPrice(product: Priced, region: PriceRegion): number {
   if (region === "india" && product.priceIndia != null && Number.isFinite(product.priceIndia)) return product.priceIndia;
   if (region === "us" && product.priceUs != null && Number.isFinite(product.priceUs)) return product.priceUs;
   return product.price;
+}
+
+/** Wholesale shelf price for the visitor's location. Falls back to retail only when no wholesale price is set. */
+export function regionalWholesalePrice(product: WholesalePriced, region: PriceRegion): number {
+  if (region === "india" && product.wholesalePriceIndia != null && Number.isFinite(product.wholesalePriceIndia)) {
+    return product.wholesalePriceIndia;
+  }
+  if (region === "us" && product.wholesalePriceUs != null && Number.isFinite(product.wholesalePriceUs)) {
+    return product.wholesalePriceUs;
+  }
+  if (product.wholesaleFrom != null && Number.isFinite(product.wholesaleFrom)) return product.wholesaleFrom;
+  return regionalPrice(product, region);
+}
+
+export function displayPriceFor(
+  product: WholesalePriced,
+  region: PriceRegion,
+  wholesale = false
+): number {
+  return wholesale ? regionalWholesalePrice(product, region) : regionalPrice(product, region);
 }

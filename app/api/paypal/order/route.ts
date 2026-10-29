@@ -62,6 +62,7 @@ export async function POST(req: Request) {
     paymentMethod: "paypal",
     estimatedDelivery: estimatedDelivery(),
     createdAt: new Date().toISOString(),
+    sessionId: typeof body.sessionId === "string" ? body.sessionId.slice(0, 80) : undefined,
   });
 
   try {

@@ -93,12 +93,26 @@ export function ShopNowCatalog({ retail = false }: { retail?: boolean }) {
       );
     }
 
+    const outMarked = (p: (typeof next)[number]) =>
+      retail ? p.b2cOutOfStock === true : p.b2bOutOfScope === true;
+    if (sort === "on-sale") next = next.filter((p) => (p.salePercent ?? 0) > 0);
+    if (sort === "in-stock") {
+      next = next.filter((p) => !outMarked(p) && (p.quantity == null || p.quantity > 0));
+    }
+    if (sort === "out-of-stock") {
+      next = next.filter((p) => outMarked(p) || (p.quantity != null && p.quantity <= 0));
+    }
+    if (sort === "low-stock") {
+      next = next.filter(
+        (p) => !outMarked(p) && p.quantity != null && p.quantity > 0 && p.quantity <= 5
+      );
+    }
     if (sort === "price-asc") next.sort((a, b) => (a.wholesaleFrom ?? a.price) - (b.wholesaleFrom ?? b.price));
     if (sort === "price-desc") next.sort((a, b) => b.price - a.price);
     if (sort === "rating") next.sort((a, b) => b.rating - a.rating);
     if (sort === "new") next.reverse();
     return next;
-  }, [parent, sub, sort, query, catalogProducts]);
+  }, [parent, sub, sort, query, catalogProducts, retail]);
 
   const filtered = Boolean(sub || parent);
   const activeSlug = sub || parent;
@@ -310,13 +324,17 @@ export function ShopNowCatalog({ retail = false }: { retail?: boolean }) {
               <select
                 value={sort}
                 onChange={(e) => setSort(e.target.value)}
-                aria-label="Sort products"
-                className="max-w-[5.5rem] shrink-0 rounded-full border border-[#ddd] bg-white px-2 py-1.5 text-[11px] sm:max-w-none sm:px-3 sm:text-[12px] md:py-1.5 md:text-sm"
+                aria-label="Sort and filter products"
+                className="max-w-[7.5rem] shrink-0 rounded-full border border-[#ddd] bg-white px-2 py-1.5 text-[11px] sm:max-w-none sm:px-3 sm:text-[12px] md:py-1.5 md:text-sm"
               >
                 <option value="new">New</option>
                 <option value="price-asc">Price ↑</option>
                 <option value="price-desc">Price ↓</option>
                 <option value="rating">Top rated</option>
+                <option value="on-sale">Run a sale</option>
+                <option value="in-stock">In stock</option>
+                <option value="out-of-stock">Out of stock</option>
+                <option value="low-stock">Low stock (1–5)</option>
               </select>
               <div className="flex shrink-0 items-center gap-0.5 text-[#888] sm:gap-1.5">
                 <button

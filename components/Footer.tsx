@@ -110,7 +110,7 @@ export function Footer() {
     {
       title: t("footer.shop"),
       links: [
-        [t("footer.link.retail"), "/shop"],
+        [t("footer.link.retail"), "/retail"],
         [t("footer.link.collections"), "/collections"],
         [t("footer.link.wishlist"), "/wishlist"],
         [t("footer.link.cart"), "/cart"],

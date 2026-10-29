@@ -16,6 +16,8 @@ import {
   Star,
   BookOpen,
   Truck,
+  Sparkles,
+  MessageCircle,
 } from "lucide-react";
 import Link from "next/link";
 import { signOut, useSession } from "next-auth/react";
@@ -24,6 +26,8 @@ import { AdminCategoriesPanel } from "@/components/AdminCategoriesPanel";
 import { AdminProductList } from "@/components/AdminProductList";
 import { AdminSalePanel } from "@/components/AdminSalePanel";
 import { AdminShipmentsPanel } from "@/components/AdminShipmentsPanel";
+import { AdminAiPanel } from "@/components/AdminAiPanel";
+import { AdminWhatsAppPanel } from "@/components/AdminWhatsAppPanel";
 import { AdminTeamPanel } from "@/components/AdminTeamPanel";
 import { BulkActions, deleteUrls, useRowSelection } from "@/components/AdminSelection";
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
@@ -52,7 +56,9 @@ type Tab =
   | "blog"
   | "users"
   | "visitors"
-  | "team";
+  | "team"
+  | "ai"
+  | "whatsapp";
 
 export function AdminDashboard() {
   const { data: session } = useSession();
@@ -85,6 +91,9 @@ export function AdminDashboard() {
       "users",
       "visitors",
       "team",
+      "ai",
+      "whatsapp",
+      "shipments",
     ];
     if (saved && allowed.includes(saved as Tab)) setTab(saved as Tab);
     setRestored(true);
@@ -134,6 +143,8 @@ export function AdminDashboard() {
     priceUs: "",
     compareAt: "",
     wholesaleFrom: "",
+    wholesalePriceIndia: "",
+    wholesalePriceUs: "",
     quantity: "",
     b2cOutOfStock: false,
     b2bOutOfScope: false,
@@ -185,6 +196,10 @@ export function AdminDashboard() {
   const [visitors, setVisitors] = useState<Record<string, unknown>[]>([]);
   const [visitorPage, setVisitorPage] = useState(1);
   const [visitorSummary, setVisitorSummary] = useState({ totalVisitors: 0, today: 0, last7Days: 0 });
+  const [listingViews, setListingViews] = useState<{ totalViews: number; listings: { slug: string; views: number }[] }>({
+    totalViews: 0,
+    listings: [],
+  });
   const [visitorPagination, setVisitorPagination] = useState({
     total: 0,
     totalPages: 1,
@@ -234,6 +249,7 @@ export function AdminDashboard() {
     setVisitors(data.items ?? []);
     setVisitorSummary(data.summary ?? { totalVisitors: 0, today: 0, last7Days: 0 });
     setVisitorPagination(data.pagination ?? { total: 0, totalPages: 1, pageSize: 25 });
+    setListingViews(data.listingViews ?? { totalViews: 0, listings: [] });
   }, [visitorPage]);
 
   useEffect(() => {
@@ -290,6 +306,8 @@ export function AdminDashboard() {
           { id: "applications", label: "Trade accounts", icon: Users },
           { id: "contacts", label: "Contact", icon: MessageSquare },
           { id: "shipments", label: "ShipGlobal", icon: Truck },
+          { id: "ai", label: "Marina AI", icon: Sparkles },
+          { id: "whatsapp", label: "WhatsApp", icon: MessageCircle },
           { id: "testimonials", label: "Reviews", icon: Star },
           { id: "blog", label: "Blog", icon: BookOpen },
           ...teamNav,
@@ -308,6 +326,8 @@ export function AdminDashboard() {
           { id: "contacts", label: "Contact", icon: MessageSquare },
           { id: "returns", label: "Returns", icon: RotateCcw },
           { id: "shipments", label: "ShipGlobal", icon: Truck },
+          { id: "ai", label: "Marina AI", icon: Sparkles },
+          { id: "whatsapp", label: "WhatsApp", icon: MessageCircle },
           { id: "testimonials", label: "Reviews", icon: Star },
           { id: "blog", label: "Blog", icon: BookOpen },
           { id: "visitors", label: "Website visitors", icon: Eye },
@@ -318,13 +338,16 @@ export function AdminDashboard() {
     return {
       ...productForm,
       slug: editing?.slug,
-      channel: panel === "wholesale" ? "wholesale" : "retail",
+      channel: "both",
+      priceScope: panel === "wholesale" ? "wholesale" : "retail",
       price: productForm.price,
       priceIndia: productForm.priceIndia,
       priceUs: productForm.priceUs,
       tags: productForm.tags,
       compareAt: productForm.compareAt,
       wholesaleFrom: productForm.wholesaleFrom,
+      wholesalePriceIndia: productForm.wholesalePriceIndia,
+      wholesalePriceUs: productForm.wholesalePriceUs,
       quantity: productForm.quantity,
       b2cOutOfStock: productForm.b2cOutOfStock,
       b2bOutOfScope: productForm.b2bOutOfScope,
@@ -344,6 +367,13 @@ export function AdminDashboard() {
 
   async function saveProduct(e: React.FormEvent) {
     e.preventDefault();
+    if (panel === "wholesale") {
+      const qty = productForm.quantity === "" ? NaN : Number(productForm.quantity);
+      if (!Number.isFinite(qty) || qty < 20) {
+        window.alert("Wholesale quantity in stock must be at least 20.");
+        return;
+      }
+    }
     const payload = productPayload();
 
     if (editing?.mongoId) {
@@ -379,6 +409,8 @@ export function AdminDashboard() {
       priceUs: p.priceUs != null && p.priceUs !== "" ? String(p.priceUs) : "",
       compareAt: p.compareAt != null && p.compareAt !== "" ? String(p.compareAt) : "",
       wholesaleFrom: p.wholesaleFrom != null ? String(p.wholesaleFrom) : "",
+      wholesalePriceIndia: p.wholesalePriceIndia != null && p.wholesalePriceIndia !== "" ? String(p.wholesalePriceIndia) : "",
+      wholesalePriceUs: p.wholesalePriceUs != null && p.wholesalePriceUs !== "" ? String(p.wholesalePriceUs) : "",
       quantity: p.quantity != null ? String(p.quantity) : "",
       b2cOutOfStock: p.b2cOutOfStock === true,
       b2bOutOfScope: p.b2bOutOfScope === true,
@@ -582,18 +614,27 @@ export function AdminDashboard() {
         <main className="flex-1 p-4 lg:p-8">
           {tab === "overview" ? (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <Stat label="Products" value={String(productCatalogTotal)} />
-              <Stat label="Website visitors" value={String(visitorSummary.totalVisitors)} />
-              <Stat label="Contacts" value={String(contacts.length)} />
               {panel === "wholesale" ? (
                 <>
-                  <Stat label="Quotes" value={String(quotes.length)} />
-                  <Stat label="Trade apps" value={String(applications.length)} />
+                  <Stat label="Products" value={String(productCatalogTotal)} onClick={() => setTab("products")} />
+                  <Stat label="Customers" value={String(users.length)} onClick={() => setTab("users")} />
+                  <Stat label="Bulk quotes" value={String(quotes.length)} onClick={() => setTab("quotes")} />
+                  <Stat label="Trade accounts" value={String(applications.length)} onClick={() => setTab("applications")} />
                 </>
               ) : (
                 <>
-                  <Stat label="Customers" value={String(users.length)} />
-                  <Stat label="Returns" value={String(returns.length)} />
+                  <Stat label="Products" value={String(productCatalogTotal)} onClick={() => setTab("products")} />
+                  <Stat label="Customers" value={String(users.length)} onClick={() => setTab("users")} />
+                  <Stat label="Website visitors" value={String(visitorSummary.totalVisitors)} onClick={() => setTab("visitors")} />
+                  <Stat
+                    label="Categories"
+                    value={String(listingCategories().length + extraCategories.length)}
+                    onClick={() => setTab(canAddProduct ? "categories" : "products")}
+                  />
+                  <Stat label="Contacts" value={String(contacts.length)} onClick={() => setTab("contacts")} />
+                  <Stat label="Returns" value={String(returns.length)} onClick={() => setTab("returns")} />
+                  <Stat label="Reviews" value="Open" onClick={() => setTab("testimonials")} />
+                  <Stat label="Blog" value="Open" onClick={() => setTab("blog")} />
                 </>
               )}
             </div>
@@ -662,9 +703,10 @@ export function AdminDashboard() {
                       <option value="all">All products</option>
                       <option value="added">Added in admin</option>
                       <option value="catalog">Built-in catalogue</option>
+                      <option value="on-sale">Run a sale</option>
                       <option value="in-stock">In stock</option>
+                      <option value="out-of-stock">Out of stock</option>
                       <option value="low-stock">Low stock (1–5)</option>
-                      <option value="out-of-stock">Out of stock / scope</option>
                       <option value="hidden">Deactivated</option>
                     </select>
                   </label>
@@ -693,6 +735,7 @@ export function AdminDashboard() {
                   onDeleteSelected={(ids) => void deleteProducts(ids)}
                   onChanged={() => void load()}
                   onRunSale={() => setTab("sales")}
+                  priceMode={panel === "wholesale" ? "wholesale" : "retail"}
                 />
 
               </div>
@@ -765,53 +808,117 @@ export function AdminDashboard() {
                   </div>
                 </fieldset>
                 <fieldset className="space-y-2">
-                  <legend className="text-xs font-semibold uppercase tracking-wide text-navy-600">Price and inventory</legend>
+                  <legend className="text-xs font-semibold uppercase tracking-wide text-navy-600">
+                    {panel === "wholesale" ? "Wholesale price (US$)" : "Retail price (US$)"}
+                  </legend>
                   <p className="text-[10px] text-navy-500">
-                    Three prices, all in US dollars. Visitors in India see the India price, visitors in the United States see the US price, and every other country sees the Other price.
+                    Three prices, all in US dollars. Saving here updates only this panel — retail and wholesale prices stay separate.
                   </p>
-                  <div className="grid gap-2 sm:grid-cols-3">
-                    <label className="block text-xs">
-                      <span className="mb-1 block text-navy-600">1. India · US$</span>
-                      <input className="input" type="number" step="0.01" min={0} value={productForm.priceIndia} onChange={(e) => setProductForm({ ...productForm, priceIndia: e.target.value })} />
-                    </label>
-                    <label className="block text-xs">
-                      <span className="mb-1 block text-navy-600">2. United States · US$</span>
-                      <input className="input" type="number" step="0.01" min={0} value={productForm.priceUs} onChange={(e) => setProductForm({ ...productForm, priceUs: e.target.value })} />
-                    </label>
-                    <label className="block text-xs">
-                      <span className="mb-1 block text-navy-600">3. Other countries · US$</span>
-                      <input className="input" type="number" step="0.01" min={0} value={productForm.price} onChange={(e) => setProductForm({ ...productForm, price: e.target.value })} required />
-                    </label>
-                  </div>
+                  {panel === "wholesale" ? (
+                    <div className="grid gap-2 sm:grid-cols-3">
+                      <label className="block text-xs">
+                        <span className="mb-1 block text-navy-600">1. India · US$</span>
+                        <input
+                          className="input"
+                          type="number"
+                          inputMode="decimal"
+                          step="0.01"
+                          min={0}
+                          value={productForm.wholesalePriceIndia}
+                          onChange={(e) => setProductForm({ ...productForm, wholesalePriceIndia: e.target.value })}
+                        />
+                      </label>
+                      <label className="block text-xs">
+                        <span className="mb-1 block text-navy-600">2. United States · US$</span>
+                        <input
+                          className="input"
+                          type="number"
+                          inputMode="decimal"
+                          step="0.01"
+                          min={0}
+                          value={productForm.wholesalePriceUs}
+                          onChange={(e) => setProductForm({ ...productForm, wholesalePriceUs: e.target.value })}
+                        />
+                      </label>
+                      <label className="block text-xs">
+                        <span className="mb-1 block text-navy-600">3. Other countries · US$</span>
+                        <input
+                          className="input"
+                          type="number"
+                          inputMode="decimal"
+                          step="0.01"
+                          min={0}
+                          value={productForm.wholesaleFrom}
+                          onChange={(e) => setProductForm({ ...productForm, wholesaleFrom: e.target.value })}
+                          required
+                        />
+                      </label>
+                    </div>
+                  ) : (
+                    <div className="grid gap-2 sm:grid-cols-3">
+                      <label className="block text-xs">
+                        <span className="mb-1 block text-navy-600">1. India · US$</span>
+                        <input
+                          className="input"
+                          type="number"
+                          inputMode="decimal"
+                          step="0.01"
+                          min={0}
+                          value={productForm.priceIndia}
+                          onChange={(e) => setProductForm({ ...productForm, priceIndia: e.target.value })}
+                        />
+                      </label>
+                      <label className="block text-xs">
+                        <span className="mb-1 block text-navy-600">2. United States · US$</span>
+                        <input
+                          className="input"
+                          type="number"
+                          inputMode="decimal"
+                          step="0.01"
+                          min={0}
+                          value={productForm.priceUs}
+                          onChange={(e) => setProductForm({ ...productForm, priceUs: e.target.value })}
+                        />
+                      </label>
+                      <label className="block text-xs">
+                        <span className="mb-1 block text-navy-600">3. Other countries · US$</span>
+                        <input
+                          className="input"
+                          type="number"
+                          inputMode="decimal"
+                          step="0.01"
+                          min={0}
+                          value={productForm.price}
+                          onChange={(e) => setProductForm({ ...productForm, price: e.target.value })}
+                          required
+                        />
+                      </label>
+                    </div>
+                  )}
                 </fieldset>
-                {panel === "wholesale" ? (
-                  <input
-                    className="input"
-                    placeholder="Wholesale from ($)"
-                    type="number"
-                    step="0.01"
-                    value={productForm.wholesaleFrom}
-                    onChange={(e) => setProductForm({ ...productForm, wholesaleFrom: e.target.value })}
-                  />
-                ) : null}
                 <label className="block text-xs">
                   <span className="mb-1 block text-navy-600">Quantity in stock</span>
                   <input
                     className="input"
                     type="number"
-                    min={0}
+                    min={panel === "wholesale" ? 20 : 0}
                     step={1}
-                    placeholder="e.g. 100"
+                    placeholder={panel === "wholesale" ? "Min 20" : "e.g. 100"}
                     value={productForm.quantity}
                     onChange={(e) => setProductForm({ ...productForm, quantity: e.target.value })}
+                    required={panel === "wholesale"}
                   />
-                  {lowStockMessage(productForm.quantity === "" ? undefined : Number(productForm.quantity)) ? (
+                  {panel === "wholesale" ? (
+                    <span className="mt-1 block text-[11px] font-semibold text-red-700">
+                      Min. stock for wholesale is 20
+                    </span>
+                  ) : lowStockMessage(productForm.quantity === "" ? undefined : Number(productForm.quantity)) ? (
                     <span className="mt-1 block text-[11px] font-medium text-[#9a3412]">
                       {lowStockMessage(Number(productForm.quantity))}
                     </span>
                   ) : (
                     <span className="mt-1 block text-[10px] text-navy-500">
-                      5 or fewer shows “Low in stock, only 2 left” on the B2C shop (not on B2B).
+                      Shared inventory for retail and wholesale. 5 or fewer shows a low-stock note on retail.
                     </span>
                   )}
                 </label>
@@ -819,38 +926,41 @@ export function AdminDashboard() {
                   <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-navy-600">
                     Availability
                   </legend>
-                  <label className="flex cursor-pointer items-start gap-2 text-sm text-navy-800">
-                    <input
-                      type="checkbox"
-                      className="mt-0.5"
-                      checked={productForm.b2cOutOfStock}
-                      onChange={(e) =>
-                        setProductForm({ ...productForm, b2cOutOfStock: e.target.checked })
-                      }
-                    />
-                    <span>
-                      <span className="block font-medium">B2C — Out of stock</span>
-                      <span className="block text-[10px] text-navy-500">
-                        Shows “Out of stock” and disables customer purchase.
+                  {panel === "wholesale" ? (
+                    <label className="flex cursor-pointer items-start gap-2 text-sm text-navy-800">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5"
+                        checked={productForm.b2bOutOfScope}
+                        onChange={(e) =>
+                          setProductForm({ ...productForm, b2bOutOfScope: e.target.checked })
+                        }
+                      />
+                      <span>
+                        <span className="block font-medium">Out of stock</span>
+                        <span className="block text-[10px] text-navy-500">
+                          Shows “Out of stock” on wholesale and disables wholesale purchase.
+                        </span>
                       </span>
-                    </span>
-                  </label>
-                  <label className="flex cursor-pointer items-start gap-2 text-sm text-navy-800">
-                    <input
-                      type="checkbox"
-                      className="mt-0.5"
-                      checked={productForm.b2bOutOfScope}
-                      onChange={(e) =>
-                        setProductForm({ ...productForm, b2bOutOfScope: e.target.checked })
-                      }
-                    />
-                    <span>
-                      <span className="block font-medium">B2B — Out of scope</span>
-                      <span className="block text-[10px] text-navy-500">
-                        Shows “Out of scope” and disables wholesale purchase.
+                    </label>
+                  ) : (
+                    <label className="flex cursor-pointer items-start gap-2 text-sm text-navy-800">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5"
+                        checked={productForm.b2cOutOfStock}
+                        onChange={(e) =>
+                          setProductForm({ ...productForm, b2cOutOfStock: e.target.checked })
+                        }
+                      />
+                      <span>
+                        <span className="block font-medium">Out of stock</span>
+                        <span className="block text-[10px] text-navy-500">
+                          Shows “Out of stock” on retail and disables customer purchase.
+                        </span>
                       </span>
-                    </span>
-                  </label>
+                    </label>
+                  )}
                 </fieldset>
                 <fieldset className="space-y-2">
                   <legend className="text-xs font-semibold uppercase tracking-wide text-navy-600">
@@ -903,14 +1013,15 @@ export function AdminDashboard() {
                   <input
                     className="input"
                     type="number"
+                    inputMode="decimal"
                     min={0}
                     step="0.01"
-                    placeholder="e.g. 5"
+                    placeholder="e.g. 5.50"
                     value={productForm.personalisationPrice}
                     onChange={(e) => setProductForm({ ...productForm, personalisationPrice: e.target.value })}
                   />
                   <span className="mt-1 block text-[10px] text-navy-500">
-                    No Personalisation shows the product price. Yes Personalisation shows this amount and adds it to the product price. Leave blank to hide it.
+                    Enter dollars and cents (e.g. 5.50). Leave blank to hide personalisation.
                   </span>
                 </label>
                 {(
@@ -943,12 +1054,49 @@ export function AdminDashboard() {
                   />
                   FREE shipping (show badge on retail shop cards)
                 </label>
-                <textarea
-                  className="input min-h-28 whitespace-pre-wrap"
-                  placeholder="Description. Press Enter for a new line. Spacing is kept on the product page."
-                  value={productForm.description}
-                  onChange={(e) => setProductForm({ ...productForm, description: e.target.value })}
-                />
+                <div className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-navy-600">Description</span>
+                    <button
+                      type="button"
+                      className="rounded border border-[#e6dfd2] px-2 py-0.5 text-xs font-bold"
+                      onClick={() => {
+                        const area = document.getElementById("admin-product-description") as HTMLTextAreaElement | null;
+                        if (!area) return;
+                        const start = area.selectionStart;
+                        const end = area.selectionEnd;
+                        const selected = productForm.description.slice(start, end) || "Heading";
+                        const next = `${productForm.description.slice(0, start)}**${selected}**${productForm.description.slice(end)}`;
+                        setProductForm({ ...productForm, description: next });
+                      }}
+                    >
+                      Bold
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded border border-[#e6dfd2] px-2 py-0.5 text-xs underline"
+                      onClick={() => {
+                        const area = document.getElementById("admin-product-description") as HTMLTextAreaElement | null;
+                        if (!area) return;
+                        const start = area.selectionStart;
+                        const end = area.selectionEnd;
+                        const selected = productForm.description.slice(start, end) || "Heading";
+                        const next = `${productForm.description.slice(0, start)}__${selected}__${productForm.description.slice(end)}`;
+                        setProductForm({ ...productForm, description: next });
+                      }}
+                    >
+                      Underline
+                    </button>
+                    <span className="text-[10px] text-navy-500">Select text, then Bold or Underline for a heading.</span>
+                  </div>
+                  <textarea
+                    id="admin-product-description"
+                    className="input min-h-28 whitespace-pre-wrap"
+                    placeholder="Description. Press Enter for a new line. Use Bold/Underline for headings."
+                    value={productForm.description}
+                    onChange={(e) => setProductForm({ ...productForm, description: e.target.value })}
+                  />
+                </div>
                 <div className="flex gap-2">
                   <button
                     type="button"
@@ -975,6 +1123,8 @@ export function AdminDashboard() {
           {tab === "categories" && canAddProduct ? <AdminCategoriesPanel /> : null}
 
           {tab === "shipments" ? <AdminShipmentsPanel /> : null}
+          {tab === "ai" ? <AdminAiPanel /> : null}
+          {tab === "whatsapp" ? <AdminWhatsAppPanel /> : null}
 
           {tab === "quotes" ? (
             <AdminDataTable
@@ -1092,10 +1242,31 @@ export function AdminDashboard() {
           {tab === "team" && manageTeam ? <AdminTeamPanel /> : null}
           {tab === "visitors" ? (
             <div className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <Stat label="Website visitors" value={String(visitorSummary.totalVisitors)} />
                 <Stat label="Today" value={String(visitorSummary.today)} />
                 <Stat label="Last 7 days" value={String(visitorSummary.last7Days)} />
+                <Stat label="Listing views" value={String(listingViews.totalViews)} />
+              </div>
+              <div className="rounded-xl bg-white p-5 shadow-sm">
+                <h3 className="font-serif text-lg text-navy-900">Shoppers viewed your listings</h3>
+                <p className="mt-1 text-sm text-navy-600">
+                  Shoppers viewed your listings <span className="font-semibold text-navy-900">{listingViews.totalViews}</span> times.
+                </p>
+                {listingViews.listings.length ? (
+                  <ul className="mt-4 max-h-64 space-y-2 overflow-y-auto text-sm">
+                    {listingViews.listings.slice(0, 25).map((row) => (
+                      <li key={row.slug} className="flex items-center justify-between gap-3 border-b border-[#f0ebe3] py-2">
+                        <a href={`/product/${row.slug}`} className="truncate text-navy-800 hover:text-[#8C6E28]">
+                          {row.slug}
+                        </a>
+                        <span className="shrink-0 font-semibold text-navy-900">{row.views}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-3 text-sm text-navy-500">No product page views recorded yet.</p>
+                )}
               </div>
               <div className="overflow-x-auto rounded-xl bg-white shadow-sm">
                 <div className="border-b bg-[#FAF7F2] px-4 py-3 text-xs text-navy-600">
@@ -1289,9 +1460,19 @@ function formatVisit(value: unknown) {
   });
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value, onClick }: { label: string; value: string; onClick?: () => void }) {
+  const className = `rounded-xl bg-white p-5 text-left shadow-sm ${onClick ? "transition hover:bg-[#FAF7F2] focus:outline-none focus:ring-2 focus:ring-[#C9A84C]/40" : ""}`;
+  if (onClick) {
+    return (
+      <button type="button" className={className} onClick={onClick}>
+        <p className="text-xs uppercase tracking-wider text-navy-500">{label}</p>
+        <p className="mt-2 font-serif text-3xl text-navy-900">{value}</p>
+        <p className="mt-1 text-[10px] text-[#8C6E28]">Open section →</p>
+      </button>
+    );
+  }
   return (
-    <div className="rounded-xl bg-white p-5 shadow-sm">
+    <div className={className}>
       <p className="text-xs uppercase tracking-wider text-navy-500">{label}</p>
       <p className="mt-2 font-serif text-3xl text-navy-900">{value}</p>
     </div>

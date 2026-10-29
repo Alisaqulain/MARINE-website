@@ -10,7 +10,7 @@ function adminToProduct(doc: AdminProduct): Product {
   return {
     slug: doc.slug,
     name: doc.name,
-    sku: doc.sku || doc.slug,
+    sku: doc.sku?.trim() || "",
     price: doc.price,
     compareAt: doc.compareAt,
     rating: 5,
@@ -46,8 +46,10 @@ function adminToProduct(doc: AdminProduct): Product {
     description: doc.description || doc.name,
     story: doc.description || "",
     wholesaleFrom: doc.wholesaleFrom,
+    wholesalePriceIndia: doc.wholesalePriceIndia,
+    wholesalePriceUs: doc.wholesalePriceUs,
     freeShipping: doc.freeShipping !== false,
-    moq: doc.wholesaleFrom ? 10 : undefined,
+    moq: doc.wholesaleFrom != null || doc.wholesalePriceIndia != null || doc.wholesalePriceUs != null ? 20 : undefined,
     featured: false,
   };
 }
@@ -105,7 +107,15 @@ export async function getStorefrontProducts(channel?: "retail" | "wholesale"): P
   ]);
   const activeSlugs = new Set(mongo.map((p) => p.slug));
   const catalog = products.filter((p) => activeSlugs.has(p.slug) || !deactivated.has(p.slug));
-  return mergeStorefrontProducts(catalog, mongo, channel).map((product) => applySales(product, sales));
+  return mergeStorefrontProducts(catalog, mongo, channel)
+    .map((product) => applySales(product, sales))
+    .sort((a, b) => {
+      const aMongo = mongo.find((item) => item.slug === a.slug);
+      const bMongo = mongo.find((item) => item.slug === b.slug);
+      if (aMongo && !bMongo) return -1;
+      if (!aMongo && bMongo) return 1;
+      return a.name.localeCompare(b.name);
+    });
 }
 
 export async function getStorefrontProduct(slug: string): Promise<Product | null> {

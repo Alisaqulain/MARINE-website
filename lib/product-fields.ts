@@ -27,6 +27,8 @@ export function parseProductExtras(body: Record<string, unknown>): Pick<
   | "tags"
   | "priceIndia"
   | "priceUs"
+  | "wholesalePriceIndia"
+  | "wholesalePriceUs"
   | "b2cOutOfStock"
   | "b2bOutOfScope"
 > {
@@ -77,6 +79,8 @@ export function parseProductExtras(body: Record<string, unknown>): Pick<
     tags: stringList(body.tags)?.slice(0, 13),
     priceIndia: money(body.priceIndia),
     priceUs: money(body.priceUs),
+    wholesalePriceIndia: money(body.wholesalePriceIndia),
+    wholesalePriceUs: money(body.wholesalePriceUs),
     b2cOutOfStock: body.b2cOutOfStock === true,
     b2bOutOfScope: body.b2bOutOfScope === true,
     stock,

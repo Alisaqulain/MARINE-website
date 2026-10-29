@@ -14,7 +14,7 @@ import { WholesaleNavLink } from "@/components/WholesaleNavLink";
 
 const navKeys = [
   { href: "/", key: "nav.home" },
-  { href: "/shop", key: "nav.shop" },
+  { href: "/retail", key: "nav.shop" },
   { href: "/wholesale", key: "nav.wholesale" },
   { href: "/custom-manufacturing", key: "nav.custom" },
   { href: "/shipping", key: "nav.shipping" },

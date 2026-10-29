@@ -7,24 +7,10 @@ import { parseProductExtras } from "@/lib/product-fields";
 
 type Ctx = { params: Promise<{ id: string }> };
 
-function parseBody(body: Record<string, unknown>) {
-  return {
-    name: body.name != null ? String(body.name) : undefined,
-    sku: body.sku != null ? String(body.sku) : undefined,
-    price: body.price != null ? Number(body.price) : undefined,
-    compareAt: body.compareAt != null && body.compareAt !== "" ? Number(body.compareAt) : undefined,
-    wholesaleFrom:
-      body.wholesaleFrom != null && body.wholesaleFrom !== "" ? Number(body.wholesaleFrom) : undefined,
-    quantity: body.quantity != null && body.quantity !== "" ? Number(body.quantity) : undefined,
-    image: body.image != null ? String(body.image) : undefined,
-    description: body.description != null ? String(body.description) : undefined,
-    channel:
-      body.channel === "wholesale" || body.channel === "retail" || body.channel === "both"
-        ? (body.channel as AdminProduct["channel"])
-        : undefined,
-    active: typeof body.active === "boolean" ? body.active : undefined,
-    freeShipping: typeof body.freeShipping === "boolean" ? body.freeShipping : undefined,
-  };
+function money(value: unknown) {
+  if (value == null || value === "") return undefined;
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.max(0, n) : undefined;
 }
 
 export async function PATCH(req: Request, ctx: Ctx) {
@@ -36,7 +22,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
   }
 
   const body = await req.json();
-  const fields = parseBody(body);
+  const scope = body.priceScope === "wholesale" ? "wholesale" : "retail";
   const extras = parseProductExtras(body);
   const update: Partial<AdminProduct> = {
     updatedAt: new Date(),
@@ -47,34 +33,53 @@ export async function PATCH(req: Request, ctx: Ctx) {
     sizes: extras.sizes,
     images: extras.images,
     personalisationPrice: extras.personalisationPrice,
-    quantity: extras.quantity,
     b2cOutOfStock: extras.b2cOutOfStock,
     b2bOutOfScope: extras.b2bOutOfScope,
     stock: extras.stock,
     channel: "both",
     tags: extras.tags,
-    priceIndia: extras.priceIndia,
-    priceUs: extras.priceUs,
   };
-  if (fields.name !== undefined) update.name = fields.name;
-  if (fields.sku !== undefined) update.sku = fields.sku;
-  if (fields.price !== undefined) update.price = fields.price;
-  if (fields.compareAt !== undefined) update.compareAt = fields.compareAt;
-  if (fields.wholesaleFrom !== undefined) update.wholesaleFrom = fields.wholesaleFrom;
-  if (fields.quantity !== undefined) update.quantity = fields.quantity;
-  if (fields.image !== undefined) update.image = fields.image;
-  if (fields.description !== undefined) update.description = fields.description;
-  if (fields.active !== undefined) update.active = fields.active;
-  if (fields.freeShipping !== undefined) update.freeShipping = fields.freeShipping;
+
+  if (body.name != null) update.name = String(body.name);
+  if (body.sku != null) update.sku = String(body.sku);
+  if (body.image != null) update.image = String(body.image);
+  if (body.description != null) update.description = String(body.description);
+  if (typeof body.active === "boolean") update.active = body.active;
+  if (typeof body.freeShipping === "boolean") update.freeShipping = body.freeShipping;
 
   const unset: Record<string, 1> = {};
-  if (body.priceIndia === "") {
-    delete update.priceIndia;
-    unset.priceIndia = 1;
-  }
-  if (body.priceUs === "") {
-    delete update.priceUs;
-    unset.priceUs = 1;
+
+  if (scope === "retail") {
+    if (body.price != null && body.price !== "") update.price = Number(body.price);
+    update.priceIndia = extras.priceIndia;
+    update.priceUs = extras.priceUs;
+    update.compareAt = money(body.compareAt);
+    update.quantity = extras.quantity;
+    if (body.priceIndia === "") {
+      delete update.priceIndia;
+      unset.priceIndia = 1;
+    }
+    if (body.priceUs === "") {
+      delete update.priceUs;
+      unset.priceUs = 1;
+    }
+  } else {
+    update.wholesaleFrom = money(body.wholesaleFrom);
+    update.wholesalePriceIndia = extras.wholesalePriceIndia;
+    update.wholesalePriceUs = extras.wholesalePriceUs;
+    if (body.wholesaleFrom === "") {
+      delete update.wholesaleFrom;
+      unset.wholesaleFrom = 1;
+    }
+    if (body.wholesalePriceIndia === "") {
+      delete update.wholesalePriceIndia;
+      unset.wholesalePriceIndia = 1;
+    }
+    if (body.wholesalePriceUs === "") {
+      delete update.wholesalePriceUs;
+      unset.wholesalePriceUs = 1;
+    }
+    update.quantity = extras.quantity;
   }
 
   const db = await getDb();

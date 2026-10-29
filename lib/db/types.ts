@@ -108,6 +108,9 @@ export type AdminProduct = {
   price: number;
   compareAt?: number;
   wholesaleFrom?: number;
+  /** Wholesale shelf prices in USD. `wholesaleFrom` is Everywhere else. */
+  wholesalePriceIndia?: number;
+  wholesalePriceUs?: number;
   quantity?: number;
   /** Manually prevent retail/B2C purchases, independently of quantity. */
   b2cOutOfStock?: boolean;

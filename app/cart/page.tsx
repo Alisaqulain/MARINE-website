@@ -14,7 +14,7 @@ export default function CartPage() {
       <div className="mx-auto max-w-xl px-4 py-24 text-center">
         <h1 className="font-serif text-3xl md:text-5xl">Your cart is empty</h1>
         <p className="mt-3 text-navy-600">The foundry is full. The bag is not.</p>
-        <Link href="/shop" className="btn-gold mt-8">
+        <Link href="/retail" className="btn-gold mt-8">
           Shop Now
         </Link>
       </div>
@@ -65,7 +65,7 @@ export default function CartPage() {
                     </button>
                   </div>
                   {b2b && (
-                    <span className="whitespace-nowrap text-xs text-[#8C6E28]">Min. Order: {B2B_MIN_ORDER_QTY}</span>
+                    <span className="whitespace-nowrap text-xs font-semibold text-red-700">Min. Order: {B2B_MIN_ORDER_QTY}</span>
                   )}
                   <button
                     className="text-sm text-navy-500 underline"

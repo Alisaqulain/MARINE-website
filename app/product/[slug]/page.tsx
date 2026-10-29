@@ -16,7 +16,7 @@ import { useCart } from "@/lib/cart-context";
 import { useWishlist } from "@/lib/wishlist-context";
 import Image from "next/image";
 import Link from "next/link";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { canAccessWholesale, isRetailCustomer } from "@/lib/wholesale-access";
@@ -59,17 +59,20 @@ export default function ProductPage() {
       .catch(() => {});
   }, [slug]);
   const b2bQuery = useSearchParams().get("b2b") === "1";
+  const pathname = usePathname();
+  const wholesalePath = pathname?.startsWith("/wholesale/product/") === true;
   const router = useRouter();
   const { data: session, status } = useSession();
   const wholesaleOk = canAccessWholesale(session?.user);
-  const b2b = b2bQuery && wholesaleOk;
+  const wantsWholesale = b2bQuery || wholesalePath;
+  const b2b = wantsWholesale && wholesaleOk;
   const { promptSwitchToWholesale } = useWholesaleGate();
   const { add, buyNow } = useCart();
   const { priceFor } = useRegion();
 
   useEffect(() => {
-    if (!b2bQuery || wholesaleOk || status === "loading" || !slug) return;
-    const back = `/product/${slug}?b2b=1`;
+    if (!wantsWholesale || wholesaleOk || status === "loading" || !slug) return;
+    const back = `/wholesale/product/${slug}`;
     if (isRetailCustomer(session?.user)) {
       promptSwitchToWholesale(back);
       router.replace(`/product/${slug}`);
@@ -78,7 +81,7 @@ export default function ProductPage() {
     router.replace(
       `/login?mode=wholesale&view=register&callbackUrl=${encodeURIComponent(back)}`
     );
-  }, [b2bQuery, wholesaleOk, status, slug, router, session?.user, promptSwitchToWholesale]);
+  }, [wantsWholesale, wholesaleOk, status, slug, router, session?.user, promptSwitchToWholesale]);
   const { has, toggle } = useWishlist();
   const [active, setActive] = useState(0);
   const [added, setAdded] = useState(false);
@@ -117,7 +120,7 @@ export default function ProductPage() {
     if (inTree) {
       return {
         label: findShopNowLabel(slug),
-        href: `/shop?category=${slug}`,
+        href: `/retail?category=${slug}`,
         items: products.filter((p) => getProductCategory(p) === slug),
       };
     }
@@ -135,8 +138,8 @@ export default function ProductPage() {
     return (
       <div className="mx-auto max-w-3xl px-4 py-24 text-center">
         <h1 className="font-serif text-3xl md:text-4xl">Piece not found</h1>
-        <Link href="/shop" className="btn-navy mt-6">
-          Back to shop
+        <Link href={wholesalePath ? "/wholesale" : "/retail"} className="btn-navy mt-6">
+          {wholesalePath ? "Back to wholesale" : "Back to retail"}
         </Link>
       </div>
     );
@@ -144,12 +147,12 @@ export default function ProductPage() {
 
   const manuallyUnavailable = b2b ? product.b2bOutOfScope === true : product.b2cOutOfStock === true;
   const quantityAlert = lowStockMessage(product.quantity);
-  const unavailableLabel = b2b ? "Out of scope" : "Out of stock";
+  const unavailableLabel = "Out of stock";
   const stockAlert = manuallyUnavailable
     ? unavailableLabel
     : b2b
       ? quantityAlert === "Out of stock"
-        ? "Out of scope"
+        ? "Out of stock"
         : null
       : quantityAlert;
   const stockLabel = stockAlert
@@ -164,7 +167,7 @@ export default function ProductPage() {
     product.personalisationPrice != null && Number.isFinite(product.personalisationPrice)
       ? product.personalisationPrice
       : null;
-  const basePrice = priceFor(product);
+  const basePrice = priceFor(product, b2b);
   const displayPrice = basePrice + (personalisation === "yes" && personalisationCharge != null ? personalisationCharge : 0);
   const minQty = b2b ? B2B_MIN_ORDER_QTY : 1;
   const maxQty = product.quantity != null && product.quantity > 0 ? product.quantity : 99;
@@ -203,11 +206,18 @@ export default function ProductPage() {
         <p className="no-scrollbar -mx-5 overflow-x-auto whitespace-nowrap px-5 pb-3 text-[11px] text-navy-600 lg:mx-0 lg:px-0 lg:pb-0">
           <Link href="/">Home</Link>
           <span className="mx-1.5 text-navy-400">/</span>
-          <Link href="/shop">Shop</Link>
+          {b2b ? (
+            <Link href="/wholesale">Wholesale</Link>
+          ) : (
+            <Link href="/retail">Retail</Link>
+          )}
           {category && (
             <>
               <span className="mx-1.5 text-navy-400">/</span>
-              <Link href={category.href} className="font-medium text-[#8C6E28] lg:font-normal lg:text-inherit">
+              <Link
+                href={b2b ? `/wholesale?category=${getProductCategory(product)}` : category.href}
+                className="font-medium text-[#8C6E28] lg:font-normal lg:text-inherit"
+              >
                 {liveCategoryName || category.label}
               </Link>
             </>
@@ -269,6 +279,25 @@ export default function ProductPage() {
 
           <div className="flex min-h-0 flex-col">
             <h1 className="text-[1.35rem] font-normal leading-tight text-[#222222] md:text-[2.15rem]">{product.name}</h1>
+            <script
+              type="application/ld+json"
+              dangerouslySetInnerHTML={{
+                __html: JSON.stringify({
+                  "@context": "https://schema.org",
+                  "@type": "Product",
+                  name: product.name,
+                  sku: product.sku,
+                  description: product.description,
+                  image: product.image,
+                  offers: {
+                    "@type": "Offer",
+                    priceCurrency: "USD",
+                    price: basePrice,
+                    availability: product.quantity === 0 ? "https://schema.org/OutOfStock" : "https://schema.org/InStock",
+                  },
+                }),
+              }}
+            />
             <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
               <span className="flex items-center gap-0.5 text-[#C9A84C]">
                 {Array.from({ length: 5 }).map((_, i) => (
@@ -279,16 +308,23 @@ export default function ProductPage() {
                 ))}
               </span>
               <span className="text-navy-600">{product.rating.toFixed(1)} · {product.reviews} reviews</span>
-              <span className="text-navy-400">|</span>
-              <span className="text-navy-500">{product.sku}</span>
+              {product.sku && product.sku !== product.slug ? (
+                <>
+                  <span className="text-navy-400">|</span>
+                  <span className="text-navy-500">SKU {product.sku}</span>
+                </>
+              ) : null}
             </div>
             <div className="mt-3">
               <ProductShareButtons
-                path={b2b ? `/product/${product.slug}?b2b=1` : `/product/${product.slug}`}
+                path={b2b ? `/wholesale/product/${product.slug}` : `/product/${product.slug}`}
                 title={product.name}
               />
             </div>
             <PriceRow price={displayPrice} salePercent={product.salePercent} size="page" className="mt-3 md:mt-4" />
+            {product.salePercent ? (
+              <p className="mt-1 text-sm font-semibold text-red-700">{product.salePercent}% off</p>
+            ) : null}
             {product.saleTerms ? <p className="mt-2 text-sm text-navy-700">{product.saleTerms}</p> : null}
             {personalisation === "no" ? (
               <p className="mt-1 text-xs text-navy-600">No personalisation · {formatPrice(basePrice)}</p>
@@ -298,7 +334,7 @@ export default function ProductPage() {
               </p>
             ) : null}
             {b2b && (
-              <p className="mt-1 text-[13px] font-medium text-[#595959]">Min. Order: {B2B_MIN_ORDER_QTY}</p>
+              <p className="mt-1 text-[13px] font-semibold text-red-700">Min. Order: {B2B_MIN_ORDER_QTY}</p>
             )}
             {!b2b && showsFreeShipping(product) ? <FreeShippingTag /> : null}
             <ColorSelect
@@ -406,7 +442,7 @@ export default function ProductPage() {
               )}
             </div>
 
-            <div className="mt-3 grid grid-cols-2 gap-2 sm:gap-3">
+            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3">
               <button
                 type="button"
                 onClick={() =>
@@ -414,16 +450,16 @@ export default function ProductPage() {
                     new CustomEvent("marina-chat-open", { detail: { product: product.slug } })
                   )
                 }
-                className="inline-flex h-11 min-w-0 items-center justify-center gap-1 rounded-full bg-[#031D38] px-2.5 text-center text-[9px] font-semibold uppercase leading-tight tracking-tight text-white transition hover:bg-[#0a3358] sm:h-12 sm:gap-1.5 sm:px-3 sm:text-[10px]"
+                className="inline-flex h-11 w-full min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full bg-[#031D38] px-3 text-[11px] font-semibold uppercase tracking-[0.02em] text-white transition hover:bg-[#0a3358] sm:h-12 sm:gap-1.5 sm:px-3 sm:text-[10px]"
               >
-                <Sparkles className="h-3 w-3 shrink-0 text-[#C9A84C]" />
-                <span className="min-w-0">Ask Marina About This Product</span>
+                <Sparkles className="h-3.5 w-3.5 shrink-0 text-[#C9A84C] sm:h-3 sm:w-3" />
+                <span className="whitespace-nowrap">Ask Marina About This Product</span>
               </button>
               <a
                 href={companyWhatsApp}
-                className="inline-flex h-11 min-w-0 items-center justify-center gap-1 whitespace-nowrap rounded-full bg-[#25D366] px-2 text-[8px] font-semibold uppercase tracking-[0.04em] text-white sm:h-12 sm:gap-2 sm:px-4 sm:text-[11px] sm:tracking-[0.14em]"
+                className="inline-flex h-11 w-full min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full bg-[#25D366] px-3 text-[11px] font-semibold uppercase tracking-[0.04em] text-white sm:h-12 sm:gap-2 sm:px-4 sm:text-[11px] sm:tracking-[0.14em]"
               >
-                <MessageCircle className="h-3 w-3 shrink-0 sm:h-3.5 sm:w-3.5" />
+                <MessageCircle className="h-3.5 w-3.5 shrink-0 sm:h-3.5 sm:w-3.5" />
                 WhatsApp Us
               </a>
             </div>
@@ -499,6 +535,16 @@ export default function ProductPage() {
   );
 }
 
+function formatDescription(text: string) {
+  const escaped = text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+  return escaped
+    .replace(/\*\*(.+?)\*\*/g, '<strong class="font-bold text-[#222222]">$1</strong>')
+    .replace(/__(.+?)__/g, '<span class="underline underline-offset-2">$1</span>');
+}
+
 function ProductDescription({ text }: { text?: string }) {
   const [open, setOpen] = useState(false);
   const body = (text ?? "").trim();
@@ -508,7 +554,10 @@ function ProductDescription({ text }: { text?: string }) {
     <section className="mt-5 border-t border-[#e6dfd2] pt-5">
       <h2 className="text-[15px] font-semibold text-[#222222]">Item details</h2>
       <div className={`relative mt-3 ${long && !open ? "max-h-56 overflow-hidden" : ""}`}>
-        <p className="whitespace-pre-wrap text-[14px] leading-relaxed text-navy-700">{body}</p>
+        <p
+          className="whitespace-pre-wrap text-[14px] leading-relaxed text-navy-700"
+          dangerouslySetInnerHTML={{ __html: formatDescription(body) }}
+        />
         {long && !open ? (
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-white to-transparent" />
         ) : null}

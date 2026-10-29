@@ -10,48 +10,21 @@ import { useEffect, useMemo, useState } from "react";
 import { WholesaleNavLink } from "@/components/WholesaleNavLink";
 import { useRegion } from "@/lib/region-context";
 
-type Msg = { from: "bot" | "you"; text: string; product?: string; quote?: boolean };
+type Msg = {
+  from: "bot" | "you";
+  text: string;
+  product?: string;
+  quote?: boolean;
+  price?: number;
+  productName?: string;
+};
 
 const starter: Msg[] = [
   {
-    from: "you",
-    text: "I need 50 brass compasses with my company logo.",
-  },
-  {
     from: "bot",
-    text: "Great — I can help you with that. This is a B2B / custom order. Here is a starting piece, ready for your logo.",
-    product: "antique-brass-nautical-compass",
-    quote: true,
+    text: "Ask me about a product, its current price, stock, shipping, or returns. I only use the live catalogue and approved policies.",
   },
 ];
-
-function reply(input: string): Msg[] {
-  const q = input.toLowerCase();
-  if (q.includes("50") || q.includes("wholesale") || q.includes("bulk") || q.includes("b2b") || q.includes("logo")) {
-    return [
-      {
-        from: "bot",
-        text: "For 50 brass compasses with a company logo we typically quote from $18/pc, MOQ 50, 12–18 day production.",
-        product: "antique-brass-nautical-compass",
-        quote: true,
-      },
-    ];
-  }
-  if (q.includes("ship") || q.includes("delivery")) {
-    return [
-      {
-        from: "bot",
-        text: "Retail orders ship in 5–7 business days. Wholesale lots go by air or sea with documents.",
-      },
-    ];
-  }
-  return [
-    {
-      from: "bot",
-      text: "I can help with compasses, telescopes, décor or a B2B quote. Try “I need 50 brass compasses with my company logo.”",
-    },
-  ];
-}
 
 
 export function ChatWidget() {
@@ -86,11 +59,52 @@ export function ChatWidget() {
     return () => window.removeEventListener("marina-chat-open", onOpen);
   }, [productMap]);
 
-  function send() {
+  const [busy, setBusy] = useState(false);
+
+  function chatSession() {
+    const key = "marina-ai-session";
+    const existing = sessionStorage.getItem(key);
+    if (existing) return existing;
+    const created = `chat_${Math.random().toString(36).slice(2, 12)}${Date.now().toString(36)}`;
+    sessionStorage.setItem(key, created);
+    return created;
+  }
+
+  async function send() {
     const value = text.trim();
-    if (!value) return;
-    setMsgs((m) => [...m, { from: "you", text: value }, ...reply(value)]);
+    if (!value || busy) return;
+    setMsgs((m) => [...m, { from: "you", text: value }]);
     setText("");
+    setBusy(true);
+    try {
+      const res = await fetch("/api/ai/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: chatSession(), message: value }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMsgs((m) => [...m, { from: "bot", text: typeof data.error === "string" ? data.error : "I could not answer just now." }]);
+        return;
+      }
+      const products = Array.isArray(data.products) ? data.products : [];
+      const first = products[0] as { slug?: string; name?: string; price?: number } | undefined;
+      setMsgs((m) => [
+        ...m,
+        {
+          from: "bot",
+          text: String(data.reply || "I don't have an approved answer for that."),
+          product: first?.slug,
+          productName: first?.name,
+          price: typeof first?.price === "number" ? first.price : undefined,
+          quote: Boolean(data.quote),
+        },
+      ]);
+    } catch {
+      setMsgs((m) => [...m, { from: "bot", text: "I could not reach the catalogue just now." }]);
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -138,16 +152,18 @@ export function ChatWidget() {
                   }`}
                 >
                   {m.text}
-                  {m.product && productMap[m.product] && (
+                  {m.product && (productMap[m.product] || m.productName) && (
                     <div className="mt-3 overflow-hidden rounded-xl border border-[#eee7db] bg-[#FAF7F2]">
                       <div className="flex gap-2 p-2">
-                        <div className="relative h-14 w-14 overflow-hidden rounded-lg">
-                          <Image src={productMap[m.product].image} alt="" fill className="object-cover" />
-                        </div>
+                        {productMap[m.product]?.image ? (
+                          <div className="relative h-14 w-14 overflow-hidden rounded-lg">
+                            <Image src={productMap[m.product].image} alt="" fill className="object-cover" />
+                          </div>
+                        ) : null}
                         <div>
-                          <p className="text-xs font-medium text-navy-900">{productMap[m.product].name}</p>
+                          <p className="text-xs font-medium text-navy-900">{m.productName || productMap[m.product]?.name}</p>
                           <p className="text-[11px] text-navy-600">
-                            {formatPrice(priceFor(productMap[m.product]))} · Custom Logo
+                            {formatPrice(m.price ?? (productMap[m.product] ? priceFor(productMap[m.product]) : 0))}
                           </p>
                           <Link href={`/product/${m.product}`} className="text-[11px] text-[#8C6E28]">
                             View details

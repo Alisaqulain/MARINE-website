@@ -33,6 +33,7 @@ export function AdminProductList({
   onDeleteSelected,
   onChanged,
   onRunSale,
+  priceMode = "retail",
 }: {
   products: Row[];
   canDelete: boolean;
@@ -45,6 +46,8 @@ export function AdminProductList({
   onDeleteSelected: (ids: string[]) => void;
   onChanged: () => void;
   onRunSale: () => void;
+  /** Which price lines to emphasize under the product name. */
+  priceMode?: "retail" | "wholesale";
 }) {
   const [menu, setMenu] = useState<"select" | "edit" | string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -172,11 +175,24 @@ export function AdminProductList({
             const id = String(product.id);
             const qty = product.quantity == null || product.quantity === "" ? undefined : Number(product.quantity);
             const stockNote = lowStockMessage(Number.isNaN(Number(qty)) ? undefined : qty);
-            const prices = [
-              money(product.priceIndia) ? `${money(product.priceIndia)} India` : null,
-              money(product.priceUs) ? `${money(product.priceUs)} United States` : null,
-              money(product.price) ? `${money(product.price)} Everywhere else` : null,
+            const retailPrices = [
+              money(product.priceIndia) ? `India ${money(product.priceIndia)}` : null,
+              money(product.priceUs) ? `United States ${money(product.priceUs)}` : null,
+              money(product.price) ? `Other countries ${money(product.price)}` : null,
             ].filter(Boolean);
+            const wholesalePrices = [
+              money(product.wholesalePriceIndia) ? `India ${money(product.wholesalePriceIndia)}` : null,
+              money(product.wholesalePriceUs) ? `United States ${money(product.wholesalePriceUs)}` : null,
+              money(product.wholesaleFrom) ? `Other countries ${money(product.wholesaleFrom)}` : null,
+            ].filter(Boolean);
+            const prices =
+              priceMode === "wholesale"
+                ? wholesalePrices.length
+                  ? wholesalePrices
+                  : ["No wholesale price set"]
+                : retailPrices.length
+                  ? retailPrices
+                  : ["No retail price set"];
             const renews = renewLabel(product.renewsAt);
             const sale = saleFor(String(product.slug));
             return (
@@ -200,18 +216,21 @@ export function AdminProductList({
                 </div>
                 <div className="space-y-1 px-3 py-3 text-sm">
                   <p className="truncate font-semibold text-[#222]">{String(product.name)}</p>
-                  <p className="truncate text-xs text-navy-600">{String(product.description || product.sku || "")}</p>
+                  {product.sku && String(product.sku) !== String(product.slug) ? (
+                    <p className="truncate text-xs text-navy-600">SKU {String(product.sku)}</p>
+                  ) : null}
                   <p className="text-xs text-navy-800">
                     {qty != null && !Number.isNaN(qty) ? `${qty} in stock` : "Quantity not set"}
                     {stockNote ? ` · ${stockNote}` : ""}
                     {product.active === false ? " · Deactivated" : ""}
                   </p>
-                  {product.b2cOutOfStock === true ? (
-                    <p className="text-xs font-semibold text-red-700">B2C: Out of stock</p>
-                  ) : null}
-                  {product.b2bOutOfScope === true ? (
-                    <p className="text-xs font-semibold text-amber-800">B2B: Out of scope</p>
-                  ) : null}
+                  {priceMode === "wholesale"
+                    ? product.b2bOutOfScope === true && (
+                        <p className="text-xs font-semibold text-red-700">Out of stock</p>
+                      )
+                    : product.b2cOutOfStock === true && (
+                        <p className="text-xs font-semibold text-red-700">Out of stock</p>
+                      )}
                   {prices.map((line) => (
                     <p key={line} className="truncate text-xs text-navy-700">{line}</p>
                   ))}
