@@ -30,12 +30,22 @@ export function HomeAllProducts() {
   const [products, setProducts] = useState<Product[]>(staticProducts);
 
   useEffect(() => {
-    void fetch("/api/catalog/products")
-      .then((r) => r.json())
-      .then((data) => {
-        if (Array.isArray(data.items) && data.items.length) setProducts(data.items);
-      })
-      .catch(() => {});
+    let cancelled = false;
+    function load() {
+      void fetch("/api/catalog/products", { cache: "no-store" })
+        .then((r) => r.json())
+        .then((data) => {
+          if (!cancelled && Array.isArray(data.items) && data.items.length) setProducts(data.items);
+        })
+        .catch(() => {});
+    }
+    load();
+    const onFocus = () => load();
+    window.addEventListener("focus", onFocus);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("focus", onFocus);
+    };
   }, []);
 
   const sorted = useMemo(() => {
@@ -81,7 +91,6 @@ export function HomeAllProducts() {
       <div className="mx-auto max-w-[1320px]">
         <div className="text-center">
           <div className="mx-auto mb-3 h-px w-16 bg-[#C9A84C]" />
-          <h2 className="font-serif text-[1.75rem] text-navy-900 md:text-5xl">All Products</h2>
         </div>
 
         <div className="mt-6 flex flex-col items-center gap-3">
@@ -168,17 +177,20 @@ export function HomeAllProducts() {
             setGoPage("");
           }}
         >
-          <label className="text-navy-700">
+          <label className="inline-flex items-center gap-2 text-navy-700">
             Go to page
             <input
-              className="input ml-2 inline-block w-20 min-h-9 py-1.5"
+              className="input h-9 w-20 py-0 text-sm"
               inputMode="numeric"
               value={goPage}
               onChange={(e) => setGoPage(e.target.value.replace(/\D/g, ""))}
               placeholder={`1–${totalPages}`}
             />
           </label>
-          <button type="submit" className="btn-outline px-3 py-1.5 text-xs">
+          <button
+            type="submit"
+            className="inline-flex h-9 items-center justify-center rounded-full border border-[#031D38]/25 bg-[#031D38] px-4 text-xs font-semibold uppercase tracking-wide text-white"
+          >
             Go
           </button>
         </form>

@@ -2,31 +2,45 @@
 
 import { CatalogCard } from "@/components/CatalogCard";
 import { ProductCard } from "@/components/ProductCard";
-import { getProduct, products, reviews, type Product } from "@/lib/products";
+import { getProduct, products, reviews, saleInfo, type Product } from "@/lib/products";
 import { Search, SlidersHorizontal, Star } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { ProductReviews, type useProductReviews } from "@/components/ProductReviews";
 
 const tabs = ["Items", "Reviews"] as const;
 const ITEMS_PAGE = 12;
-type ShopTab = (typeof tabs)[number];
+export type ShopTab = (typeof tabs)[number];
 
 export function ShopTabs({
   items,
   categoryItems,
   categoryLabel,
   wholesale = false,
+  currentProduct,
+  productReviews,
+  tab: controlledTab,
+  onTabChange,
 }: {
   items: Product[];
   categoryItems?: Product[];
   categoryLabel?: string;
   wholesale?: boolean;
+  currentProduct?: Product;
+  productReviews?: ReturnType<typeof useProductReviews>;
+  tab?: ShopTab;
+  onTabChange?: (tab: ShopTab) => void;
 }) {
   const hasCategory = Boolean(categoryLabel && categoryItems && categoryItems.length > 0);
   const [scope, setScope] = useState<"category" | "all">(hasCategory ? "category" : "all");
   const base = scope === "category" && hasCategory ? categoryItems! : items;
-  const [tab, setTab] = useState<ShopTab>("Items");
+  const [ownTab, setOwnTab] = useState<ShopTab>("Items");
+  const tab = controlledTab ?? ownTab;
+  const setTab = (next: ShopTab) => {
+    setOwnTab(next);
+    onTabChange?.(next);
+  };
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState("featured");
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -52,7 +66,8 @@ export function ShopTabs({
     });
     const outMarked = (p: (typeof next)[number]) =>
       wholesale ? p.b2bOutOfScope === true : p.b2cOutOfStock === true;
-    if (sort === "on-sale") next = next.filter((p) => (p.salePercent ?? 0) > 0);
+    if (sort === "on-sale") next = next.filter((p) => (saleInfo(p, wholesale).percent ?? 0) > 0);
+    if (sort === "personalisation") next = next.filter((p) => p.personalisationPrice != null);
     if (sort === "in-stock") {
       next = next.filter((p) => !outMarked(p) && (p.quantity == null || p.quantity > 0));
     }
@@ -158,6 +173,7 @@ export function ShopTabs({
               <option value="price-desc">Price: High to low</option>
               <option value="rating">Top rated</option>
               <option value="on-sale">Run a sale</option>
+              <option value="personalisation">Personalisation</option>
               <option value="in-stock">In stock</option>
               <option value="out-of-stock">Out of stock</option>
               <option value="low-stock">Low stock (1–5)</option>
@@ -193,15 +209,24 @@ export function ShopTabs({
         </div>
       )}
 
-      {tab === "Reviews" && <ReviewsPanel />}
+      {tab === "Reviews" && (
+        <ReviewsPanel
+          productSection={
+            currentProduct && productReviews ? (
+              <ProductReviews slug={currentProduct.slug} productName={currentProduct.name} reviews={productReviews} />
+            ) : null
+          }
+        />
+      )}
     </div>
   );
 }
 
-function ReviewsPanel() {
+function ReviewsPanel({ productSection }: { productSection?: React.ReactNode }) {
   return (
     <div className="px-4 pb-10 pt-5 lg:max-w-3xl lg:px-0 lg:pt-6">
-      <p className="text-[13px] text-[#595959]">{reviews.length} shop reviews</p>
+      {productSection}
+      <p className={`text-[13px] text-[#595959] ${productSection ? "mt-8" : ""}`}>{reviews.length} shop reviews</p>
       <div className="mt-5 space-y-8">
         {reviews.map((r) => {
           const purchased = getProduct(r.productSlug) ?? products.find((p) => p.name === r.product);

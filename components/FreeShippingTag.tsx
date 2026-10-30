@@ -13,5 +13,5 @@ export function FreeShippingTag({
     return <span className="absolute left-2 top-2 z-[5]">{tag}</span>;
   }
 
-  return <p className="mt-1">{tag}</p>;
+  return <span className="inline-flex">{tag}</span>;
 }

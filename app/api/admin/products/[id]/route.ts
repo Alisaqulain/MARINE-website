@@ -36,7 +36,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
     b2cOutOfStock: extras.b2cOutOfStock,
     b2bOutOfScope: extras.b2bOutOfScope,
     stock: extras.stock,
-    channel: "both",
+    channel: scope === "wholesale" ? "wholesale" : "retail",
     tags: extras.tags,
   };
 

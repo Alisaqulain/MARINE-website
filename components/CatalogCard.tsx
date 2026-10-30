@@ -1,6 +1,6 @@
 "use client";
 
-import { B2B_MIN_ORDER_QTY, showsFreeShipping, type Product } from "@/lib/products";
+import { B2B_MIN_ORDER_QTY, saleInfo, showsFreeShipping, type Product } from "@/lib/products";
 import { imageAdjustStyle, lowStockMessage } from "@/lib/product-display";
 import { useWishlist } from "@/lib/wishlist-context";
 import { Heart } from "lucide-react";
@@ -11,6 +11,7 @@ import { FreeShippingTag } from "./FreeShippingTag";
 import { PriceRow } from "./PriceRow";
 import { ProductName } from "./ProductName";
 import { ProductShareIcon } from "./ProductShare";
+import { SaleEndsIn } from "./SaleEndsIn";
 import { useRegion } from "@/lib/region-context";
 
 export function CatalogCard({
@@ -23,6 +24,7 @@ export function CatalogCard({
   const { has, toggle } = useWishlist();
   const { priceFor } = useRegion();
   const wished = has(product.slug);
+  const sale = saleInfo(product, wholesale);
   const href = wholesale ? `/wholesale/product/${product.slug}` : `/product/${product.slug}`;
   const unavailable = wholesale ? product.b2bOutOfScope : product.b2cOutOfStock;
   const quantityMessage = lowStockMessage(product.quantity);
@@ -61,9 +63,9 @@ export function CatalogCard({
           <Heart className={`h-[22px] w-[22px] ${wished ? "fill-[#222222] text-[#222222]" : ""}`} />
         </button>
         <ProductShareIcon path={href} title={product.name} className="absolute bottom-1.5 right-1.5" />
-        {product.salePercent ? (
+        {sale.percent ? (
           <span className="absolute left-1.5 top-1.5 rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-semibold text-white shadow">
-            {product.salePercent}% OFF
+            {sale.percent}% OFF
           </span>
         ) : null}
       </div>
@@ -75,7 +77,13 @@ export function CatalogCard({
           />
         </h3>
       </Link>
-      <PriceRow price={priceFor(product, wholesale)} salePercent={product.salePercent} className="mt-1" />
+      <PriceRow
+        price={priceFor(product, wholesale)}
+        salePercent={sale.percent}
+        className="mt-1"
+        trailing={!wholesale && showsFreeShipping(product) ? <FreeShippingTag /> : null}
+      />
+      <SaleEndsIn endsAt={sale.endsAt} percent={sale.percent} className="mt-0.5" />
       {availabilityMessage ? (
         <p className="mt-1 text-[12px] font-medium text-[#9a3412]">{availabilityMessage}</p>
       ) : null}
@@ -84,7 +92,6 @@ export function CatalogCard({
           Min. Order: {B2B_MIN_ORDER_QTY}
         </p>
       )}
-      {!wholesale && showsFreeShipping(product) ? <FreeShippingTag /> : null}
     </article>
   );
 }

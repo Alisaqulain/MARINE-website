@@ -19,17 +19,30 @@ export function SearchModal({
   const { priceFor } = useRegion();
   const [products, setProducts] = useState<Product[]>(staticProducts);
 
+  // Warm the live catalogue on mount so newly added products (e.g. test1) are searchable.
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/api/catalog/products", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled && Array.isArray(data.items) && data.items.length) setProducts(data.items);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   useEffect(() => {
     if (!open) {
       setQ("");
       return;
     }
-    // Load the live catalogue (built-in + admin-added listings) each time search opens.
     let cancelled = false;
     void fetch("/api/catalog/products", { cache: "no-store" })
       .then((r) => r.json())
       .then((data) => {
-        if (!cancelled && Array.isArray(data.items)) setProducts(data.items);
+        if (!cancelled && Array.isArray(data.items) && data.items.length) setProducts(data.items);
       })
       .catch(() => {});
     return () => {

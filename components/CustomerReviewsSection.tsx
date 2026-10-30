@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { Star } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useT } from "@/lib/i18n/LocaleProvider";
 
@@ -10,6 +12,18 @@ type Review = {
   name: string;
   location: string;
   product: string;
+  /** Set for customer product reviews; shown as stars instead of a title. */
+  rating?: number;
+  productSlug?: string;
+};
+
+type ProductReviewItem = {
+  id: string;
+  productSlug: string;
+  productName: string;
+  rating: number;
+  body: string;
+  name: string;
 };
 
 export function CustomerReviewsSection() {
@@ -18,10 +32,31 @@ export function CustomerReviewsSection() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/testimonials?home=1")
-      .then((r) => r.json())
-      .then((data) => setReviews(data.items ?? []))
-      .catch(() => setReviews([]))
+    // Both admin "Show on home" lists: customer product reviews first, then shop testimonials.
+    Promise.all([
+      fetch("/api/product-reviews?home=1")
+        .then((r) => r.json())
+        .catch(() => ({ items: [] })),
+      fetch("/api/testimonials?home=1")
+        .then((r) => r.json())
+        .catch(() => ({ items: [] })),
+    ])
+      .then(([productData, testimonialData]) => {
+        const fromProducts: Review[] = (Array.isArray(productData.items) ? productData.items : []).map(
+          (r: ProductReviewItem) => ({
+            id: `product-${r.id}`,
+            title: "",
+            body: r.body,
+            name: r.name,
+            location: "",
+            product: r.productName,
+            rating: r.rating,
+            productSlug: r.productSlug,
+          })
+        );
+        const testimonials: Review[] = Array.isArray(testimonialData.items) ? testimonialData.items : [];
+        setReviews([...fromProducts, ...testimonials]);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -43,12 +78,30 @@ export function CustomerReviewsSection() {
                 key={r.id}
                 className="rounded-2xl bg-white p-6 shadow-[0_8px_30px_rgba(26,20,12,0.06)] md:p-8"
               >
-                <p className="font-serif text-xl text-navy-900 md:text-2xl">“{r.title}”</p>
-                <p className="mt-4 text-sm leading-relaxed text-navy-700">{r.body}</p>
+                {r.rating ? (
+                  <p className="flex items-center gap-1" aria-label={`${r.rating} of 5 stars`}>
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <Star
+                        key={i}
+                        className={`h-5 w-5 ${i < r.rating! ? "fill-[#C9A84C] text-[#C9A84C]" : "text-[#d8d2c6]"}`}
+                      />
+                    ))}
+                  </p>
+                ) : (
+                  <p className="font-serif text-xl text-navy-900 md:text-2xl">“{r.title}”</p>
+                )}
+                <p className="mt-4 whitespace-pre-line text-sm leading-relaxed text-navy-700">{r.body}</p>
                 <p className="mt-6 text-sm font-medium text-navy-900">
-                  {r.name} · {r.location}
+                  {r.name}
+                  {r.location ? ` · ${r.location}` : ""}
                 </p>
-                <p className="text-xs text-[#8C6E28]">{r.product}</p>
+                {r.productSlug ? (
+                  <Link href={`/product/${r.productSlug}`} className="text-xs text-[#8C6E28] hover:underline">
+                    {r.product}
+                  </Link>
+                ) : (
+                  <p className="text-xs text-[#8C6E28]">{r.product}</p>
+                )}
               </blockquote>
             ))}
           </div>

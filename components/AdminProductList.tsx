@@ -32,7 +32,6 @@ export function AdminProductList({
   onDelete,
   onDeleteSelected,
   onChanged,
-  onRunSale,
   priceMode = "retail",
 }: {
   products: Row[];
@@ -45,7 +44,7 @@ export function AdminProductList({
   onDelete: (product: Row) => void;
   onDeleteSelected: (ids: string[]) => void;
   onChanged: () => void;
-  onRunSale: () => void;
+  onRunSale?: () => void;
   /** Which price lines to emphasize under the product name. */
   priceMode?: "retail" | "wholesale";
 }) {
@@ -54,11 +53,12 @@ export function AdminProductList({
   const [sales, setSales] = useState<ShopSale[]>([]);
 
   useEffect(() => {
-    void fetch("/api/admin/sales")
+    // Only sales from this shop (customer or wholesale) are badged on the cards.
+    void fetch(`/api/admin/sales?channel=${priceMode}`)
       .then((res) => res.json())
       .then((data) => setSales(Array.isArray(data.items) ? data.items : []))
       .catch(() => {});
-  }, [products]);
+  }, [products, priceMode]);
 
   function saleFor(slug: string) {
     const today = new Date().toISOString().slice(0, 10);
@@ -158,9 +158,6 @@ export function AdminProductList({
                 }}
               >
                 Edit listing
-              </button>
-              <button type="button" className="block w-full px-3 py-2 text-left hover:bg-[#faf8f4]" onClick={() => { setMenu(null); onRunSale(); }}>
-                Run a sale
               </button>
             </div>
           ) : null}

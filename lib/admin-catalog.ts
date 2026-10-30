@@ -55,7 +55,7 @@ export type AdminProductRow = {
 export const ADMIN_PRODUCT_SORTS = ["newest", "oldest", "updated", "name-asc", "name-desc", "price-asc", "price-desc"] as const;
 export type AdminProductSort = (typeof ADMIN_PRODUCT_SORTS)[number];
 
-export const ADMIN_PRODUCT_FILTERS = ["all", "added", "catalog", "in-stock", "low-stock", "out-of-stock", "on-sale", "hidden"] as const;
+export const ADMIN_PRODUCT_FILTERS = ["all", "added", "catalog", "in-stock", "low-stock", "out-of-stock", "on-sale", "personalisation", "hidden"] as const;
 export type AdminProductFilter = (typeof ADMIN_PRODUCT_FILTERS)[number];
 
 const time = (value?: string) => (value ? Date.parse(value) || 0 : 0);
@@ -109,6 +109,8 @@ export function filterAdminProducts(
       return rows.filter((p) => markedOut(p) || (p.quantity != null && p.quantity <= 0));
     case "on-sale":
       return rows.filter((p) => onSaleSlugs?.has(p.slug));
+    case "personalisation":
+      return rows.filter((p) => p.personalisationPrice != null);
     case "hidden":
       return rows.filter((p) => p.active === false);
     default:

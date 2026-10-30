@@ -6,6 +6,7 @@ import {
   getCollection,
   getProduct,
   products,
+  saleInfo,
   showsFreeShipping,
   type Product,
 } from "@/lib/products";
@@ -33,12 +34,14 @@ import {
   Star,
   Truck,
 } from "lucide-react";
-import { ShopTabs } from "@/components/ShopTabs";
+import { ShopTabs, type ShopTab } from "@/components/ShopTabs";
+import { useProductReviews } from "@/components/ProductReviews";
 import { WholesaleNavLink } from "@/components/WholesaleNavLink";
 import { ProductShareButtons } from "@/components/ProductShare";
 import { companyWhatsApp } from "@/lib/company";
 import { FreeShippingTag } from "@/components/FreeShippingTag";
 import { PriceRow } from "@/components/PriceRow";
+import { SaleEndsIn } from "@/components/SaleEndsIn";
 import { ProductGalleryViewer } from "@/components/ProductGalleryViewer";
 import { imageAdjustStyle, lowStockMessage } from "@/lib/product-display";
 import { imageIndexForColor } from "@/lib/listing-images";
@@ -51,7 +54,7 @@ export default function ProductPage() {
   useEffect(() => {
     const local = getProduct(slug);
     setProduct(local);
-    void fetch(`/api/catalog/product/${encodeURIComponent(slug)}`)
+    void fetch(`/api/catalog/product/${encodeURIComponent(slug)}`, { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (data?.product) setProduct(data.product);
@@ -90,6 +93,8 @@ export default function ProductPage() {
   const [size, setSize] = useState("");
   const [personalisation, setPersonalisation] = useState<"" | "yes" | "no">("");
   const [personalisationMessage, setPersonalisationMessage] = useState("");
+  const [shopTab, setShopTab] = useState<ShopTab>("Items");
+  const productReviews = useProductReviews(slug);
   const [qty, setQty] = useState(1);
   const [liveCategoryName, setLiveCategoryName] = useState<string | null>(null);
 
@@ -168,6 +173,9 @@ export default function ProductPage() {
       ? product.personalisationPrice
       : null;
   const basePrice = priceFor(product, b2b);
+  const sale = saleInfo(product, b2b);
+  const shownRating = productReviews.count ? productReviews.average : product.rating;
+  const shownReviewCount = productReviews.count || product.reviews;
   const displayPrice = basePrice + (personalisation === "yes" && personalisationCharge != null ? personalisationCharge : 0);
   const minQty = b2b ? B2B_MIN_ORDER_QTY : 1;
   const maxQty = product.quantity != null && product.quantity > 0 ? product.quantity : 99;
@@ -299,15 +307,32 @@ export default function ProductPage() {
               }}
             />
             <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
-              <span className="flex items-center gap-0.5 text-[#C9A84C]">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <Star
-                    key={i}
-                    className={`h-3.5 w-3.5 ${i < Math.round(product.rating) ? "fill-[#C9A84C]" : ""}`}
-                  />
-                ))}
-              </span>
-              <span className="text-navy-600">{product.rating.toFixed(1)} · {product.reviews} reviews</span>
+              <Link href="/about" className="font-semibold text-[#222] underline underline-offset-2 hover:text-[#8C6E28]">
+                MarinaMuseInternational
+              </Link>
+              <button
+                type="button"
+                onClick={() => {
+                  setShopTab("Reviews");
+                  requestAnimationFrame(() =>
+                    document.getElementById("product-tabs")?.scrollIntoView({ behavior: "smooth", block: "start" })
+                  );
+                }}
+                aria-label="See reviews"
+                className="inline-flex items-center gap-2"
+              >
+                <span className="flex items-center gap-0.5 text-[#C9A84C]">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Star
+                      key={i}
+                      className={`h-3.5 w-3.5 ${i < Math.round(shownRating) ? "fill-[#C9A84C]" : ""}`}
+                    />
+                  ))}
+                </span>
+                <span className="text-navy-600 underline-offset-2 hover:underline">
+                  {shownRating.toFixed(1)} · {shownReviewCount} reviews
+                </span>
+              </button>
               {product.sku && product.sku !== product.slug ? (
                 <>
                   <span className="text-navy-400">|</span>
@@ -321,11 +346,17 @@ export default function ProductPage() {
                 title={product.name}
               />
             </div>
-            <PriceRow price={displayPrice} salePercent={product.salePercent} size="page" className="mt-3 md:mt-4" />
-            {product.salePercent ? (
-              <p className="mt-1 text-sm font-semibold text-red-700">{product.salePercent}% off</p>
+            <PriceRow
+              price={displayPrice}
+              salePercent={sale.percent}
+              size="page"
+              className="mt-3 md:mt-4"
+              trailing={!b2b && showsFreeShipping(product) ? <FreeShippingTag /> : null}
+            />
+            {sale.percent ? (
+              <SaleEndsIn endsAt={sale.endsAt} percent={sale.percent} className="mt-1 text-sm" />
             ) : null}
-            {product.saleTerms ? <p className="mt-2 text-sm text-navy-700">{product.saleTerms}</p> : null}
+            {sale.terms ? <p className="mt-2 text-sm text-navy-700">{sale.terms}</p> : null}
             {personalisation === "no" ? (
               <p className="mt-1 text-xs text-navy-600">No personalisation · {formatPrice(basePrice)}</p>
             ) : personalisation === "yes" && personalisationCharge != null ? (
@@ -336,7 +367,6 @@ export default function ProductPage() {
             {b2b && (
               <p className="mt-1 text-[13px] font-semibold text-red-700">Min. Order: {B2B_MIN_ORDER_QTY}</p>
             )}
-            {!b2b && showsFreeShipping(product) ? <FreeShippingTag /> : null}
             <ColorSelect
               options={product.colors}
               value={color}
@@ -363,6 +393,23 @@ export default function ProductPage() {
                   </select>
                 </label>
                 {personalisation === "yes" ? (
+                  <div className="mt-3 rounded-xl border border-[#e6dfd2] bg-[#FAF7F2] p-4 text-[14px] text-[#222]">
+                    <p className="font-semibold">Personalization</p>
+                    <p className="mt-1 font-medium">Personalize It Your Way</p>
+                    <p className="mt-1 text-navy-700">
+                      Whatever you want—your logo, name, initials, or a special message—we can engrave it directly on
+                      the binoculars or tripod
+                    </p>
+                    <ul className="mt-2 space-y-1">
+                      {["Company Logo", "Event Name", "Anniversary Date", "Personalized Message", "Custom Branding"].map(
+                        (item) => (
+                          <li key={item}>✅ {item}</li>
+                        )
+                      )}
+                    </ul>
+                  </div>
+                ) : null}
+                {personalisation === "yes" ? (
                   <label className="mt-3 block text-[13px] font-medium text-navy-800">
                     Add your message
                     <textarea
@@ -376,15 +423,26 @@ export default function ProductPage() {
                 ) : null}
               </div>
             ) : null}
+            <ul className="mt-4 space-y-1.5 text-[15px] text-[#222]">
+              <li className="flex items-start gap-2">
+                <Check className="mt-0.5 h-5 w-5 shrink-0 text-[#2563eb]" strokeWidth={2.5} />
+                <span>
+                  Arrives soon! Estimated delivery by{" "}
+                  <span className="border-b border-dashed border-[#222]">7-12 business days</span>, if you order today
+                </span>
+              </li>
+              <li className="flex items-start gap-2">
+                <Check className="mt-0.5 h-5 w-5 shrink-0 text-[#2563eb]" strokeWidth={2.5} />
+                <Link href="/returns" className="hover:underline">
+                  Returns &amp; exchanges accepted
+                </Link>
+              </li>
+            </ul>
             <div className="mt-3 flex flex-wrap items-center gap-4 text-sm">
               <span
                 className={`inline-flex items-center gap-1.5 ${stockAlert ? "font-medium text-[#9a3412]" : "text-emerald-700"}`}
               >
                 <Check className="h-4 w-4" /> {stockLabel}
-              </span>
-              <span className="inline-flex items-center gap-1.5 text-navy-600">
-                <Truck className="h-4 w-4 text-[#C9A84C]" />
-                Estimated delivery 5–7 business days
               </span>
             </div>
 
@@ -523,12 +581,16 @@ export default function ProductPage() {
         </div>
       </div>
 
-      <div className="lg:mx-auto lg:max-w-[1320px] lg:px-5 lg:pb-14">
+      <div id="product-tabs" className="scroll-mt-[var(--site-nav)] lg:mx-auto lg:max-w-[1320px] lg:px-5 lg:pb-14">
         <ShopTabs
           items={products}
           categoryItems={category?.items}
           categoryLabel={liveCategoryName || category?.label}
           wholesale={b2b}
+          currentProduct={product}
+          productReviews={productReviews}
+          tab={shopTab}
+          onTabChange={setShopTab}
         />
       </div>
     </div>

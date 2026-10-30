@@ -10,6 +10,7 @@ import {
   Shield,
   Users,
   X,
+  BarChart3,
   MessageSquare,
   FileText,
   RotateCcw,
@@ -25,6 +26,8 @@ import { AdminBlogPanel } from "@/components/AdminBlogPanel";
 import { AdminCategoriesPanel } from "@/components/AdminCategoriesPanel";
 import { AdminProductList } from "@/components/AdminProductList";
 import { AdminSalePanel } from "@/components/AdminSalePanel";
+import { AdminListingStats } from "@/components/AdminListingStats";
+import { AdminProductReviewsPanel } from "@/components/AdminProductReviewsPanel";
 import { AdminShipmentsPanel } from "@/components/AdminShipmentsPanel";
 import { AdminAiPanel } from "@/components/AdminAiPanel";
 import { AdminWhatsAppPanel } from "@/components/AdminWhatsAppPanel";
@@ -56,6 +59,7 @@ type Tab =
   | "blog"
   | "users"
   | "visitors"
+  | "listing-stats"
   | "team"
   | "ai"
   | "whatsapp";
@@ -90,6 +94,7 @@ export function AdminDashboard() {
       "blog",
       "users",
       "visitors",
+      "listing-stats",
       "team",
       "ai",
       "whatsapp",
@@ -294,6 +299,7 @@ export function AdminDashboard() {
       ? [
           { id: "overview", label: "Overview", icon: Package },
           { id: "products", label: "Products", icon: Package },
+          { id: "listing-stats", label: "Listing stats", icon: BarChart3 },
           ...(canAddProduct
             ? [
                 { id: "add-product" as const, label: "Add product", icon: Package },
@@ -315,6 +321,7 @@ export function AdminDashboard() {
       : [
           { id: "overview", label: "Overview", icon: Package },
           { id: "products", label: "Products", icon: Package },
+          { id: "listing-stats", label: "Listing stats", icon: BarChart3 },
           ...(canAddProduct
             ? [
                 { id: "add-product" as const, label: "Add product", icon: Package },
@@ -338,7 +345,7 @@ export function AdminDashboard() {
     return {
       ...productForm,
       slug: editing?.slug,
-      channel: "both",
+      channel: panel === "wholesale" ? "wholesale" : "retail",
       priceScope: panel === "wholesale" ? "wholesale" : "retail",
       price: productForm.price,
       priceIndia: productForm.priceIndia,
@@ -707,6 +714,7 @@ export function AdminDashboard() {
                       <option value="in-stock">In stock</option>
                       <option value="out-of-stock">Out of stock</option>
                       <option value="low-stock">Low stock (1–5)</option>
+                      <option value="personalisation">Personalisation</option>
                       <option value="hidden">Deactivated</option>
                     </select>
                   </label>
@@ -734,7 +742,6 @@ export function AdminDashboard() {
                   onDelete={(product) => void deleteProduct(product)}
                   onDeleteSelected={(ids) => void deleteProducts(ids)}
                   onChanged={() => void load()}
-                  onRunSale={() => setTab("sales")}
                   priceMode={panel === "wholesale" ? "wholesale" : "retail"}
                 />
 
@@ -1118,7 +1125,9 @@ export function AdminDashboard() {
               </form>
           ) : null}
 
-          {tab === "sales" && canAddProduct ? <AdminSalePanel /> : null}
+          {tab === "sales" && canAddProduct ? (
+            <AdminSalePanel key={panel} channel={panel === "wholesale" ? "wholesale" : "retail"} />
+          ) : null}
 
           {tab === "categories" && canAddProduct ? <AdminCategoriesPanel /> : null}
 
@@ -1231,12 +1240,19 @@ export function AdminDashboard() {
               />
             </div>
           ) : null}
+          {tab === "listing-stats" ? <AdminListingStats /> : null}
           {tab === "testimonials" ? (
-            <AdminReviewsPanel
-              rows={testimonials}
-              onReload={() => void load()}
-              canDelete={canDelete}
-            />
+            <div className="space-y-8">
+              <AdminProductReviewsPanel canDelete={canDelete} />
+              <div>
+                <h2 className="mb-3 font-serif text-lg text-navy-900">Shop testimonials</h2>
+                <AdminReviewsPanel
+                  rows={testimonials}
+                  onReload={() => void load()}
+                  canDelete={canDelete}
+                />
+              </div>
+            </div>
           ) : null}
           {tab === "blog" ? <AdminBlogPanel canEdit={canAddProduct} canDelete={canDelete} /> : null}
           {tab === "team" && manageTeam ? <AdminTeamPanel /> : null}
@@ -1399,8 +1415,8 @@ function AdminListPagination({
   }
 
   const btn = compact
-    ? "btn-outline px-3 py-1 text-xs disabled:opacity-40"
-    : "rounded border border-[#e8dfd0] bg-white px-3 py-1.5 disabled:opacity-40";
+    ? "inline-flex h-8 items-center rounded-full border border-[#e8dfd0] bg-white px-3 text-xs disabled:opacity-40"
+    : "inline-flex h-8 items-center rounded border border-[#e8dfd0] bg-white px-3 text-xs disabled:opacity-40";
 
   return (
     <div
@@ -1416,7 +1432,7 @@ function AdminListPagination({
         >
           Previous
         </button>
-        <form onSubmit={jump} className="flex items-center gap-1.5">
+        <form onSubmit={jump} className="flex h-8 items-center gap-1.5">
           <label className="sr-only" htmlFor="admin-page-jump">
             Go to page
           </label>
@@ -1427,7 +1443,7 @@ function AdminListPagination({
             max={maxPage}
             value={goTo}
             onChange={(e) => setGoTo(e.target.value)}
-            className="w-14 rounded border border-[#e8dfd0] bg-white px-2 py-1 text-center text-xs text-navy-900"
+            className="h-8 w-14 rounded border border-[#e8dfd0] bg-white px-2 text-center text-xs text-navy-900"
           />
           <span className="whitespace-nowrap text-navy-500">of {totalPages || 1}</span>
           <button type="submit" className={btn} disabled={totalPages < 1}>

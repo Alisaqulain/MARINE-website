@@ -110,7 +110,7 @@ export async function GET(req: Request) {
   const sales = show === "on-sale" ? await loadActiveSales() : [];
   const onSaleSlugs =
     show === "on-sale"
-      ? new Set(allItems.filter((item) => sales.some((sale) => saleAppliesTo(sale, item.slug))).map((item) => item.slug))
+      ? new Set(allItems.filter((item) => sales.some((sale) => saleAppliesTo(sale, item.slug, new Date(), channel ?? undefined))).map((item) => item.slug))
       : undefined;
   let items = filterAdminProducts(allItems, show, onSaleSlugs, channel);
   if (q) {
@@ -122,7 +122,7 @@ export async function GET(req: Request) {
   items = sortAdminProducts(items, sort);
 
   const page = Math.max(1, Number(searchParams.get("page") ?? 1));
-  const pageSize = Math.min(200, Math.max(5, Number(searchParams.get("pageSize") ?? 10)));
+  const pageSize = Math.min(1000, Math.max(5, Number(searchParams.get("pageSize") ?? 10)));
   const total = items.length;
   const start = (page - 1) * pageSize;
   const pageItems = items.slice(start, start + pageSize);
@@ -162,7 +162,7 @@ export async function POST(req: Request) {
     images: extras.images ?? existing?.images,
     personalisationPrice: extras.personalisationPrice,
     description: String(body.description ?? existing?.description ?? ""),
-    channel: "both" as const,
+    channel: (scope === "wholesale" ? "wholesale" : "retail") as "retail" | "wholesale",
     stock: extras.stock,
     active: body.active !== false,
     freeShipping: body.freeShipping !== false,

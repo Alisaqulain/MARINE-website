@@ -18,6 +18,8 @@ export const company = {
   phoneTel: "+917457099540",
   whatsapp: "917457099540",
   instagram: "https://www.instagram.com/marinamusestore1/",
+  youtube: "https://www.youtube.com/@MuhammadMuaaz-k2n",
+  facebook: "https://www.facebook.com/profile.php?id=61584041445930",
 } as const;
 
 export const companyMailto = `mailto:${company.email}`;

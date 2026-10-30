@@ -22,9 +22,9 @@ import { useT } from "@/lib/i18n/LocaleProvider";
 import { WholesaleNavLink } from "@/components/WholesaleNavLink";
 
 const socials: { label: string; Icon: typeof Facebook; href?: string }[] = [
-  { label: "Facebook", Icon: Facebook },
+  { label: "Facebook", Icon: Facebook, href: company.facebook },
   { label: "Instagram", Icon: Instagram, href: company.instagram },
-  { label: "YouTube", Icon: Youtube },
+  { label: "YouTube", Icon: Youtube, href: company.youtube },
   { label: "LinkedIn", Icon: Linkedin },
 ];
 
@@ -111,9 +111,9 @@ export function Footer() {
       title: t("footer.shop"),
       links: [
         [t("footer.link.retail"), "/retail"],
-        [t("footer.link.collections"), "/collections"],
         [t("footer.link.wishlist"), "/wishlist"],
         [t("footer.link.cart"), "/cart"],
+        ["Track Your Order", "/account/orders"],
       ],
     },
     {

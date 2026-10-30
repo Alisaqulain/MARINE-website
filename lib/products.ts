@@ -80,6 +80,12 @@ export type Product = {
   saleTerms?: string;
   /** Percent off from a running admin sale (set by applySales). */
   salePercent?: number;
+  /** ISO end time for the active sale countdown. */
+  saleEndsAt?: string;
+  /** Same three fields for a running wholesale (B2B) sale, set by applySales. */
+  wholesaleSaleTerms?: string;
+  wholesaleSalePercent?: number;
+  wholesaleSaleEndsAt?: string;
   /** Extra charge when the buyer chooses personalisation. Hidden when unset. */
   personalisationPrice?: number;
 };
@@ -916,3 +922,10 @@ export const trustStats = [
   { label: "B2B partners", value: "50+" },
   { label: "Pieces a year", value: "2K+" },
 ];
+
+/** The running sale for the customer (B2C) or wholesale (B2B) shop. */
+export function saleInfo(product: Product, wholesale = false) {
+  return wholesale
+    ? { percent: product.wholesaleSalePercent, endsAt: product.wholesaleSaleEndsAt, terms: product.wholesaleSaleTerms }
+    : { percent: product.salePercent, endsAt: product.saleEndsAt, terms: product.saleTerms };
+}

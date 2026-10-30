@@ -4,12 +4,13 @@ import { getDb } from "@/lib/mongodb";
 import { products, type Product } from "@/lib/products";
 import { applySales, loadActiveSales } from "@/lib/sales";
 
-function adminToProduct(doc: AdminProduct): Product {
+function adminToProduct(doc: AdminProduct): Product & { _createdAt?: number } {
   const listingImages = (doc.images ?? []).filter((image) => image.url);
   const img = listingImages[0]?.url || doc.image || "/newlogo.png";
   return {
     slug: doc.slug,
     name: doc.name,
+    _createdAt: doc.createdAt ? new Date(doc.createdAt).getTime() : 0,
     sku: doc.sku?.trim() || "",
     price: doc.price,
     compareAt: doc.compareAt,
@@ -107,11 +108,17 @@ export async function getStorefrontProducts(channel?: "retail" | "wholesale"): P
   ]);
   const activeSlugs = new Set(mongo.map((p) => p.slug));
   const catalog = products.filter((p) => activeSlugs.has(p.slug) || !deactivated.has(p.slug));
+  const created = new Map(
+    (mongo as (Product & { _createdAt?: number })[]).map((item) => [item.slug, item._createdAt ?? 0])
+  );
   return mergeStorefrontProducts(catalog, mongo, channel)
     .map((product) => applySales(product, sales))
     .sort((a, b) => {
-      const aMongo = mongo.find((item) => item.slug === a.slug);
-      const bMongo = mongo.find((item) => item.slug === b.slug);
+      const aTime = created.get(a.slug) ?? 0;
+      const bTime = created.get(b.slug) ?? 0;
+      if (aTime !== bTime) return bTime - aTime;
+      const aMongo = created.has(a.slug);
+      const bMongo = created.has(b.slug);
       if (aMongo && !bMongo) return -1;
       if (!aMongo && bMongo) return 1;
       return a.name.localeCompare(b.name);

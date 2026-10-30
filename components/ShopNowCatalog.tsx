@@ -5,7 +5,7 @@ import { getProductCategory } from "@/lib/catalog";
 import { productInCategory } from "@/lib/product-display";
 import { findNamedCategory, type NamedCategory } from "@/lib/category-label";
 import { findShopNowLabel, shopNowSubtree, shopNowTree } from "@/lib/shop-now-data";
-import { products as staticProducts, type Product } from "@/lib/products";
+import { products as staticProducts, saleInfo, type Product } from "@/lib/products";
 import { Camera, ChevronDown, ChevronRight, LayoutGrid, LayoutList, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -44,7 +44,7 @@ export function ShopNowCatalog({ retail = false }: { retail?: boolean }) {
 
   useEffect(() => {
     const channel = retail ? "retail" : "wholesale";
-    void fetch(`/api/catalog/products?channel=${channel}`)
+    void fetch(`/api/catalog/products?channel=${channel}`, { cache: "no-store" })
       .then((r) => r.json())
       .then((data) => {
         if (Array.isArray(data.items) && data.items.length) setCatalogProducts(data.items);
@@ -95,7 +95,8 @@ export function ShopNowCatalog({ retail = false }: { retail?: boolean }) {
 
     const outMarked = (p: (typeof next)[number]) =>
       retail ? p.b2cOutOfStock === true : p.b2bOutOfScope === true;
-    if (sort === "on-sale") next = next.filter((p) => (p.salePercent ?? 0) > 0);
+    if (sort === "on-sale") next = next.filter((p) => (saleInfo(p, !retail).percent ?? 0) > 0);
+    if (sort === "personalisation") next = next.filter((p) => p.personalisationPrice != null);
     if (sort === "in-stock") {
       next = next.filter((p) => !outMarked(p) && (p.quantity == null || p.quantity > 0));
     }
@@ -332,6 +333,7 @@ export function ShopNowCatalog({ retail = false }: { retail?: boolean }) {
                 <option value="price-desc">Price ↓</option>
                 <option value="rating">Top rated</option>
                 <option value="on-sale">Run a sale</option>
+                <option value="personalisation">Personalisation</option>
                 <option value="in-stock">In stock</option>
                 <option value="out-of-stock">Out of stock</option>
                 <option value="low-stock">Low stock (1–5)</option>

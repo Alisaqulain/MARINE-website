@@ -245,11 +245,7 @@ export function AdminCategoriesPanel() {
       <form onSubmit={add} className="h-fit space-y-3 rounded-xl bg-white p-5 shadow-sm">
         <h2 className="font-serif text-lg text-navy-900">Add category</h2>
         <p className="text-xs text-navy-600">
-          To show on the homepage slider and{" "}
-          <a href="/collections" className="underline" target="_blank" rel="noreferrer">
-            /collections
-          </a>
-          , keep <strong>Add under → Top level</strong> and upload an image. Subcategories only appear in Shop filters — not on the collections slider.
+          Keep <strong>Add under → Top level</strong> and upload an image to show on the homepage Explore Our Collections slider. Subcategories only appear in Shop filters.
         </p>
         <label className="block text-xs">
           <span className="mb-1 block text-navy-600">Name</span>

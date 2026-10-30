@@ -62,11 +62,15 @@ export function ProductCard({ product }: { product: Product }) {
           <ProductName name={product.name} className="text-[14px] font-normal leading-[1.35] text-[#222222]" />
         </h3>
       </Link>
-      <PriceRow price={priceFor(product)} salePercent={product.salePercent} className="mt-1" />
+      <PriceRow
+        price={priceFor(product)}
+        salePercent={product.salePercent}
+        className="mt-1"
+        trailing={showsFreeShipping(product) ? <FreeShippingTag /> : null}
+      />
       {availabilityMessage ? (
         <p className="mt-1 text-[12px] font-medium text-[#9a3412]">{availabilityMessage}</p>
       ) : null}
-      {showsFreeShipping(product) ? <FreeShippingTag /> : null}
     </article>
   );
 }
