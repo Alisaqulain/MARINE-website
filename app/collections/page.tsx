@@ -53,6 +53,9 @@ function collectionTiles(nodes: { slug: string; name: string; image?: string }[]
   });
 }
 
+// Render per request so categories added in admin show without a redeploy.
+export const dynamic = "force-dynamic";
+
 export default async function CollectionsPage() {
   let nodes: { slug: string; name: string; image?: string }[] = shopNowTree.map((c) => ({
     slug: c.slug,

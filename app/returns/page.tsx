@@ -98,6 +98,113 @@ const sections: { title: string; body: string[]; list?: string[] }[] = [
   },
 ];
 
+const wholesaleSections: { title: string; body: string[]; list?: string[]; after?: string[] }[] = [
+  {
+    title: "1. Sample Approval Before Bulk Orders",
+    body: [
+      "Wholesale customers may request a sample before confirming a bulk order.",
+      "Bulk production and dispatch will proceed according to the sample approved by the customer and the mutually agreed product specifications. Customers are responsible for reviewing the sample carefully before approving bulk production.",
+    ],
+  },
+  {
+    title: "2. Product Quality & Order Specifications",
+    body: [
+      "All wholesale orders will be manufactured or prepared according to the agreed specifications, including product design, material, dimensions, quantity, finish, and approved customization.",
+      "Any special requirements must be confirmed in writing before production begins.",
+    ],
+  },
+  {
+    title: "3. Damaged, Defective or Incorrect Products",
+    body: [
+      "If a wholesale order arrives damaged, defective, incorrect, or materially different from the agreed specifications, the customer must notify MARINA MUSE INTERNATIONAL promptly after receiving the goods.",
+      "Customers should provide:",
+    ],
+    list: [
+      "Wholesale order number and relevant order details.",
+      "Clear photographs or videos showing the issue.",
+      "A description of the damage, defect, or discrepancy.",
+    ],
+    after: [
+      "After verification and any necessary inspection, an appropriate resolution may include repair, replacement, or a full or partial refund, depending on the circumstances, the agreed order terms, and applicable law.",
+    ],
+  },
+  {
+    title: "4. Returns & Exchanges",
+    body: [
+      "All wholesale returns and exchanges require prior written authorization from MARINA MUSE INTERNATIONAL.",
+      "Customers must not ship products back without receiving return instructions. Unauthorized returns may be refused where permitted by applicable law.",
+      "Approved returns must follow the return instructions and conditions communicated by our team.",
+    ],
+  },
+  {
+    title: "5. Sample-Approved Bulk Orders",
+    body: [
+      "Once a customer has approved the sample and confirmed the bulk order, returns or exchanges due to a change of mind, change of preference, or reasons unrelated to an agreed product defect will not normally be accepted.",
+      "Any exceptions must be agreed in writing, subject to applicable law.",
+    ],
+  },
+  {
+    title: "6. Customized & Made-to-Order Products",
+    body: [
+      "Customized, personalized, and specially manufactured wholesale products are generally not eligible for return or cancellation due to a change of mind once production has commenced.",
+      "This condition does not exclude claims relating to damaged, defective, incorrect, or non-conforming products, or any mandatory rights available under applicable law.",
+    ],
+  },
+  {
+    title: "7. Order Cancellation",
+    body: ["Cancellation requests must be submitted in writing."],
+    list: [
+      "Before production: Cancellation may be considered subject to written confirmation.",
+      "During production or customization: Cancellation may not be possible once work has commenced.",
+      "After dispatch: Cancellation is generally not available through the order cancellation process.",
+    ],
+    after: [
+      "Any applicable refund, cancellation charges, or other adjustments will be determined according to the agreed order terms and applicable law.",
+    ],
+  },
+  {
+    title: "8. Return Shipping, Customs & Duties",
+    body: [
+      "For approved returns arising from verified defects, damage, or errors attributable to the seller, return shipping costs will be handled according to the agreed order terms and applicable law.",
+      "For other approved returns, the customer may be responsible for return shipping, customs duties, import taxes, and related charges, where agreed in writing and permitted by law.",
+      "International customers should confirm the return shipping and customs arrangements before sending any goods back.",
+    ],
+  },
+  {
+    title: "9. Refund Processing",
+    body: [
+      "Approved refunds will be processed through the original or another mutually agreed payment method, subject to payment provider requirements.",
+      "Where necessary, refunds will be processed after the claim has been verified and the required inspection or return has been completed.",
+      "The time taken for the refunded amount to appear in the customer's account may vary depending on the payment provider and banking procedures.",
+    ],
+  },
+  {
+    title: "10. How to Submit a Return or Refund Request",
+    body: ["To submit a claim, customers should contact MARINA MUSE INTERNATIONAL and provide:"],
+    list: [
+      "Order number.",
+      "Customer or business name.",
+      "Description of the issue.",
+      "Supporting photographs or videos.",
+      "Preferred resolution, such as repair, replacement, or refund.",
+    ],
+    after: ["Our team will review the request and communicate the next steps."],
+  },
+  {
+    title: "11. Wholesale Order Agreement",
+    body: [
+      "The approved sample, purchase order, product specifications, agreed quantity, payment terms, production arrangements, and shipping terms form part of the wholesale order agreement.",
+      "Any special return, exchange, or refund arrangement must be confirmed in writing by both parties.",
+    ],
+  },
+  {
+    title: "12. Applicable Law & Customer Rights",
+    body: [
+      "This policy is subject to applicable laws and regulations. Nothing in this policy excludes or restricts any mandatory legal rights or remedies available to customers.",
+    ],
+  },
+];
+
 export default function ReturnsPage() {
   return (
     <div className="bg-[#FAF7F2]">
@@ -115,6 +222,13 @@ export default function ReturnsPage() {
           <p className="mt-4 leading-relaxed text-navy-600">
             For customers in the European Union, mandatory consumer rights apply in addition to the policies below.
             Nothing in this policy limits any legal rights that cannot legally be excluded or restricted.
+          </p>
+          <p className="mt-4 leading-relaxed text-navy-600">
+            Buying wholesale? See the{" "}
+            <a href="#wholesale" className="font-semibold text-[#8C6E28] underline">
+              Wholesale Returns, Refunds &amp; Exchange Policy
+            </a>
+            .
           </p>
 
           {sections.map((s) => (
@@ -151,6 +265,58 @@ export default function ReturnsPage() {
               ) : null}
             </section>
           ))}
+
+          <section id="wholesale" className="mt-14 scroll-mt-28 border-t border-[#e6dfd2] pt-10">
+            <h2 className="font-serif text-[1.5rem] text-navy-900 md:text-3xl">
+              Wholesale Returns, Refunds &amp; Exchange Policy
+            </h2>
+            <p className="mt-2 text-sm font-semibold uppercase tracking-[0.16em] text-[#8C6E28]">{company.name}</p>
+            <p className="mt-5 leading-relaxed text-navy-600">
+              At {company.name.toUpperCase()}, we aim to provide premium-quality, factory-made brass products and a
+              reliable wholesale purchasing experience. Our wholesale return, refund, and exchange policy is designed to
+              ensure clarity, quality assurance, and fair treatment for both parties.
+            </p>
+            {wholesaleSections.map((s) => (
+              <div key={s.title} className="mt-8">
+                <h3 className="font-serif text-lg text-navy-900 md:text-xl">{s.title}</h3>
+                {s.body.map((p) => (
+                  <p key={p.slice(0, 48)} className="mt-3 leading-relaxed text-navy-600">
+                    {p}
+                  </p>
+                ))}
+                {s.list ? (
+                  <ul className="mt-3 list-disc space-y-1 pl-5 text-navy-700">
+                    {s.list.map((item) => {
+                      const cut = item.indexOf(": ");
+                      const label = cut > 0 ? item.slice(0, cut) : null;
+                      const rest = cut > 0 ? item.slice(cut + 2) : item;
+                      return (
+                        <li key={item}>
+                          {label ? <span className="font-semibold">{label}: </span> : null}
+                          {rest}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : null}
+                {s.after?.map((p) => (
+                  <p key={p.slice(0, 48)} className="mt-3 leading-relaxed text-navy-600">
+                    {p}
+                  </p>
+                ))}
+              </div>
+            ))}
+            <p className="mt-8 leading-relaxed text-navy-600">
+              {company.name.toUpperCase()} reserves the right to assess wholesale claims individually and provide a fair
+              resolution in accordance with the agreed order terms and applicable law.
+            </p>
+            <div className="mt-10 text-center">
+              <p className="font-serif text-xl text-navy-900">{company.name.toUpperCase()}</p>
+              <p className="mt-2 text-xs uppercase tracking-[0.16em] text-[#8C6E28]">
+                Handcrafted in Our Own Factory | Premium Quality | Worldwide Shipping
+              </p>
+            </div>
+          </section>
 
           <div className="mt-12 border-t border-[#e6dfd2] pt-8 text-center">
             <p className="font-serif text-xl text-navy-900">{company.name}</p>

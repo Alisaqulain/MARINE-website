@@ -3,6 +3,7 @@
 import { ChevronDown, Clock } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { AdminListPagination } from "@/components/AdminListPagination";
 import { ProductImage } from "@/components/ProductImage";
 import type { ListingStatRange, ListingStatRow } from "@/lib/listing-stats";
 
@@ -43,7 +44,7 @@ export function AdminListingStats() {
   const [updatedAt, setUpdatedAt] = useState("");
   const [sort, setSort] = useState<SortKey>("views");
   const [menuOpen, setMenuOpen] = useState(false);
-  const [limit, setLimit] = useState(PAGE);
+  const [page, setPage] = useState(1);
   const [hideEmpty, setHideEmpty] = useState(true);
 
   const load = useCallback(async (next: ListingStatRange) => {
@@ -59,7 +60,7 @@ export function AdminListingStats() {
   }, []);
 
   useEffect(() => {
-    setLimit(PAGE);
+    setPage(1);
     void load(range);
   }, [range, load]);
 
@@ -67,6 +68,24 @@ export function AdminListingStats() {
     const list = hideEmpty ? rows.filter((r) => r.views || r.favourites || r.orders || r.revenue) : rows;
     return [...list].sort((a, b) => b[sort] - a[sort] || b.views - a.views || a.name.localeCompare(b.name));
   }, [rows, sort, hideEmpty]);
+
+  const totalPages = Math.ceil(sorted.length / PAGE);
+  const safePage = Math.min(page, Math.max(1, totalPages));
+  const pageRows = sorted.slice((safePage - 1) * PAGE, safePage * PAGE);
+  const pagination = (className: string) =>
+    !loading && sorted.length ? (
+      <AdminListPagination
+        className={className}
+        page={totalPages ? safePage : 0}
+        totalPages={totalPages}
+        summary={
+          <>
+            Page {safePage} of {totalPages} · {sorted.length} listings
+          </>
+        }
+        onPageChange={setPage}
+      />
+    ) : null;
 
   const totals = useMemo(
     () =>
@@ -87,7 +106,10 @@ export function AdminListingStats() {
     <th className="px-3 py-3 text-right">
       <button
         type="button"
-        onClick={() => setSort(key)}
+        onClick={() => {
+          setSort(key);
+          setPage(1);
+        }}
         className={`inline-flex flex-col items-center font-semibold ${sort === key ? "text-[#222]" : "text-[#555]"}`}
       >
         {label}
@@ -144,7 +166,10 @@ export function AdminListingStats() {
           </div>
           <div className="flex items-center gap-4 text-xs text-navy-600">
             <label className="inline-flex items-center gap-1.5">
-              <input type="checkbox" checked={hideEmpty} onChange={(e) => setHideEmpty(e.target.checked)} />
+              <input type="checkbox" checked={hideEmpty} onChange={(e) => {
+                  setHideEmpty(e.target.checked);
+                  setPage(1);
+                }} />
               Hide listings with no activity
             </label>
             {updatedAt ? (
@@ -160,6 +185,8 @@ export function AdminListingStats() {
         </div>
 
         {error ? <p className="px-4 py-3 text-sm text-red-700">{error}</p> : null}
+
+        {pagination("border-b border-[#ebe5da] px-4 py-3")}
 
         <div className="overflow-x-auto">
           <table className="min-w-[720px] w-full text-sm">
@@ -186,7 +213,7 @@ export function AdminListingStats() {
                   </td>
                 </tr>
               ) : (
-                sorted.slice(0, limit).map((r) => (
+                pageRows.map((r) => (
                   <tr key={r.slug} className="border-t border-[#ebe5da]">
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-4">
@@ -221,20 +248,7 @@ export function AdminListingStats() {
             </tbody>
           </table>
         </div>
-        {!loading && sorted.length > limit ? (
-          <div className="flex flex-col items-center gap-2 border-t border-[#ebe5da] py-4">
-            <p className="text-xs text-navy-600">
-              Showing {limit} of {sorted.length}
-            </p>
-            <button
-              type="button"
-              onClick={() => setLimit((n) => n + PAGE)}
-              className="rounded-full border border-[#222] px-6 py-2 text-sm font-medium"
-            >
-              Show more
-            </button>
-          </div>
-        ) : null}
+        {pagination("border-t border-[#ebe5da] px-4 py-3")}
       </div>
       <p className="text-xs text-navy-500">
         Views count product page visits. Favourites count wishlist hearts (started tracking with this update). Orders

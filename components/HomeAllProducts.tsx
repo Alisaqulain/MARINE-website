@@ -27,17 +27,24 @@ export function HomeAllProducts() {
   const { data: session } = useSession();
   const wholesaleOk = canAccessWholesale(session?.user);
   const { promptSwitchToWholesale } = useWholesaleGate();
-  const [products, setProducts] = useState<Product[]>(staticProducts);
+  const [retailProducts, setRetailProducts] = useState<Product[]>(staticProducts);
+  const [wholesaleProducts, setWholesaleProducts] = useState<Product[]>(() =>
+    staticProducts.filter((p) => p.wholesaleFrom ?? p.moq)
+  );
 
   useEffect(() => {
     let cancelled = false;
-    function load() {
-      void fetch("/api/catalog/products", { cache: "no-store" })
+    function loadChannel(channel: "retail" | "wholesale", set: (items: Product[]) => void) {
+      void fetch(`/api/catalog/products?channel=${channel}`, { cache: "no-store" })
         .then((r) => r.json())
         .then((data) => {
-          if (!cancelled && Array.isArray(data.items) && data.items.length) setProducts(data.items);
+          if (!cancelled && Array.isArray(data.items)) set(data.items);
         })
         .catch(() => {});
+    }
+    function load() {
+      loadChannel("retail", setRetailProducts);
+      loadChannel("wholesale", setWholesaleProducts);
     }
     load();
     const onFocus = () => load();
@@ -47,6 +54,9 @@ export function HomeAllProducts() {
       window.removeEventListener("focus", onFocus);
     };
   }, []);
+
+  const displayMode = mode === "b2b" && wholesaleOk ? "b2b" : "b2c";
+  const products = displayMode === "b2b" ? wholesaleProducts : retailProducts;
 
   const sorted = useMemo(() => {
     const next = [...products];
@@ -83,8 +93,6 @@ export function HomeAllProducts() {
     setMode(next);
     setPage(1);
   }
-
-  const displayMode = mode === "b2b" && wholesaleOk ? "b2b" : "b2c";
 
   return (
     <section ref={ref} className="scroll-mt-24 bg-white px-4 pb-10 pt-4 md:px-5 md:pb-14 md:pt-5">

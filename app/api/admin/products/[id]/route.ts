@@ -22,7 +22,9 @@ export async function PATCH(req: Request, ctx: Ctx) {
   }
 
   const body = await req.json();
-  const scope = body.priceScope === "wholesale" ? "wholesale" : "retail";
+  // "both" lists one product on retail and wholesale and saves both price sets.
+  const scope: AdminProduct["channel"] =
+    body.priceScope === "both" ? "both" : body.priceScope === "wholesale" ? "wholesale" : "retail";
   const extras = parseProductExtras(body);
   const update: Partial<AdminProduct> = {
     updatedAt: new Date(),
@@ -36,7 +38,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
     b2cOutOfStock: extras.b2cOutOfStock,
     b2bOutOfScope: extras.b2bOutOfScope,
     stock: extras.stock,
-    channel: scope === "wholesale" ? "wholesale" : "retail",
+    channel: scope,
     tags: extras.tags,
   };
 
@@ -49,12 +51,12 @@ export async function PATCH(req: Request, ctx: Ctx) {
 
   const unset: Record<string, 1> = {};
 
-  if (scope === "retail") {
+  update.quantity = extras.quantity;
+  if (scope !== "wholesale") {
     if (body.price != null && body.price !== "") update.price = Number(body.price);
     update.priceIndia = extras.priceIndia;
     update.priceUs = extras.priceUs;
     update.compareAt = money(body.compareAt);
-    update.quantity = extras.quantity;
     if (body.priceIndia === "") {
       delete update.priceIndia;
       unset.priceIndia = 1;
@@ -63,7 +65,8 @@ export async function PATCH(req: Request, ctx: Ctx) {
       delete update.priceUs;
       unset.priceUs = 1;
     }
-  } else {
+  }
+  if (scope !== "retail") {
     update.wholesaleFrom = money(body.wholesaleFrom);
     update.wholesalePriceIndia = extras.wholesalePriceIndia;
     update.wholesalePriceUs = extras.wholesalePriceUs;
@@ -79,7 +82,6 @@ export async function PATCH(req: Request, ctx: Ctx) {
       delete update.wholesalePriceUs;
       unset.wholesalePriceUs = 1;
     }
-    update.quantity = extras.quantity;
   }
 
   const db = await getDb();

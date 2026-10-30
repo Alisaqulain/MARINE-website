@@ -16,9 +16,10 @@ export async function PATCH(req: Request) {
   const { error } = await requireAdminSession("view");
   if (error) return error;
   const body = await req.json().catch(() => null);
-  const flags: { published?: boolean; showOnHome?: boolean } = {};
+  const flags: { published?: boolean; showOnHome?: boolean; reply?: string } = {};
   if (typeof body?.published === "boolean") flags.published = body.published;
   if (typeof body?.showOnHome === "boolean") flags.showOnHome = body.showOnHome;
+  if (typeof body?.reply === "string") flags.reply = body.reply.trim().slice(0, 2000);
   if (!Object.keys(flags).length) {
     return NextResponse.json({ error: "Nothing to update." }, { status: 400 });
   }

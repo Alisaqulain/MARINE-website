@@ -27,13 +27,15 @@ import { AdminCategoriesPanel } from "@/components/AdminCategoriesPanel";
 import { AdminProductList } from "@/components/AdminProductList";
 import { AdminSalePanel } from "@/components/AdminSalePanel";
 import { AdminListingStats } from "@/components/AdminListingStats";
+import { AdminListPagination } from "@/components/AdminListPagination";
 import { AdminProductReviewsPanel } from "@/components/AdminProductReviewsPanel";
+import { AdminTestimonialForm } from "@/components/AdminTestimonialForm";
 import { AdminShipmentsPanel } from "@/components/AdminShipmentsPanel";
 import { AdminAiPanel } from "@/components/AdminAiPanel";
 import { AdminWhatsAppPanel } from "@/components/AdminWhatsAppPanel";
 import { AdminTeamPanel } from "@/components/AdminTeamPanel";
 import { BulkActions, deleteUrls, useRowSelection } from "@/components/AdminSelection";
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { AdminProductImagesField } from "@/components/AdminProductImageField";
 import { listingCategories } from "@/lib/listing-categories";
 import type { ListingImage } from "@/lib/listing-images";
@@ -158,6 +160,10 @@ export function AdminDashboard() {
     images: [] as ListingImage[],
     description: "",
     channel: "both" as const,
+    /** List this one product on both retail and wholesale. */
+    listBoth: false,
+    /** With listBoth: use the same three prices on both sides. */
+    samePrice: true,
     freeShipping: true,
     categories: [] as string[],
     zoom: "100",
@@ -299,10 +305,10 @@ export function AdminDashboard() {
       ? [
           { id: "overview", label: "Overview", icon: Package },
           { id: "products", label: "Products", icon: Package },
+          ...(canAddProduct ? [{ id: "add-product" as const, label: "Add product", icon: Package }] : []),
           { id: "listing-stats", label: "Listing stats", icon: BarChart3 },
           ...(canAddProduct
             ? [
-                { id: "add-product" as const, label: "Add product", icon: Package },
                 { id: "sales" as const, label: "Run a sale", icon: Package },
                 { id: "categories" as const, label: "Categories", icon: Package },
               ]
@@ -321,10 +327,10 @@ export function AdminDashboard() {
       : [
           { id: "overview", label: "Overview", icon: Package },
           { id: "products", label: "Products", icon: Package },
+          ...(canAddProduct ? [{ id: "add-product" as const, label: "Add product", icon: Package }] : []),
           { id: "listing-stats", label: "Listing stats", icon: BarChart3 },
           ...(canAddProduct
             ? [
-                { id: "add-product" as const, label: "Add product", icon: Package },
                 { id: "sales" as const, label: "Run a sale", icon: Package },
                 { id: "categories" as const, label: "Categories", icon: Package },
               ]
@@ -342,19 +348,21 @@ export function AdminDashboard() {
         ];
 
   function productPayload() {
+    const scope = productForm.listBoth ? "both" : panel === "wholesale" ? "wholesale" : "retail";
+    const shareRetailPrice = productForm.listBoth && productForm.samePrice;
     return {
       ...productForm,
       slug: editing?.slug,
-      channel: panel === "wholesale" ? "wholesale" : "retail",
-      priceScope: panel === "wholesale" ? "wholesale" : "retail",
+      channel: scope,
+      priceScope: scope,
       price: productForm.price,
       priceIndia: productForm.priceIndia,
       priceUs: productForm.priceUs,
       tags: productForm.tags,
       compareAt: productForm.compareAt,
-      wholesaleFrom: productForm.wholesaleFrom,
-      wholesalePriceIndia: productForm.wholesalePriceIndia,
-      wholesalePriceUs: productForm.wholesalePriceUs,
+      wholesaleFrom: shareRetailPrice ? productForm.price : productForm.wholesaleFrom,
+      wholesalePriceIndia: shareRetailPrice ? productForm.priceIndia : productForm.wholesalePriceIndia,
+      wholesalePriceUs: shareRetailPrice ? productForm.priceUs : productForm.wholesalePriceUs,
       quantity: productForm.quantity,
       b2cOutOfStock: productForm.b2cOutOfStock,
       b2bOutOfScope: productForm.b2bOutOfScope,
@@ -374,7 +382,7 @@ export function AdminDashboard() {
 
   async function saveProduct(e: React.FormEvent) {
     e.preventDefault();
-    if (panel === "wholesale") {
+    if (panel === "wholesale" || productForm.listBoth) {
       const qty = productForm.quantity === "" ? NaN : Number(productForm.quantity);
       if (!Number.isFinite(qty) || qty < 20) {
         window.alert("Wholesale quantity in stock must be at least 20.");
@@ -437,6 +445,11 @@ export function AdminDashboard() {
           : [],
       description: String(p.description ?? ""),
       channel: "both",
+      listBoth: p.channel === "both",
+      samePrice:
+        String(p.price ?? "") === String(p.wholesaleFrom ?? "") &&
+        String(p.priceIndia ?? "") === String(p.wholesalePriceIndia ?? "") &&
+        String(p.priceUs ?? "") === String(p.wholesalePriceUs ?? ""),
       freeShipping: p.freeShipping !== false,
       categories: Array.isArray(p.categories) ? p.categories.map(String) : [],
       zoom: String((p.imageAdjust as { zoom?: number } | undefined)?.zoom ?? 100),
@@ -814,108 +827,86 @@ export function AdminDashboard() {
                     ))}
                   </div>
                 </fieldset>
-                <fieldset className="space-y-2">
-                  <legend className="text-xs font-semibold uppercase tracking-wide text-navy-600">
-                    {panel === "wholesale" ? "Wholesale price (US$)" : "Retail price (US$)"}
-                  </legend>
-                  <p className="text-[10px] text-navy-500">
-                    Three prices, all in US dollars. Saving here updates only this panel — retail and wholesale prices stay separate.
-                  </p>
-                  {panel === "wholesale" ? (
-                    <div className="grid gap-2 sm:grid-cols-3">
-                      <label className="block text-xs">
-                        <span className="mb-1 block text-navy-600">1. India · US$</span>
-                        <input
-                          className="input"
-                          type="number"
-                          inputMode="decimal"
-                          step="0.01"
-                          min={0}
-                          value={productForm.wholesalePriceIndia}
-                          onChange={(e) => setProductForm({ ...productForm, wholesalePriceIndia: e.target.value })}
-                        />
-                      </label>
-                      <label className="block text-xs">
-                        <span className="mb-1 block text-navy-600">2. United States · US$</span>
-                        <input
-                          className="input"
-                          type="number"
-                          inputMode="decimal"
-                          step="0.01"
-                          min={0}
-                          value={productForm.wholesalePriceUs}
-                          onChange={(e) => setProductForm({ ...productForm, wholesalePriceUs: e.target.value })}
-                        />
-                      </label>
-                      <label className="block text-xs">
-                        <span className="mb-1 block text-navy-600">3. Other countries · US$</span>
-                        <input
-                          className="input"
-                          type="number"
-                          inputMode="decimal"
-                          step="0.01"
-                          min={0}
-                          value={productForm.wholesaleFrom}
-                          onChange={(e) => setProductForm({ ...productForm, wholesaleFrom: e.target.value })}
-                          required
-                        />
-                      </label>
-                    </div>
-                  ) : (
-                    <div className="grid gap-2 sm:grid-cols-3">
-                      <label className="block text-xs">
-                        <span className="mb-1 block text-navy-600">1. India · US$</span>
-                        <input
-                          className="input"
-                          type="number"
-                          inputMode="decimal"
-                          step="0.01"
-                          min={0}
-                          value={productForm.priceIndia}
-                          onChange={(e) => setProductForm({ ...productForm, priceIndia: e.target.value })}
-                        />
-                      </label>
-                      <label className="block text-xs">
-                        <span className="mb-1 block text-navy-600">2. United States · US$</span>
-                        <input
-                          className="input"
-                          type="number"
-                          inputMode="decimal"
-                          step="0.01"
-                          min={0}
-                          value={productForm.priceUs}
-                          onChange={(e) => setProductForm({ ...productForm, priceUs: e.target.value })}
-                        />
-                      </label>
-                      <label className="block text-xs">
-                        <span className="mb-1 block text-navy-600">3. Other countries · US$</span>
-                        <input
-                          className="input"
-                          type="number"
-                          inputMode="decimal"
-                          step="0.01"
-                          min={0}
-                          value={productForm.price}
-                          onChange={(e) => setProductForm({ ...productForm, price: e.target.value })}
-                          required
-                        />
-                      </label>
-                    </div>
-                  )}
-                </fieldset>
+                <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-[#C9A84C]/50 bg-[#FAF7F2] p-3 text-sm text-navy-800">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={productForm.listBoth}
+                    onChange={(e) => setProductForm({ ...productForm, listBoth: e.target.checked })}
+                  />
+                  <span>
+                    <span className="block font-medium">List on both Retail and Wholesale</span>
+                    <span className="block text-[10px] text-navy-500">
+                      One product shown on both sides, with one shared quantity in stock (min. 20 for wholesale).
+                    </span>
+                  </span>
+                </label>
+                {productForm.listBoth ? (
+                  <label className="flex cursor-pointer items-center gap-2 text-sm text-navy-800">
+                    <input
+                      type="checkbox"
+                      checked={productForm.samePrice}
+                      onChange={(e) => setProductForm({ ...productForm, samePrice: e.target.checked })}
+                    />
+                    Same price for retail and wholesale
+                  </label>
+                ) : null}
+                {!productForm.listBoth && panel === "wholesale" ? null : (
+                  <fieldset className="space-y-2">
+                    <legend className="text-xs font-semibold uppercase tracking-wide text-navy-600">
+                      {productForm.listBoth && productForm.samePrice
+                        ? "Retail & wholesale price (US$)"
+                        : "Retail price (US$)"}
+                    </legend>
+                    <p className="text-[10px] text-navy-500">
+                      {productForm.listBoth && productForm.samePrice
+                        ? "Three prices, all in US dollars, used on both retail and wholesale."
+                        : "Three prices, all in US dollars. Retail and wholesale prices stay separate."}
+                    </p>
+                    <PriceInputs
+                      values={[productForm.priceIndia, productForm.priceUs, productForm.price]}
+                      onChange={(values) =>
+                        setProductForm({ ...productForm, priceIndia: values[0], priceUs: values[1], price: values[2] })
+                      }
+                    />
+                  </fieldset>
+                )}
+                {(productForm.listBoth ? !productForm.samePrice : panel === "wholesale") ? (
+                  <fieldset className="space-y-2">
+                    <legend className="text-xs font-semibold uppercase tracking-wide text-navy-600">
+                      Wholesale price (US$)
+                    </legend>
+                    {productForm.listBoth ? null : (
+                      <p className="text-[10px] text-navy-500">
+                        Three prices, all in US dollars. Retail and wholesale prices stay separate.
+                      </p>
+                    )}
+                    <PriceInputs
+                      values={[productForm.wholesalePriceIndia, productForm.wholesalePriceUs, productForm.wholesaleFrom]}
+                      onChange={(values) =>
+                        setProductForm({
+                          ...productForm,
+                          wholesalePriceIndia: values[0],
+                          wholesalePriceUs: values[1],
+                          wholesaleFrom: values[2],
+                        })
+                      }
+                    />
+                  </fieldset>
+                ) : null}
                 <label className="block text-xs">
                   <span className="mb-1 block text-navy-600">Quantity in stock</span>
                   <input
                     className="input"
                     type="number"
-                    min={panel === "wholesale" ? 20 : 0}
+                    min={panel === "wholesale" || productForm.listBoth ? 20 : 0}
                     step={1}
-                    placeholder={panel === "wholesale" ? "Min 20" : "e.g. 100"}
+                    placeholder={panel === "wholesale" || productForm.listBoth ? "Min 20" : "e.g. 100"}
                     value={productForm.quantity}
                     onChange={(e) => setProductForm({ ...productForm, quantity: e.target.value })}
-                    required={panel === "wholesale"}
+                    required={panel === "wholesale" || productForm.listBoth}
                   />
-                  {panel === "wholesale" ? (
+                  {panel === "wholesale" || productForm.listBoth ? (
                     <span className="mt-1 block text-[11px] font-semibold text-red-700">
                       Min. stock for wholesale is 20
                     </span>
@@ -933,7 +924,7 @@ export function AdminDashboard() {
                   <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-navy-600">
                     Availability
                   </legend>
-                  {panel === "wholesale" ? (
+                  {panel === "wholesale" || productForm.listBoth ? (
                     <label className="flex cursor-pointer items-start gap-2 text-sm text-navy-800">
                       <input
                         type="checkbox"
@@ -944,13 +935,14 @@ export function AdminDashboard() {
                         }
                       />
                       <span>
-                        <span className="block font-medium">Out of stock</span>
+                        <span className="block font-medium">Out of stock{productForm.listBoth ? " on wholesale" : ""}</span>
                         <span className="block text-[10px] text-navy-500">
                           Shows “Out of stock” on wholesale and disables wholesale purchase.
                         </span>
                       </span>
                     </label>
-                  ) : (
+                  ) : null}
+                  {panel !== "wholesale" || productForm.listBoth ? (
                     <label className="flex cursor-pointer items-start gap-2 text-sm text-navy-800">
                       <input
                         type="checkbox"
@@ -961,13 +953,13 @@ export function AdminDashboard() {
                         }
                       />
                       <span>
-                        <span className="block font-medium">Out of stock</span>
+                        <span className="block font-medium">Out of stock{productForm.listBoth ? " on retail" : ""}</span>
                         <span className="block text-[10px] text-navy-500">
                           Shows “Out of stock” on retail and disables customer purchase.
                         </span>
                       </span>
                     </label>
-                  )}
+                  ) : null}
                 </fieldset>
                 <fieldset className="space-y-2">
                   <legend className="text-xs font-semibold uppercase tracking-wide text-navy-600">
@@ -1246,6 +1238,9 @@ export function AdminDashboard() {
               <AdminProductReviewsPanel canDelete={canDelete} />
               <div>
                 <h2 className="mb-3 font-serif text-lg text-navy-900">Shop testimonials</h2>
+                <div className="mb-3">
+                  <AdminTestimonialForm onAdded={() => void load()} />
+                </div>
                 <AdminReviewsPanel
                   rows={testimonials}
                   onReload={() => void load()}
@@ -1385,80 +1380,36 @@ export function AdminDashboard() {
   );
 }
 
-function AdminListPagination({
-  page,
-  totalPages,
-  summary,
-  onPageChange,
-  className = "",
-  compact = false,
+/** India / United States / Other countries prices in US$; the last one is required. */
+function PriceInputs({
+  values,
+  onChange,
 }: {
-  page: number;
-  totalPages: number;
-  summary: ReactNode;
-  onPageChange: (page: number) => void;
-  className?: string;
-  compact?: boolean;
+  values: [string, string, string];
+  onChange: (values: [string, string, string]) => void;
 }) {
-  const [goTo, setGoTo] = useState(String(page));
-  const maxPage = Math.max(1, totalPages);
-
-  useEffect(() => {
-    setGoTo(String(page));
-  }, [page]);
-
-  function jump(e: FormEvent) {
-    e.preventDefault();
-    const n = Number.parseInt(goTo, 10);
-    if (!Number.isFinite(n)) return;
-    onPageChange(Math.min(maxPage, Math.max(1, n)));
-  }
-
-  const btn = compact
-    ? "inline-flex h-8 items-center rounded-full border border-[#e8dfd0] bg-white px-3 text-xs disabled:opacity-40"
-    : "inline-flex h-8 items-center rounded border border-[#e8dfd0] bg-white px-3 text-xs disabled:opacity-40";
-
+  const labels = ["1. India · US$", "2. United States · US$", "3. Other countries · US$"];
   return (
-    <div
-      className={`flex flex-wrap items-center justify-between gap-3 text-xs text-navy-600 ${className}`}
-    >
-      <span>{summary}</span>
-      <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          className={btn}
-          disabled={page <= 1 || totalPages < 1}
-          onClick={() => onPageChange(Math.max(1, page - 1))}
-        >
-          Previous
-        </button>
-        <form onSubmit={jump} className="flex h-8 items-center gap-1.5">
-          <label className="sr-only" htmlFor="admin-page-jump">
-            Go to page
-          </label>
+    <div className="grid gap-2 sm:grid-cols-3">
+      {labels.map((label, i) => (
+        <label key={label} className="block text-xs">
+          <span className="mb-1 block text-navy-600">{label}</span>
           <input
-            id="admin-page-jump"
+            className="input"
             type="number"
-            min={1}
-            max={maxPage}
-            value={goTo}
-            onChange={(e) => setGoTo(e.target.value)}
-            className="h-8 w-14 rounded border border-[#e8dfd0] bg-white px-2 text-center text-xs text-navy-900"
+            inputMode="decimal"
+            step="0.01"
+            min={0}
+            value={values[i]}
+            onChange={(e) => {
+              const next: [string, string, string] = [...values];
+              next[i] = e.target.value;
+              onChange(next);
+            }}
+            required={i === 2}
           />
-          <span className="whitespace-nowrap text-navy-500">of {totalPages || 1}</span>
-          <button type="submit" className={btn} disabled={totalPages < 1}>
-            Go
-          </button>
-        </form>
-        <button
-          type="button"
-          className={btn}
-          disabled={page >= totalPages || totalPages < 1}
-          onClick={() => onPageChange(page + 1)}
-        >
-          Next
-        </button>
-      </div>
+        </label>
+      ))}
     </div>
   );
 }

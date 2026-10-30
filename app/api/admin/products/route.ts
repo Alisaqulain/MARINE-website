@@ -145,7 +145,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Product name is required." }, { status: 400 });
   }
 
-  const scope = body.priceScope === "wholesale" ? "wholesale" : "retail";
+  // "both" lists one product on retail and wholesale and saves both price sets.
+  const scope: AdminProduct["channel"] =
+    body.priceScope === "both" ? "both" : body.priceScope === "wholesale" ? "wholesale" : "retail";
   const extras = parseProductExtras(body);
   const wholesaleFrom = money(body.wholesaleFrom);
   const retailPrice = money(body.price) ?? wholesaleFrom ?? 0;
@@ -162,7 +164,7 @@ export async function POST(req: Request) {
     images: extras.images ?? existing?.images,
     personalisationPrice: extras.personalisationPrice,
     description: String(body.description ?? existing?.description ?? ""),
-    channel: (scope === "wholesale" ? "wholesale" : "retail") as "retail" | "wholesale",
+    channel: scope,
     stock: extras.stock,
     active: body.active !== false,
     freeShipping: body.freeShipping !== false,
@@ -183,25 +185,25 @@ export async function POST(req: Request) {
       listedBy: existing.listedBy,
       createdAt: existing.createdAt,
     };
-    if (scope === "retail") {
+    if (scope !== "wholesale") {
       set.price = retailPrice;
       set.priceIndia = extras.priceIndia;
       set.priceUs = extras.priceUs;
       set.compareAt = money(body.compareAt);
-      set.quantity = extras.quantity;
-    } else {
+    }
+    if (scope !== "retail") {
       set.wholesaleFrom = wholesaleFrom;
       set.wholesalePriceIndia = extras.wholesalePriceIndia;
       set.wholesalePriceUs = extras.wholesalePriceUs;
-      set.quantity = extras.quantity;
     }
+    set.quantity = extras.quantity;
     await col.updateOne({ _id: existing._id }, { $set: set });
     return NextResponse.json({ id: String(existing._id), updated: true });
   }
 
   const doc: Omit<AdminProduct, "_id"> = {
     ...shared,
-    price: scope === "retail" ? retailPrice : wholesaleFrom ?? 0,
+    price: scope === "wholesale" ? wholesaleFrom ?? 0 : retailPrice,
     compareAt: money(body.compareAt),
     wholesaleFrom,
     wholesalePriceIndia: extras.wholesalePriceIndia,

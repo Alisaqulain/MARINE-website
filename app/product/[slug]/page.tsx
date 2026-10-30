@@ -361,7 +361,7 @@ export default function ProductPage() {
               <p className="mt-1 text-xs text-navy-600">No personalisation · {formatPrice(basePrice)}</p>
             ) : personalisation === "yes" && personalisationCharge != null ? (
               <p className="mt-1 text-xs text-navy-600">
-                Personalisation {formatPrice(personalisationCharge)} added to {formatPrice(basePrice)}
+                
               </p>
             ) : null}
             {b2b && (
@@ -423,21 +423,40 @@ export default function ProductPage() {
                 ) : null}
               </div>
             ) : null}
-            <ul className="mt-4 space-y-1.5 text-[15px] text-[#222]">
-              <li className="flex items-start gap-2">
-                <Check className="mt-0.5 h-5 w-5 shrink-0 text-[#2563eb]" strokeWidth={2.5} />
-                <span>
-                  Arrives soon! Estimated delivery by{" "}
-                  <span className="border-b border-dashed border-[#222]">7-12 business days</span>, if you order today
-                </span>
-              </li>
-              <li className="flex items-start gap-2">
-                <Check className="mt-0.5 h-5 w-5 shrink-0 text-[#2563eb]" strokeWidth={2.5} />
-                <Link href="/returns" className="hover:underline">
-                  Returns &amp; exchanges accepted
-                </Link>
-              </li>
-            </ul>
+            {b2b ? (
+              <ul className="mt-4 space-y-1.5 text-[15px] text-[#222]">
+                <li className="flex items-start gap-2">
+                  <Check className="mt-0.5 h-5 w-5 shrink-0 text-[#2563eb]" strokeWidth={2.5} />
+                  <span>Delivery timeline confirmed after order review and communication.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="mt-0.5 h-5 w-5 shrink-0 text-[#2563eb]" strokeWidth={2.5} />
+                  <span>
+                    Returns and refunds are subject to the agreed order terms and applicable{" "}
+                    <Link href="/returns#wholesale" className="underline hover:text-[#8C6E28]">
+                      return policy
+                    </Link>
+                    .
+                  </span>
+                </li>
+              </ul>
+            ) : (
+              <ul className="mt-4 space-y-1.5 text-[15px] text-[#222]">
+                <li className="flex items-start gap-2">
+                  <Check className="mt-0.5 h-5 w-5 shrink-0 text-[#2563eb]" strokeWidth={2.5} />
+                  <span>
+                    Arrives soon! Estimated delivery by{" "}
+                    <span className="border-b border-dashed border-[#222]">7-12 business days</span>, if you order today
+                  </span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="mt-0.5 h-5 w-5 shrink-0 text-[#2563eb]" strokeWidth={2.5} />
+                  <Link href="/returns" className="hover:underline">
+                    Returns &amp; exchanges accepted
+                  </Link>
+                </li>
+              </ul>
+            )}
             <div className="mt-3 flex flex-wrap items-center gap-4 text-sm">
               <span
                 className={`inline-flex items-center gap-1.5 ${stockAlert ? "font-medium text-[#9a3412]" : "text-emerald-700"}`}

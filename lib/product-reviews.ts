@@ -8,17 +8,23 @@ export type ProductReview = {
   productName: string;
   rating: number;
   body: string;
+  /** Photos the customer attached to the review. */
+  images?: string[];
   name: string;
   email?: string;
   published: boolean;
   /** Ticked in admin to feature the review in "What Our Customers Say" on the home page. */
   showOnHome: boolean;
+  /** The shop's public answer to this review. */
+  reply?: string;
+  repliedAt?: string;
   createdAt: string;
 };
 
-type ReviewDoc = Omit<ProductReview, "id" | "createdAt"> & {
+type ReviewDoc = Omit<ProductReview, "id" | "createdAt" | "repliedAt"> & {
   _id?: ObjectId;
   userId?: string;
+  repliedAt?: Date;
   createdAt: Date;
 };
 
@@ -31,10 +37,13 @@ function toReview(doc: ReviewDoc, withEmail = false): ProductReview {
     productName: doc.productName,
     rating: doc.rating,
     body: doc.body,
+    images: doc.images?.length ? doc.images : undefined,
     name: doc.name,
     email: withEmail ? doc.email : undefined,
     published: doc.published !== false,
     showOnHome: doc.showOnHome === true,
+    reply: doc.reply || undefined,
+    repliedAt: doc.reply && doc.repliedAt ? new Date(doc.repliedAt).toISOString() : undefined,
     createdAt: new Date(doc.createdAt).toISOString(),
   };
 }
@@ -57,6 +66,7 @@ export async function addProductReview(input: {
   productName: string;
   rating: number;
   body: string;
+  images?: string[];
   name: string;
   email?: string;
   userId?: string;
@@ -73,10 +83,29 @@ export async function listAllProductReviews() {
   return docs.map((doc) => toReview(doc, true));
 }
 
-export async function updateProductReview(id: string, flags: { published?: boolean; showOnHome?: boolean }) {
+export async function updateProductReview(
+  id: string,
+  flags: { published?: boolean; showOnHome?: boolean; reply?: string }
+) {
   if (!ObjectId.isValid(id)) return false;
   const db = await getDb();
-  const result = await db.collection<ReviewDoc>(COLLECTION).updateOne({ _id: new ObjectId(id) }, { $set: flags });
+  const { reply, ...rest } = flags;
+  const set: Record<string, unknown> = { ...rest };
+  const unset: Record<string, ""> = {};
+  if (reply !== undefined) {
+    // An empty reply removes it.
+    if (reply) {
+      set.reply = reply;
+      set.repliedAt = new Date();
+    } else {
+      unset.reply = "";
+      unset.repliedAt = "";
+    }
+  }
+  const update: Record<string, unknown> = {};
+  if (Object.keys(set).length) update.$set = set;
+  if (Object.keys(unset).length) update.$unset = unset;
+  const result = await db.collection<ReviewDoc>(COLLECTION).updateOne({ _id: new ObjectId(id) }, update);
   return result.matchedCount > 0;
 }
 
