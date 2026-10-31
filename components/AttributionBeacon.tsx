@@ -2,21 +2,13 @@
 
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
-
-function sessionId() {
-  const key = "marina-attr-session";
-  const existing = sessionStorage.getItem(key);
-  if (existing) return existing;
-  const created = `attr_${Math.random().toString(36).slice(2, 12)}${Date.now().toString(36)}`;
-  sessionStorage.setItem(key, created);
-  return created;
-}
+import { aiSessionId } from "@/lib/ai/session-client";
 
 export function AttributionBeacon() {
   const pathname = usePathname();
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const id = sessionId();
+    const id = aiSessionId();
     void fetch("/api/ai/attribution", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

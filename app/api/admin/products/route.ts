@@ -72,6 +72,7 @@ export async function GET(req: Request) {
     wholesalePriceIndia: p.wholesalePriceIndia,
     wholesalePriceUs: p.wholesalePriceUs,
     quantity: p.quantity,
+    wholesaleQuantity: p.wholesaleQuantity,
     b2cOutOfStock: p.b2cOutOfStock,
     b2bOutOfScope: p.b2bOutOfScope,
     image: p.image,
@@ -197,6 +198,7 @@ export async function POST(req: Request) {
       set.wholesalePriceUs = extras.wholesalePriceUs;
     }
     set.quantity = extras.quantity;
+    set.wholesaleQuantity = scope === "both" ? extras.wholesaleQuantity : undefined;
     await col.updateOne({ _id: existing._id }, { $set: set });
     return NextResponse.json({ id: String(existing._id), updated: true });
   }
@@ -209,6 +211,7 @@ export async function POST(req: Request) {
     wholesalePriceIndia: extras.wholesalePriceIndia,
     wholesalePriceUs: extras.wholesalePriceUs,
     quantity: extras.quantity,
+    wholesaleQuantity: scope === "both" ? extras.wholesaleQuantity : undefined,
     priceIndia: extras.priceIndia,
     priceUs: extras.priceUs,
     listedBy: {

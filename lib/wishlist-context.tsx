@@ -29,7 +29,13 @@ function logFavourite(slug: string, action: "add" | "remove") {
   void fetch("/api/favourites", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ slug, action, visitorId }),
+    body: JSON.stringify({
+      slug,
+      action,
+      visitorId,
+      // Listing stats are split by side: wholesale pages are /wholesale… or a product opened with ?b2b=1.
+      channel: /^\/wholesale/.test(window.location.pathname) || /[?&]b2b=1/.test(window.location.search) ? "wholesale" : "retail",
+    }),
     keepalive: true,
   }).catch(() => {});
 }

@@ -40,6 +40,8 @@ export type Product = {
   featured?: boolean;
   /** Units on hand. When 1–5, the shop shows a low-stock alert. */
   quantity?: number;
+  /** Wholesale units on hand when the product is listed on both sides with separate stock. */
+  wholesaleQuantity?: number;
   /** Manually unavailable on the customer/B2C shop. */
   b2cOutOfStock?: boolean;
   /** Manually unavailable on the wholesale/B2B shop. */
@@ -796,87 +798,6 @@ function withNamedImage(p: Product): Product {
 
 export const products: Product[] = [...coreProducts, ...catalogProducts].map(withNamedImage);
 
-export type ShopReview = {
-  name: string;
-  location: string;
-  rating: number;
-  title: string;
-  body: string;
-  product: string;
-  productSlug: string;
-  date: string;
-  reply?: string;
-  photo?: string;
-  avatarClass: string;
-};
-
-export const reviews: ShopReview[] = [
-  {
-    name: "Audra",
-    location: "United States",
-    rating: 5,
-    title: "Stunning on the deck",
-    body: "Beautifully crafted piece and looks beautiful on our 3rd level observation deck. Great quality and stunning telescope.",
-    product: "Maritime Telescope 24\"",
-    productSlug: "maritime-telescope-24",
-    date: "13 Jun, 2026",
-    reply:
-      "Thank you very much for your kind words! We are happy that it looks so beautiful on your observation deck 😊",
-    photo: img.ocean,
-    avatarClass: "bg-[#2BB673]",
-  },
-  {
-    name: "Ryan",
-    location: "Australia",
-    rating: 5,
-    title: "Matched the photos",
-    body: "The item was good quality and matched the listing photos. Solid brass, well packed, and arrived with tracking.",
-    product: "Officer Brass Binoculars",
-    productSlug: "officer-brass-binoculars",
-    date: "01 Jun, 2026",
-    reply: "Thank you Ryan — delighted it arrived in perfect condition. Enjoy the binoculars!",
-    avatarClass: "bg-[#2F3A8F]",
-  },
-  {
-    name: "James W.",
-    location: "London",
-    rating: 5,
-    title: "Absolutely beautiful",
-    body: "The quality and finish exceeded expectations. Gifted it to my father — he keeps it on his desk.",
-    product: "Antique Brass Nautical Compass",
-    productSlug: "antique-brass-nautical-compass",
-    date: "18 May, 2026",
-    reply: "Thank you James. Please give our regards to your father — we love hearing these pieces find a home.",
-    photo: img.compassMap,
-    avatarClass: "bg-[#C9A84C]",
-  },
-  {
-    name: "Priya S.",
-    location: "Mumbai",
-    rating: 5,
-    title: "Wholesale, sorted",
-    body: "We ordered 200 officer brass binoculars for our store. On time, boxed perfectly — still our bestseller.",
-    product: "Officer Brass Binoculars",
-    productSlug: "officer-brass-binoculars",
-    date: "02 Apr, 2026",
-    reply: "Thank you Priya. Always a pleasure supplying your store — the next restock is ready whenever you need it.",
-    avatarClass: "bg-[#8C4A3A]",
-  },
-  {
-    name: "Marco D.",
-    location: "Barcelona",
-    rating: 4,
-    title: "Hotel programme",
-    body: "Used the lanterns and porthole mirrors across 40 rooms. Guests photograph them constantly.",
-    product: "Ship Lantern in Brass",
-    productSlug: "ship-lantern-brass",
-    date: "21 Mar, 2026",
-    reply: "Thank you Marco. Wonderful to hear they are photographing well in the rooms.",
-    photo: img.lanternVintage,
-    avatarClass: "bg-[#1B4B6B]",
-  },
-];
-
 export function getProduct(slug: string) {
   return products.find((p) => p.slug === slug);
 }
@@ -928,4 +849,9 @@ export function saleInfo(product: Product, wholesale = false) {
   return wholesale
     ? { percent: product.wholesaleSalePercent, endsAt: product.wholesaleSaleEndsAt, terms: product.wholesaleSaleTerms }
     : { percent: product.salePercent, endsAt: product.saleEndsAt, terms: product.saleTerms };
+}
+
+/** Stock for the side being shown: wholesale uses its own quantity when one is set. */
+export function stockFor(product: Pick<Product, "quantity" | "wholesaleQuantity">, wholesale = false) {
+  return wholesale && product.wholesaleQuantity != null ? product.wholesaleQuantity : product.quantity;
 }

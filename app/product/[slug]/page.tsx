@@ -8,6 +8,7 @@ import {
   products,
   saleInfo,
   showsFreeShipping,
+  stockFor,
   type Product,
 } from "@/lib/products";
 import { getProductCategory } from "@/lib/catalog";
@@ -97,10 +98,25 @@ export default function ProductPage() {
   const productReviews = useProductReviews(slug);
   const [qty, setQty] = useState(1);
   const [liveCategoryName, setLiveCategoryName] = useState<string | null>(null);
+  // Live catalogue for the "Items" tab: includes admin-added products (newest first) and real review ratings.
+  const [shopItems, setShopItems] = useState<Product[]>(products);
 
   useEffect(() => {
     setQty(b2b ? B2B_MIN_ORDER_QTY : 1);
   }, [slug, b2b]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetch(`/api/catalog/products?channel=${b2b ? "wholesale" : "retail"}`, { cache: "no-store" })
+      .then((res) => res.json())
+      .then((data) => {
+        if (!cancelled && Array.isArray(data.items) && data.items.length) setShopItems(data.items);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [b2b]);
 
   useEffect(() => {
     if (!product) return;
@@ -126,7 +142,7 @@ export default function ProductPage() {
       return {
         label: findShopNowLabel(slug),
         href: `/retail?category=${slug}`,
-        items: products.filter((p) => getProductCategory(p) === slug),
+        items: shopItems.filter((p) => getProductCategory(p) === slug),
       };
     }
     const col = getCollection(product.collection);
@@ -134,10 +150,10 @@ export default function ProductPage() {
       ? {
           label: col.name,
           href: `/collections/${col.slug}`,
-          items: products.filter((p) => p.collection === product.collection),
+          items: shopItems.filter((p) => p.collection === product.collection),
         }
       : null;
-  }, [product]);
+  }, [product, shopItems]);
 
   if (!product) {
     return (
@@ -151,7 +167,8 @@ export default function ProductPage() {
   }
 
   const manuallyUnavailable = b2b ? product.b2bOutOfScope === true : product.b2cOutOfStock === true;
-  const quantityAlert = lowStockMessage(product.quantity);
+  const stock = stockFor(product, b2b);
+  const quantityAlert = lowStockMessage(stock);
   const unavailableLabel = "Out of stock";
   const stockAlert = manuallyUnavailable
     ? unavailableLabel
@@ -174,12 +191,13 @@ export default function ProductPage() {
       : null;
   const basePrice = priceFor(product, b2b);
   const sale = saleInfo(product, b2b);
-  const shownRating = productReviews.count ? productReviews.average : product.rating;
-  const shownReviewCount = productReviews.count || product.reviews;
+  // Only real customer reviews are shown; the old static catalogue ratings are ignored.
+  const shownRating = productReviews.count ? productReviews.average : 0;
+  const shownReviewCount = productReviews.count;
   const displayPrice = basePrice + (personalisation === "yes" && personalisationCharge != null ? personalisationCharge : 0);
   const minQty = b2b ? B2B_MIN_ORDER_QTY : 1;
-  const maxQty = product.quantity != null && product.quantity > 0 ? product.quantity : 99;
-  const outOfStock = manuallyUnavailable || (product.quantity != null && product.quantity <= 0);
+  const maxQty = stock != null && stock > 0 ? stock : 99;
+  const outOfStock = manuallyUnavailable || (stock != null && stock <= 0);
   const orderQty = Math.min(maxQty, Math.max(minQty, qty));
 
   const lineOptions = {
@@ -301,7 +319,7 @@ export default function ProductPage() {
                     "@type": "Offer",
                     priceCurrency: "USD",
                     price: basePrice,
-                    availability: product.quantity === 0 ? "https://schema.org/OutOfStock" : "https://schema.org/InStock",
+                    availability: outOfStock ? "https://schema.org/OutOfStock" : "https://schema.org/InStock",
                   },
                 }),
               }}
@@ -330,7 +348,7 @@ export default function ProductPage() {
                   ))}
                 </span>
                 <span className="text-navy-600 underline-offset-2 hover:underline">
-                  {shownRating.toFixed(1)} · {shownReviewCount} reviews
+                  {shownReviewCount ? `${shownRating.toFixed(1)} · ${shownReviewCount} review${shownReviewCount === 1 ? "" : "s"}` : "No reviews yet"}
                 </span>
               </button>
               {product.sku && product.sku !== product.slug ? (
@@ -358,7 +376,7 @@ export default function ProductPage() {
             ) : null}
             {sale.terms ? <p className="mt-2 text-sm text-navy-700">{sale.terms}</p> : null}
             {personalisation === "no" ? (
-              <p className="mt-1 text-xs text-navy-600">No personalisation · {formatPrice(basePrice)}</p>
+              <p className="mt-1 text-xs text-navy-600"> </p>
             ) : personalisation === "yes" && personalisationCharge != null ? (
               <p className="mt-1 text-xs text-navy-600">
                 
@@ -501,8 +519,8 @@ export default function ProductPage() {
                   +
                 </button>
               </div>
-              {product.quantity != null && product.quantity > 0 ? (
-                <p className="mt-1 text-[11px] text-navy-500">{product.quantity} available</p>
+              {b2b && stock != null && stock > 0 ? (
+                <p className="mt-1 text-[11px] text-navy-500">{stock} available</p>
               ) : null}
             </div>
 
@@ -602,7 +620,7 @@ export default function ProductPage() {
 
       <div id="product-tabs" className="scroll-mt-[var(--site-nav)] lg:mx-auto lg:max-w-[1320px] lg:px-5 lg:pb-14">
         <ShopTabs
-          items={products}
+          items={shopItems}
           categoryItems={category?.items}
           categoryLabel={liveCategoryName || category?.label}
           wholesale={b2b}

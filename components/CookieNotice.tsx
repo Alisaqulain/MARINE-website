@@ -22,6 +22,7 @@ export function CookieNotice() {
     } catch {
       /* ignore */
     }
+    window.dispatchEvent(new Event("marina-cookie-choice"));
     setOpen(false);
   }
 

@@ -65,6 +65,12 @@ export async function POST(req: Request) {
     sessionId: typeof body.sessionId === "string" ? body.sessionId.slice(0, 80) : undefined,
   });
 
+  if (body.reminders === true) {
+    void import("@/lib/ai/followups")
+      .then(({ recordConsent }) => recordConsent({ channel: "email", address: order.email, granted: true, source: "checkout_reminder", sessionId: order.sessionId }))
+      .catch(() => undefined);
+  }
+
   try {
     const paypal = await createPayPalCheckout({
       orderId: order.id,

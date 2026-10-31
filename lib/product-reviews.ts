@@ -48,6 +48,19 @@ function toReview(doc: ReviewDoc, withEmail = false): ProductReview {
   };
 }
 
+/** Real average rating and review count per product (published reviews only). */
+export async function productReviewStats(): Promise<Map<string, { average: number; count: number }>> {
+  const db = await getDb();
+  const rows = await db
+    .collection<ReviewDoc>(COLLECTION)
+    .aggregate<{ _id: string; average: number; count: number }>([
+      { $match: { published: { $ne: false } } },
+      { $group: { _id: "$productSlug", average: { $avg: "$rating" }, count: { $sum: 1 } } },
+    ])
+    .toArray();
+  return new Map(rows.map((row) => [row._id, { average: Number(row.average.toFixed(1)), count: row.count }]));
+}
+
 export async function listProductReviews(slug: string) {
   const db = await getDb();
   const docs = await db

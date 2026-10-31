@@ -1,28 +1,17 @@
-# Phase 2 testing
+# Testing
 
-## Passed
+| Command | What it covers |
+|---|---|
+| `npx tsc --noEmit` | Type check |
+| `npm run check:phase2` | 116 pure-logic checks (also shown on /test): grounding guard, scoring/segments, approvals, Vapi parsing/auth/config drift, Exotel callbacks, WhatsApp parsing/send gate/signatures, JWT signing, GA4 events, Search Console opportunities, /test status rules, secret redaction |
+| `npm run check:whatsapp` | 51 WhatsApp coexistence checks |
+| `npm run build` | Production build + static asset verification |
+| `/test` | Live provider checks (admin only in production) |
 
-`npx tsc --noEmit` — exit 0 after the Phase 2 files were added.
+## HTTP route checks (run against a local `next start`)
 
-`node --experimental-strip-types scripts/check-phase2.ts` — 15 passed, 0 failed:
+Verified with throwaway local secrets, then test records were deleted: `/test` redirects anonymous users in production; chat answers with catalogue prices and resists price injection; Vapi webhook rejects missing/wrong secrets, answers `lookup_product` from the catalogue, stores a missed end-of-call report once (duplicate ignored); Exotel callback rejects a bad token and records a missed call; WhatsApp verify handshake accepts the right token and rejects a wrong one, forged signatures get 401, a signed inbound message is drafted and withheld while sending is off (duplicate ignored); cron, daily report and admin endpoints reject anonymous calls; consent API validates input; forged unsubscribe tokens are rejected.
 
-- Catalogue price is repeated, missing products and warranties stay unknown.
-- A prompt-override does not replace the catalogue price.
-- Cold score stays at or below 30. A strong wholesale signal scores as high-value.
-- Discount permission is restricted. Rejected approvals and changed terms do not pass.
-- Last non-direct attribution skips a later direct visit.
-- Duplicate order ids and failed orders are not added to revenue.
-- A zero feed price is rejected.
-- Voice HMAC signatures differ for different secrets.
+## Needs real credentials
 
-Local server:
-
-- `POST /api/ai/voice/webhook` with no voice credentials returned HTTP 503 and did not store a call.
-- `POST /api/ai/chat` with an invalid session returned HTTP 400.
-- `POST /api/ai/chat` for “What is the price of the brass compass?” returned HTTP 200 and the live catalogue price of $39.00 USD for Antique Brass Nautical Compass, plus other compass matches.
-
-## Not run
-
-- `npm run build` was not run while `npm run dev` was using the `.next` directory.
-- Admin approval buttons were not clicked in a signed-in browser session.
-- No live voice call, Merchant Center upload, or paid campaign was made.
+A real Gemini generation, Vapi assistant/phone checks, an actual phone call through Exotel → Vapi, WhatsApp sending and delivery receipts, GA4 and Search Console data. `/test` reports these as Not configured until the credentials exist, and only reports a live call/message as verified when one has actually been received.

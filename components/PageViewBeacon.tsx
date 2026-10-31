@@ -29,7 +29,11 @@ export function PageViewBeacon() {
     void fetch("/api/page-views", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ path: pathname, visitorId: visitorId() }),
+      // Keep the wholesale marker so listing stats can tell retail and wholesale product views apart.
+      body: JSON.stringify({
+        path: /[?&]b2b=1/.test(window.location.search) ? `${pathname}?b2b=1` : pathname,
+        visitorId: visitorId(),
+      }),
       keepalive: true,
     });
   }, [pathname]);

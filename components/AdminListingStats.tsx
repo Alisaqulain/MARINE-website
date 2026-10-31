@@ -1,11 +1,11 @@
 "use client";
 
-import { ChevronDown, Clock } from "lucide-react";
+import { ChevronDown, Clock, Search } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminListPagination } from "@/components/AdminListPagination";
 import { ProductImage } from "@/components/ProductImage";
-import type { ListingStatRange, ListingStatRow } from "@/lib/listing-stats";
+import type { ListingStatChannel, ListingStatRange, ListingStatRow } from "@/lib/listing-stats";
 
 const RANGES: { value: ListingStatRange; label: string }[] = [
   { value: "today", label: "Today" },
@@ -35,8 +35,8 @@ function money(n: number) {
   return `$${Number.isInteger(n) ? n : n.toFixed(2)}`;
 }
 
-/** Etsy-style "how shoppers found your listings": views, favourites, orders and revenue per product. */
-export function AdminListingStats() {
+/** Etsy-style "how shoppers found your listings", separately for retail and wholesale. */
+export function AdminListingStats({ channel = "retail" }: { channel?: ListingStatChannel }) {
   const [range, setRange] = useState<ListingStatRange>("this-month");
   const [rows, setRows] = useState<ListingStatRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,18 +46,19 @@ export function AdminListingStats() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [hideEmpty, setHideEmpty] = useState(true);
+  const [search, setSearch] = useState("");
 
   const load = useCallback(async (next: ListingStatRange) => {
     setLoading(true);
     setError("");
-    const data = await fetch(`/api/admin/listing-stats?range=${next}`, { cache: "no-store" })
+    const data = await fetch(`/api/admin/listing-stats?range=${next}&channel=${channel}`, { cache: "no-store" })
       .then((res) => res.json())
       .catch(() => ({ error: "Could not load listing stats." }));
     setRows(Array.isArray(data.items) ? data.items : []);
     setUpdatedAt(typeof data.updatedAt === "string" ? data.updatedAt : "");
     if (data.error) setError(String(data.error));
     setLoading(false);
-  }, []);
+  }, [channel]);
 
   useEffect(() => {
     setPage(1);
@@ -65,9 +66,11 @@ export function AdminListingStats() {
   }, [range, load]);
 
   const sorted = useMemo(() => {
-    const list = hideEmpty ? rows.filter((r) => r.views || r.favourites || r.orders || r.revenue) : rows;
+    const q = search.trim().toLowerCase();
+    let list = hideEmpty ? rows.filter((r) => r.views || r.favourites || r.orders || r.revenue) : rows;
+    if (q) list = list.filter((r) => r.name.toLowerCase().includes(q) || r.slug.toLowerCase().includes(q));
     return [...list].sort((a, b) => b[sort] - a[sort] || b.views - a.views || a.name.localeCompare(b.name));
-  }, [rows, sort, hideEmpty]);
+  }, [rows, sort, hideEmpty, search]);
 
   const totalPages = Math.ceil(sorted.length / PAGE);
   const safePage = Math.min(page, Math.max(1, totalPages));
@@ -120,6 +123,10 @@ export function AdminListingStats() {
 
   return (
     <div className="space-y-4">
+      <p className="text-sm text-navy-700">
+        Showing <span className="font-semibold">{channel === "wholesale" ? "Wholesale (B2B)" : "Retail (B2C)"}</span> listing stats. Switch
+        Retail / Wholesale at the top of the dashboard to see the other side.
+      </p>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {[
           ["Views", String(totals.views)],
@@ -164,6 +171,20 @@ export function AdminListingStats() {
               </div>
             ) : null}
           </div>
+          <label className="relative min-w-[12rem] flex-1 sm:max-w-sm">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-navy-500" />
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              placeholder={`Search ${channel} listings…`}
+              aria-label="Search listings"
+              className="w-full rounded-full border border-[#e6dfd2] bg-white py-2 pl-9 pr-3 text-sm text-[#222] focus:border-[#C9A84C] focus:outline-none"
+            />
+          </label>
           <div className="flex items-center gap-4 text-xs text-navy-600">
             <label className="inline-flex items-center gap-1.5">
               <input type="checkbox" checked={hideEmpty} onChange={(e) => {
@@ -209,7 +230,7 @@ export function AdminListingStats() {
               ) : sorted.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-4 py-10 text-center text-navy-600">
-                    No views, favourites or orders in this period yet.
+                    {search.trim() ? `No ${channel} listings match "${search.trim()}".` : `No ${channel} views, favourites or orders in this period yet.`}
                   </td>
                 </tr>
               ) : (
@@ -222,7 +243,7 @@ export function AdminListingStats() {
                         </span>
                         <div className="min-w-0">
                           <Link
-                            href={`/product/${r.slug}`}
+                            href={channel === "wholesale" ? `/wholesale/product/${r.slug}` : `/product/${r.slug}`}
                             target="_blank"
                             className="line-clamp-2 text-[15px] text-[#222] underline underline-offset-2"
                           >

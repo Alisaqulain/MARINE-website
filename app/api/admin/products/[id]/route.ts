@@ -52,6 +52,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
   const unset: Record<string, 1> = {};
 
   update.quantity = extras.quantity;
+  update.wholesaleQuantity = scope === "both" ? extras.wholesaleQuantity : undefined;
   if (scope !== "wholesale") {
     if (body.price != null && body.price !== "") update.price = Number(body.price);
     update.priceIndia = extras.priceIndia;

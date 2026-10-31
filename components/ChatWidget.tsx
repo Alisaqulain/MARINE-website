@@ -9,6 +9,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { WholesaleNavLink } from "@/components/WholesaleNavLink";
 import { useRegion } from "@/lib/region-context";
+import { aiSessionId } from "@/lib/ai/session-client";
 
 type Msg = {
   from: "bot" | "you";
@@ -61,15 +62,6 @@ export function ChatWidget() {
 
   const [busy, setBusy] = useState(false);
 
-  function chatSession() {
-    const key = "marina-ai-session";
-    const existing = sessionStorage.getItem(key);
-    if (existing) return existing;
-    const created = `chat_${Math.random().toString(36).slice(2, 12)}${Date.now().toString(36)}`;
-    sessionStorage.setItem(key, created);
-    return created;
-  }
-
   async function send() {
     const value = text.trim();
     if (!value || busy) return;
@@ -80,7 +72,7 @@ export function ChatWidget() {
       const res = await fetch("/api/ai/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId: chatSession(), message: value }),
+        body: JSON.stringify({ sessionId: aiSessionId(), message: value }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {

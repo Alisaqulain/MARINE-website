@@ -1,4 +1,5 @@
-import { draftInbound } from "@/lib/whatsapp/inbound";
+import { applyStatusUpdates, draftInbound } from "@/lib/whatsapp/inbound";
+import { statusUpdatesFromWebhook } from "@/lib/whatsapp/cloud";
 import {
   normaliseWebhook,
   planEvents,
@@ -56,12 +57,15 @@ export async function POST(req: Request) {
 
   const plans = planEvents(normaliseWebhook(body), seenStore());
   let draftsWithheld = 0;
+  let sent = 0;
   for (const plan of plans) {
     const saved = await recordWebhookKey(plan.key, { field: plan.field, action: plan.action, reason: plan.reason });
     if (saved.duplicate || plan.action !== "draft") continue;
-    const draft = await draftInbound(plan);
-    if (draft.drafted) draftsWithheld += 1;
+    const result = await draftInbound(plan);
+    if (result.sent) sent += 1;
+    else if (result.drafted) draftsWithheld += 1;
   }
+  const statuses = await applyStatusUpdates(statusUpdatesFromWebhook(body)).catch(() => 0);
   const summary = webhookSummary(plans);
-  return NextResponse.json({ ...summary, draftsWithheld, sent: 0 });
+  return NextResponse.json({ ...summary, draftsWithheld, sent, statuses });
 }

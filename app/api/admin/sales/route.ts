@@ -2,7 +2,7 @@ import { ObjectId } from "mongodb";
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/admin-auth";
 import { getDb } from "@/lib/mongodb";
-import { loadSales, saleDurationDays, saleInChannel, saleNameOk } from "@/lib/sales";
+import { loadSales, saleDateProblem, saleInChannel, saleNameOk } from "@/lib/sales";
 
 export async function GET(req: Request) {
   const { error } = await requireAdminSession("view");
@@ -40,12 +40,9 @@ export async function POST(req: Request) {
   if (!Number.isFinite(percent) || percent <= 0 || percent >= 100) {
     return NextResponse.json({ error: "Enter a discount between 1 and 99 percent." }, { status: 400 });
   }
-  const days = saleDurationDays(startsAt, endsAt);
-  if (days == null || days < 0) {
-    return NextResponse.json({ error: "Choose a start date and an end date." }, { status: 400 });
-  }
-  if (days > 30) {
-    return NextResponse.json({ error: "A sale can run for up to 30 days." }, { status: 400 });
+  const dateProblem = saleDateProblem({ startsAt, endsAt });
+  if (dateProblem) {
+    return NextResponse.json({ error: dateProblem }, { status: 400 });
   }
   if (scope === "selected" && !productSlugs.length) {
     return NextResponse.json({ error: "Choose at least one listing." }, { status: 400 });
@@ -98,12 +95,14 @@ export async function PATCH(req: Request) {
   if (!Number.isFinite(percent) || percent <= 0 || percent >= 100) {
     return NextResponse.json({ error: "Enter a discount between 1 and 99 percent." }, { status: 400 });
   }
-  const days = saleDurationDays(startsAt, endsAt);
-  if (days == null || days < 0) {
-    return NextResponse.json({ error: "Choose a start date and an end date." }, { status: 400 });
-  }
-  if (days > 30) {
-    return NextResponse.json({ error: "A sale can run for up to 30 days." }, { status: 400 });
+  const current = await (await getDb()).collection("sales").findOne({ _id: new ObjectId(id) }, { projection: { startsAt: 1 } });
+  const dateProblem = saleDateProblem({
+    startsAt,
+    endsAt,
+    previousStartsAt: typeof current?.startsAt === "string" ? current.startsAt : undefined,
+  });
+  if (dateProblem) {
+    return NextResponse.json({ error: dateProblem }, { status: 400 });
   }
   if (scope === "selected" && !productSlugs.length) {
     return NextResponse.json({ error: "Choose at least one listing." }, { status: 400 });

@@ -61,6 +61,8 @@ export type OrderRecord = {
   shipment?: OrderShipment;
   /** First-party attribution session. Optional and unused by payment. */
   sessionId?: string;
+  /** GA4 Measurement Protocol purchase event was accepted. */
+  analyticsSent?: boolean;
 };
 
 export function defaultTracking(): OrderTracking {
@@ -244,6 +246,15 @@ export async function fulfillPaidOrder(order: OrderRecord) {
     };
   }
   if (!order.tracking) order.tracking = defaultTracking();
+  if (!order.analyticsSent) {
+    try {
+      const { sendPurchase } = await import("@/lib/google/analytics");
+      const sent = await sendPurchase(order);
+      if (sent.sent) order.analyticsSent = true;
+    } catch (err) {
+      console.error("[ga4] purchase event", err instanceof Error ? err.message : "failed");
+    }
+  }
   saveOrder(order);
 }
 

@@ -1,22 +1,12 @@
-# Phase 2 implementation status
+# Implementation status
 
-| Area | State | Notes |
+| Area | Code | Live-verified |
 |---|---|---|
-| Baseline audit | Implemented | This folder |
-| Catalogue-grounded chat | Tested | Local `POST /api/ai/chat` returned the live compass price |
-| Lead score and stages | Tested | `scripts/check-phase2.ts` |
-| Owner approval records | Implemented | Admin Marina AI → Approvals. Not exercised in a browser session |
-| B2C checkout handoff | Implemented | Chat links to the existing product page and wholesale quote flow |
-| Voice calls | Awaiting credentials | Webhook returns HTTP 503 until `VOICE_PROVIDER` and `VOICE_WEBHOOK_SECRET` are set |
-| OpenAI rewrite | Awaiting credentials | Used only when `OPENAI_API_KEY` is set; otherwise the catalogue sentence is returned |
-| SEO sitemap and robots | Implemented | `/sitemap.xml`, `/robots.txt` |
-| Product schema | Implemented | Product pages emit schema from the current product record |
-| Merchant Center feed | Implemented | `/feeds/google.xml` is generated. It is not uploaded |
-| Search and competitor volumes | Awaiting credentials | Report says this data is unavailable |
-| Revenue attribution | Implemented | Last non-direct touch. Paid orders link only when `sessionId` was stored |
-| Daily growth loop | Implemented | Runs when an admin opens Marina AI. No separate cron worker is running |
-| Ad budget changes | Not started | Explicitly blocked. No ads are launched |
-| Production build | Not started | Not run while the dev server was using `.next` |
-| Existing checkout and payments | Unchanged path | PayPal capture route was not rewritten |
-
-Do not treat voice, Merchant Center upload, or search-volume reports as live.
+| Agent 1 chat — Gemini replies grounded in catalogue, segments, scoring, CRM, alerts, approvals | Done | Catalogue path yes; Gemini needs `GEMINI_API_KEY` |
+| Agent 1 recovery — checkout (opt-in at checkout) and enquiry follow-ups, unsubscribe | Done | Job runs; sending needs consent + SMTP/WhatsApp template |
+| Agent 2 voice — Vapi webhook, tools, Gemini call summaries, leads, missed-call alerts + callback approval, outbound | Done | Needs Vapi + Exotel accounts; no real call yet |
+| Agent 2 Exotel — credential, vSIP trunk, Vapi destination, number mapping checks, StatusCallback | Done | Needs Exotel account with vSIP |
+| Agent 3 growth — GA4 + Search Console reports, keyword opportunities, attribution, GA4 purchase events, consent-gated tag, daily report with Gemini insights, content drafts, competitor research | Done | Needs service account + property access |
+| Agent 4 WhatsApp — per-sender sessions, Gemini replies (gated), statuses, STOP/START, templates | Done | Needs Cloud API token and written approval flags |
+| /test integration checker | Done | Reports actual state; currently all six AI providers Not configured |
+| Merchant Center upload, ads APIs | Not built | — |

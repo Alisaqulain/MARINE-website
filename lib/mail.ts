@@ -1,6 +1,7 @@
 import nodemailer from "nodemailer";
 
 import { PASSWORD_OTP_FROM } from "@/lib/password-otp-email";
+import { adminEmailsList } from "@/lib/roles";
 
 export { PASSWORD_OTP_FROM };
 
@@ -53,4 +54,56 @@ export async function sendPasswordOtp(to: string, otp: string) {
 
 export async function sendSignupOtp(to: string, otp: string) {
   await sendCode(to, "Verify your Marina Muse account", "Your Marina Muse account verification code is:", otp);
+}
+
+/** OWNER_ALERT_EMAILS (comma-separated), else the admin list. */
+export function ownerAlertEmails(): string[] {
+  const fromEnv = (process.env.OWNER_ALERT_EMAILS ?? "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  return fromEnv.length ? fromEnv : adminEmailsList();
+}
+
+/** Plain-text mail to the owner (alerts, daily report). Throws when SMTP is not configured. */
+export async function sendOwnerMail(subject: string, text: string) {
+  const transport = await otpTransport();
+  try {
+    await transport.sendMail({
+      from: `Marina AI <${PASSWORD_OTP_FROM}>`,
+      to: ownerAlertEmails(),
+      subject,
+      text,
+    });
+  } catch (error) {
+    throw mailLoginError(error) ?? error;
+  }
+}
+
+/** Plain-text mail to one customer (consented follow-ups only). Throws when SMTP is not configured. */
+export async function sendCustomerMail(to: string, subject: string, text: string) {
+  const transport = await otpTransport();
+  try {
+    await transport.sendMail({
+      from: `Marina Muse International <${PASSWORD_OTP_FROM}>`,
+      replyTo: PASSWORD_OTP_FROM,
+      to,
+      subject,
+      text,
+    });
+  } catch (error) {
+    throw mailLoginError(error) ?? error;
+  }
+}
+
+/** Logs in to SMTP without sending anything. */
+export async function verifyOwnerMail(): Promise<{ ok: boolean; message: string }> {
+  try {
+    const transport = await otpTransport();
+    await transport.verify();
+    return { ok: true, message: `SMTP login works. Alerts go to ${ownerAlertEmails().join(", ")}.` };
+  } catch (error) {
+    const err = mailLoginError(error) ?? error;
+    return { ok: false, message: err instanceof Error ? err.message : "SMTP login failed." };
+  }
 }

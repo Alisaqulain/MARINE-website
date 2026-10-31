@@ -14,7 +14,8 @@ export async function POST(req: Request) {
     typeof body?.visitorId === "string" && /^[a-zA-Z0-9-]{8,64}$/.test(body.visitorId) ? body.visitorId : undefined;
   try {
     const db = await getDb();
-    await db.collection("favourite_events").insertOne({ slug, action, visitorId, at: new Date().toISOString() });
+    const channel = body?.channel === "wholesale" ? "wholesale" : "retail";
+    await db.collection("favourite_events").insertOne({ slug, action, visitorId, channel, at: new Date().toISOString() });
   } catch {
     /* Stats are best-effort; the wishlist itself still works. */
   }

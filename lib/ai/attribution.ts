@@ -67,3 +67,46 @@ export function revenueBySource(
     revenue: Number(row.revenue.toFixed(2)),
   }));
 }
+
+function rate(part: number, whole: number) {
+  return whole > 0 ? Number(((part / whole) * 100).toFixed(1)) : null;
+}
+
+/** Visitor → enquiry → lead → order, as percentages (null when there is nothing to divide by). */
+export function conversionFunnel(counts: { visitors: number; enquiries: number; leads: number; orders: number }) {
+  return {
+    ...counts,
+    visitorToEnquiry: rate(counts.enquiries, counts.visitors),
+    enquiryToLead: rate(counts.leads, counts.enquiries),
+    leadToOrder: rate(counts.orders, counts.leads),
+    visitorToOrder: rate(counts.orders, counts.visitors),
+  };
+}
+
+export function averageOrderValue(revenue: number, orders: number) {
+  return orders > 0 ? Number((revenue / orders).toFixed(2)) : null;
+}
+
+/** Which products bring in paid revenue. Unpaid, failed and duplicate orders are skipped. */
+export function productAttribution(
+  orders: { id: string; status: string; items: { slug: string; name: string; qty: number; unitPrice: number }[] }[],
+  limit = 10
+) {
+  const seen = new Set<string>();
+  const map = new Map<string, { slug: string; name: string; units: number; revenue: number; orders: number }>();
+  for (const order of orders) {
+    if (order.status !== "paid" || seen.has(order.id)) continue;
+    seen.add(order.id);
+    for (const item of order.items) {
+      const row = map.get(item.slug) ?? { slug: item.slug, name: item.name, units: 0, revenue: 0, orders: 0 };
+      row.units += item.qty;
+      row.revenue += item.qty * item.unitPrice;
+      row.orders += 1;
+      map.set(item.slug, row);
+    }
+  }
+  return [...map.values()]
+    .map((row) => ({ ...row, revenue: Number(row.revenue.toFixed(2)) }))
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, limit);
+}

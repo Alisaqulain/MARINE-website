@@ -19,6 +19,7 @@ function CheckoutForm() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [whatsapp, setWhatsapp] = useState(true);
+  const [reminders, setReminders] = useState(false);
 
   if (items.length === 0) {
     return (
@@ -47,6 +48,7 @@ function CheckoutForm() {
       postal: form.get("postal"),
       country: form.get("country"),
       whatsapp,
+      reminders,
       sessionId: (() => {
         try {
           return sessionStorage.getItem("marina-attr-session") || undefined;
@@ -116,6 +118,10 @@ function CheckoutForm() {
             onChange={(e) => setWhatsapp(e.target.checked)}
           />
           Optional: WhatsApp order confirmation after successful payment
+        </label>
+        <label className="flex items-start gap-2 text-sm text-navy-700">
+          <input type="checkbox" className="mt-1" checked={reminders} onChange={(e) => setReminders(e.target.checked)} />
+          Optional: email me a reminder if I don&apos;t finish this checkout (unsubscribe any time)
         </label>
         <fieldset className="space-y-2 text-sm">
           <legend className="mb-1 text-navy-700">Payment method</legend>

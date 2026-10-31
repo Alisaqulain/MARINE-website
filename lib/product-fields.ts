@@ -21,6 +21,7 @@ export function parseProductExtras(body: Record<string, unknown>): Pick<
   | "materials"
   | "sizes"
   | "quantity"
+  | "wholesaleQuantity"
   | "stock"
   | "images"
   | "personalisationPrice"
@@ -73,6 +74,10 @@ export function parseProductExtras(body: Record<string, unknown>): Pick<
     materials: stringList(body.materials),
     sizes: stringList(body.sizes),
     quantity: quantity != null && Number.isFinite(quantity) ? quantity : undefined,
+    wholesaleQuantity:
+      body.wholesaleQuantity != null && body.wholesaleQuantity !== "" && Number.isFinite(Number(body.wholesaleQuantity))
+        ? Math.max(0, Math.round(Number(body.wholesaleQuantity)))
+        : undefined,
     imageAdjust: images?.[0]?.adjust ?? { zoom, brightness, contrast },
     images,
     personalisationPrice,

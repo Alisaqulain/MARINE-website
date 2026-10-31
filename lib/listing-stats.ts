@@ -53,24 +53,36 @@ const slugFromPath = {
   },
 };
 
-/** Etsy-style listing stats: views, favourites, paid orders and revenue per product in a date range. */
-export async function listingStats(range: ListingStatRange): Promise<ListingStatRow[]> {
+export const LISTING_STAT_CHANNELS = ["retail", "wholesale"] as const;
+export type ListingStatChannel = (typeof LISTING_STAT_CHANNELS)[number];
+
+/** Product page views for one side: wholesale = /wholesale/product/… or /product/…?b2b=1. */
+function viewPathMatch(channel: ListingStatChannel) {
+  return channel === "wholesale"
+    ? { $or: [{ path: { $regex: "^/wholesale/product/" } }, { path: { $regex: "^/product/[^?]+\\?(.*&)?b2b=1" } }] }
+    : { path: { $regex: "^/product/" }, $nor: [{ path: { $regex: "[?&]b2b=1" } }] };
+}
+
+/** Etsy-style listing stats for retail or wholesale: views, favourites, paid orders and revenue per product. */
+export async function listingStats(range: ListingStatRange, channel: ListingStatChannel = "retail"): Promise<ListingStatRow[]> {
   const start = rangeStart(range);
   const since = start ? { $gte: start } : { $exists: true };
   const db = await getDb();
+  const wholesale = channel === "wholesale";
 
   const [views, favourites, orders, mongoProducts, overrides] = await Promise.all([
     db
       .collection("page_views")
       .aggregate<{ _id: string; n: number }>([
-        { $match: { at: since, path: { $regex: "^(/wholesale)?/product/" } } },
+        { $match: { at: since, ...viewPathMatch(channel) } },
         { $group: { _id: slugFromPath, n: { $sum: 1 } } },
       ])
       .toArray(),
     db
       .collection("favourite_events")
       .aggregate<{ _id: string; n: number }>([
-        { $match: { at: since } },
+        // Favourites logged before channels were recorded count as retail.
+        { $match: { at: since, ...(wholesale ? { channel: "wholesale" } : { channel: { $ne: "wholesale" } }) } },
         { $group: { _id: "$slug", n: { $sum: { $cond: [{ $eq: ["$action", "add"] }, 1, -1] } } } },
       ])
       .toArray(),
@@ -80,7 +92,10 @@ export async function listingStats(range: ListingStatRange): Promise<ListingStat
       .toArray(),
     db
       .collection("products")
-      .find({}, { projection: { slug: 1, name: 1, image: 1, active: 1 } })
+      .find(
+        wholesale ? { channel: { $in: ["wholesale", "both"] } } : { channel: { $ne: "wholesale" } },
+        { projection: { slug: 1, name: 1, image: 1, active: 1 } }
+      )
       .toArray(),
     db
       .collection("catalog_overrides")
@@ -99,6 +114,7 @@ export async function listingStats(range: ListingStatRange): Promise<ListingStat
     orders: 0,
     revenue: 0,
   });
+  // Static catalogue items are sold on both sides.
   for (const p of staticProducts) rows.set(p.slug, { ...blank(p.slug), name: p.name, image: p.image });
   for (const o of overrides) {
     const row = rows.get(String(o.slug));
@@ -128,8 +144,8 @@ export async function listingStats(range: ListingStatRange): Promise<ListingStat
   for (const order of orders) {
     const items = Array.isArray(order.items) ? order.items : [];
     const counted = new Set<string>();
-    for (const item of items as { slug?: string; qty?: number; unitPrice?: number }[]) {
-      if (!item.slug) continue;
+    for (const item of items as { slug?: string; qty?: number; unitPrice?: number; b2b?: boolean }[]) {
+      if (!item.slug || Boolean(item.b2b) !== wholesale) continue;
       const r = row(item.slug);
       if (!counted.has(item.slug)) {
         r.orders += 1;

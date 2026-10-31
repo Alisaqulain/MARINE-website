@@ -2,10 +2,9 @@
 
 import { CatalogCard } from "@/components/CatalogCard";
 import { ProductCard } from "@/components/ProductCard";
-import { getProduct, products, reviews, saleInfo, type Product } from "@/lib/products";
-import { Search, SlidersHorizontal, Star } from "lucide-react";
-import Image from "next/image";
-import Link from "next/link";
+import { saleInfo, stockFor, type Product } from "@/lib/products";
+import { useRegion } from "@/lib/region-context";
+import { Search, SlidersHorizontal } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { ProductReviews, type useProductReviews } from "@/components/ProductReviews";
 
@@ -45,6 +44,7 @@ export function ShopTabs({
   const [sort, setSort] = useState("featured");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [limit, setLimit] = useState(ITEMS_PAGE);
+  const { priceFor } = useRegion();
 
   useEffect(() => {
     setLimit(ITEMS_PAGE);
@@ -68,22 +68,26 @@ export function ShopTabs({
       wholesale ? p.b2bOutOfScope === true : p.b2cOutOfStock === true;
     if (sort === "on-sale") next = next.filter((p) => (saleInfo(p, wholesale).percent ?? 0) > 0);
     if (sort === "personalisation") next = next.filter((p) => p.personalisationPrice != null);
+    const qty = (p: Product) => stockFor(p, wholesale);
     if (sort === "in-stock") {
-      next = next.filter((p) => !outMarked(p) && (p.quantity == null || p.quantity > 0));
+      next = next.filter((p) => !outMarked(p) && (qty(p) == null || qty(p)! > 0));
     }
     if (sort === "out-of-stock") {
-      next = next.filter((p) => outMarked(p) || (p.quantity != null && p.quantity <= 0));
+      next = next.filter((p) => outMarked(p) || (qty(p) != null && qty(p)! <= 0));
     }
     if (sort === "low-stock") {
-      next = next.filter(
-        (p) => !outMarked(p) && p.quantity != null && p.quantity > 0 && p.quantity <= 5
-      );
+      next = next.filter((p) => {
+        const n = qty(p);
+        return !outMarked(p) && n != null && n > 0 && n <= 5;
+      });
     }
-    if (sort === "price-asc") next = [...next].sort((a, b) => a.price - b.price);
-    if (sort === "price-desc") next = [...next].sort((a, b) => b.price - a.price);
-    if (sort === "rating") next = [...next].sort((a, b) => b.rating - a.rating);
+    // Sort by the price the card shows (visitor region, retail or wholesale, sale applied).
+    const shown = (p: Product) => priceFor(p, wholesale);
+    if (sort === "price-asc") next = [...next].sort((a, b) => shown(a) - shown(b));
+    if (sort === "price-desc") next = [...next].sort((a, b) => shown(b) - shown(a));
+    if (sort === "rating") next = [...next].sort((a, b) => b.rating - a.rating || b.reviews - a.reviews);
     return next;
-  }, [base, query, sort, wholesale]);
+  }, [base, query, sort, wholesale, priceFor]);
 
   return (
     <div className="bg-white">
@@ -169,9 +173,9 @@ export function ShopTabs({
               className="mt-3 w-full rounded-lg border border-[#ddd] bg-white px-3 py-2 text-sm text-[#222]"
             >
               <option value="featured">Featured</option>
-              <option value="price-asc">Price: Low to high</option>
-              <option value="price-desc">Price: High to low</option>
-              <option value="rating">Top rated</option>
+              <option value="price-asc">Price: Low to High</option>
+              <option value="price-desc">Price: High to Low</option>
+              <option value="rating">Avg. Customer Review</option>
               <option value="on-sale">Run a sale</option>
               <option value="personalisation">Personalisation</option>
               <option value="in-stock">In stock</option>
@@ -225,75 +229,7 @@ export function ShopTabs({
 function ReviewsPanel({ productSection }: { productSection?: React.ReactNode }) {
   return (
     <div className="px-4 pb-10 pt-5 lg:max-w-3xl lg:px-0 lg:pt-6">
-      {productSection}
-      <p className={`text-[13px] text-[#595959] ${productSection ? "mt-8" : ""}`}>{reviews.length} shop reviews</p>
-      <div className="mt-5 space-y-8">
-        {reviews.map((r) => {
-          const purchased = getProduct(r.productSlug) ?? products.find((p) => p.name === r.product);
-          return (
-            <article key={`${r.name}-${r.date}`} className="border-b border-[#eee] pb-8 last:border-b-0">
-              {purchased ? (
-                <Link
-                  href={`/product/${purchased.slug}`}
-                  className="mb-4 flex items-center gap-3 text-[13px] text-[#222]"
-                >
-                  <span className="relative h-11 w-11 shrink-0 overflow-hidden rounded-md bg-[#f3f3f3]">
-                    <Image src={purchased.image} alt="" fill className="object-contain p-1" />
-                  </span>
-                  <span>
-                    <span className="block text-[12px] text-[#595959]">Purchased item:</span>
-                    <span className="line-clamp-1 underline">{purchased.name}</span>
-                  </span>
-                </Link>
-              ) : null}
-
-              <div className="flex items-start gap-3">
-                <span
-                  className={`grid h-9 w-9 shrink-0 place-items-center rounded-full text-[13px] font-semibold text-white ${r.avatarClass}`}
-                >
-                  {r.name.charAt(0)}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[15px] text-[#222]">
-                    <span className="font-medium">{r.name}</span>
-                    <span className="text-[#595959]"> on {r.date}</span>
-                  </p>
-                  <p className="mt-1 flex items-center gap-0.5 text-[#222]">
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <Star
-                        key={i}
-                        className={`h-3.5 w-3.5 ${i < r.rating ? "fill-[#222] text-[#222]" : "text-[#ccc]"}`}
-                      />
-                    ))}
-                  </p>
-                  <p className="mt-2 text-[15px] leading-relaxed text-[#222]">{r.body}</p>
-
-                  {r.reply ? (
-                    <div className="mt-4 flex gap-3">
-                      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#0B1D36] text-[11px] font-semibold text-[#C9A84C]">
-                        M
-                      </span>
-                      <div className="min-w-0">
-                        <p className="text-[13px] font-medium text-[#222]">
-                          Response from MOHAMMAD MUAAZ
-                        </p>
-                        <p className="mt-1 text-[14px] leading-relaxed text-[#333]">{r.reply}</p>
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {r.photo ? (
-                    <div className="relative mt-4 aspect-[4/3] max-w-[280px] overflow-hidden rounded-md bg-[#f3f3f3]">
-                      <Image src={r.photo} alt={`Photo from ${r.name}`} fill className="object-cover" />
-                    </div>
-                  ) : null}
-
-                </div>
-              </div>
-            </article>
-          );
-        })}
-      </div>
+      {productSection ?? <p className="text-[14px] text-[#595959]">No reviews yet.</p>}
     </div>
   );
 }

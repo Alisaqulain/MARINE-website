@@ -32,6 +32,23 @@ export function saleDurationDays(startsAt: string, endsAt: string) {
   return Math.round((end - start) / 86400000);
 }
 
+/**
+ * Sale date rules: start is today or later (an already-running sale may keep its original start),
+ * end is on or after the start, and the sale lasts at most 30 days. One day of leeway on "today"
+ * covers admins whose local date is behind the server's UTC date. Returns an error message or null.
+ */
+export function saleDateProblem(input: { startsAt: string; endsAt: string; previousStartsAt?: string; now?: Date }): string | null {
+  const days = saleDurationDays(input.startsAt, input.endsAt);
+  if (days == null) return "Choose a start date and an end date.";
+  if (days < 0) return "The end date must be on or after the start date.";
+  if (days > 30) return "A sale can run for up to 30 days.";
+  const yesterday = new Date((input.now ?? new Date()).getTime() - 86400000).toISOString().slice(0, 10);
+  const keepsOriginalStart = input.previousStartsAt != null && input.startsAt === input.previousStartsAt.slice(0, 10);
+  if (input.startsAt < yesterday && !keepsOriginalStart) return "The start date cannot be in the past.";
+  if (input.endsAt < yesterday) return "The end date cannot be in the past.";
+  return null;
+}
+
 export function saleIsLive(sale: ShopSale, now = new Date()) {
   const today = now.toISOString().slice(0, 10);
   return sale.startsAt.slice(0, 10) <= today && today <= sale.endsAt.slice(0, 10);

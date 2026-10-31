@@ -5,7 +5,8 @@ import { getProductCategory } from "@/lib/catalog";
 import { productInCategory } from "@/lib/product-display";
 import { findNamedCategory, type NamedCategory } from "@/lib/category-label";
 import { findShopNowLabel, shopNowSubtree, shopNowTree } from "@/lib/shop-now-data";
-import { products as staticProducts, saleInfo, type Product } from "@/lib/products";
+import { products as staticProducts, saleInfo, stockFor, type Product } from "@/lib/products";
+import { useRegion } from "@/lib/region-context";
 import { Camera, ChevronDown, ChevronRight, LayoutGrid, LayoutList, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -23,6 +24,7 @@ export function ShopNowCatalog({ retail = false }: { retail?: boolean }) {
   const [extraCategories, setExtraCategories] = useState<{ slug: string; name: string }[]>([]);
   const [remoteTree, setRemoteTree] = useState<NamedCategory[] | null>(null);
   const visualSearchRef = useRef<HTMLInputElement>(null);
+  const { priceFor } = useRegion();
 
   const categoryTree = useMemo(() => {
     if (remoteTree) return remoteTree;
@@ -69,6 +71,11 @@ export function ShopNowCatalog({ retail = false }: { retail?: boolean }) {
   }, [parent, sub, sort, query]);
 
   const list = useMemo(() => {
+    // The API returns newest first; keep that order for "Newest first" and as the tie-breaker.
+    const position = new Map(catalogProducts.map((p, i) => [p.slug, i]));
+    const byNewest = (a: Product, b: Product) => (position.get(a.slug) ?? 0) - (position.get(b.slug) ?? 0);
+    // Sort by the price the card shows: visitor region, retail or wholesale, sale applied.
+    const shownPrice = (p: Product) => priceFor(p, !retail);
     let next = [...catalogProducts];
     if (sub) {
       const slugs = shopNowSubtree(sub);
@@ -97,23 +104,25 @@ export function ShopNowCatalog({ retail = false }: { retail?: boolean }) {
       retail ? p.b2cOutOfStock === true : p.b2bOutOfScope === true;
     if (sort === "on-sale") next = next.filter((p) => (saleInfo(p, !retail).percent ?? 0) > 0);
     if (sort === "personalisation") next = next.filter((p) => p.personalisationPrice != null);
+    const qty = (p: Product) => stockFor(p, !retail);
     if (sort === "in-stock") {
-      next = next.filter((p) => !outMarked(p) && (p.quantity == null || p.quantity > 0));
+      next = next.filter((p) => !outMarked(p) && (qty(p) == null || qty(p)! > 0));
     }
     if (sort === "out-of-stock") {
-      next = next.filter((p) => outMarked(p) || (p.quantity != null && p.quantity <= 0));
+      next = next.filter((p) => outMarked(p) || (qty(p) != null && qty(p)! <= 0));
     }
     if (sort === "low-stock") {
-      next = next.filter(
-        (p) => !outMarked(p) && p.quantity != null && p.quantity > 0 && p.quantity <= 5
-      );
+      next = next.filter((p) => {
+        const n = qty(p);
+        return !outMarked(p) && n != null && n > 0 && n <= 5;
+      });
     }
-    if (sort === "price-asc") next.sort((a, b) => (a.wholesaleFrom ?? a.price) - (b.wholesaleFrom ?? b.price));
-    if (sort === "price-desc") next.sort((a, b) => b.price - a.price);
-    if (sort === "rating") next.sort((a, b) => b.rating - a.rating);
-    if (sort === "new") next.reverse();
+    if (sort === "price-asc") next.sort((a, b) => shownPrice(a) - shownPrice(b) || byNewest(a, b));
+    else if (sort === "price-desc") next.sort((a, b) => shownPrice(b) - shownPrice(a) || byNewest(a, b));
+    else if (sort === "rating") next.sort((a, b) => b.rating - a.rating || b.reviews - a.reviews || byNewest(a, b));
+    else next.sort(byNewest);
     return next;
-  }, [parent, sub, sort, query, catalogProducts, retail]);
+  }, [parent, sub, sort, query, catalogProducts, retail, priceFor]);
 
   const filtered = Boolean(sub || parent);
   const activeSlug = sub || parent;
@@ -328,10 +337,10 @@ export function ShopNowCatalog({ retail = false }: { retail?: boolean }) {
                 aria-label="Sort and filter products"
                 className="max-w-[7.5rem] shrink-0 rounded-full border border-[#ddd] bg-white px-2 py-1.5 text-[11px] sm:max-w-none sm:px-3 sm:text-[12px] md:py-1.5 md:text-sm"
               >
-                <option value="new">New</option>
-                <option value="price-asc">Price ↑</option>
-                <option value="price-desc">Price ↓</option>
-                <option value="rating">Top rated</option>
+                <option value="new">Newest first</option>
+                <option value="price-asc">Price: Low to High</option>
+                <option value="price-desc">Price: High to Low</option>
+                <option value="rating">Avg. Customer Review</option>
                 <option value="on-sale">Run a sale</option>
                 <option value="personalisation">Personalisation</option>
                 <option value="in-stock">In stock</option>

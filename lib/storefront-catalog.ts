@@ -28,6 +28,7 @@ function adminToProduct(doc: AdminProduct): Product & { _createdAt?: number } {
     colors: colorsFromImages(listingImages, doc.colors),
     sizes: doc.sizes,
     quantity: doc.quantity,
+    wholesaleQuantity: doc.wholesaleQuantity,
     b2cOutOfStock: doc.b2cOutOfStock,
     b2bOutOfScope: doc.b2bOutOfScope,
     categories: doc.categories,

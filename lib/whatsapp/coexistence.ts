@@ -444,6 +444,9 @@ export type WaEvent = {
   kind: "history" | "state_sync" | "echo" | "inbound" | "account" | "other";
   text: string | null;
   fromBusiness: boolean;
+  /** Sender's WhatsApp number (digits) and profile name, inbound messages only. */
+  from?: string;
+  profileName?: string;
 };
 
 export type WaPlan = WaEvent & { action: "ignore" | "draft"; reason: string; send: false };
@@ -453,6 +456,7 @@ type Change = {
   value?: {
     metadata?: { phone_number_id?: string; display_phone_number?: string };
     messages?: { id?: string; from?: string; timestamp?: string; type?: string; text?: { body?: string } }[];
+    contacts?: { wa_id?: string; profile?: { name?: string } }[];
     message_echoes?: { id?: string; from?: string; to?: string; timestamp?: string; type?: string; text?: { body?: string } }[];
     state_sync?: { action?: string; contact?: { phone_number?: string }; metadata?: { timestamp?: string } }[];
     history?: { metadata?: { phase?: number; chunk_order?: number; progress?: number }; errors?: { code?: number }[]; threads?: unknown[] }[];
@@ -542,6 +546,9 @@ export function normaliseWebhook(body: unknown): WaEvent[] {
             kind: "inbound",
             text,
             fromBusiness: samePhone(message.from, display),
+            from: digits(message.from) || undefined,
+            profileName:
+              value.contacts?.find((contact) => digits(contact.wa_id) === digits(message.from))?.profile?.name?.slice(0, 80) || undefined,
           });
         }
         continue;

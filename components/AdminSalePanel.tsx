@@ -11,6 +11,20 @@ function saleIsLive(sale: ShopSale) {
   return sale.startsAt.slice(0, 10) <= today && today <= sale.endsAt.slice(0, 10);
 }
 
+/** Today in the admin's own timezone, as YYYY-MM-DD (what the date picker uses). */
+function localToday() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function addDays(date: string, days: number) {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+const MAX_SALE_DAYS = 30;
+
 function saleIsPast(sale: ShopSale) {
   return sale.endsAt.slice(0, 10) < new Date().toISOString().slice(0, 10);
 }
@@ -57,6 +71,8 @@ export function AdminSalePanel({ channel }: { channel: "retail" | "wholesale" })
   const shopLabel = channel === "wholesale" ? "wholesale (B2B)" : "customer (B2C)";
   const [step, setStep] = useState<"home" | "customise" | "listings">("home");
   const [editingId, setEditingId] = useState<string | null>(null);
+  /** Start date of the sale being edited; a running sale may keep a start that is already in the past. */
+  const [originalStart, setOriginalStart] = useState("");
   const [sales, setSales] = useState<ShopSale[]>([]);
   const [salesLoading, setSalesLoading] = useState(true);
   const [listings, setListings] = useState<Listing[]>([]);
@@ -64,6 +80,9 @@ export function AdminSalePanel({ channel }: { channel: "retail" | "wholesale" })
   const [form, setForm] = useState(emptyForm);
   const [category, setCategory] = useState("all");
   const [query, setQuery] = useState("");
+  const [pickFilter, setPickFilter] = useState<"all" | "selected" | "unselected">("all");
+  const [listingsLoading, setListingsLoading] = useState(true);
+  const [listingsError, setListingsError] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -77,10 +96,28 @@ export function AdminSalePanel({ channel }: { channel: "retail" | "wholesale" })
 
   async function load() {
     void loadSales();
+    setListingsLoading(true);
+    setListingsError("");
     const [productRes, categoryRes] = await Promise.all([
-      fetch(`/api/admin/products?pageSize=1000&sort=newest&channel=${channel}`).then((res) => res.json()).catch(() => ({})),
+      fetch(`/api/admin/products?pageSize=1000&sort=newest&channel=${channel}`, { cache: "no-store" })
+        .then(async (res) => {
+          const json = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            setListingsError(
+              res.status === 401
+                ? "Your admin session has expired. Sign in again to load listings."
+                : `Listings could not be loaded (HTTP ${res.status}${json?.error ? `: ${json.error}` : ""}).`
+            );
+          }
+          return json;
+        })
+        .catch(() => {
+          setListingsError("Listings could not be loaded — the server did not respond. Check that the site is running, then retry.");
+          return {};
+        }),
       fetch("/api/categories").then((res) => res.json()).catch(() => ({})),
     ]);
+    setListingsLoading(false);
     setListings(
       Array.isArray(productRes.items)
         ? productRes.items.map((item: Listing & { image?: string }) => ({
@@ -109,24 +146,50 @@ export function AdminSalePanel({ channel }: { channel: "retail" | "wholesale" })
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
     const inCategory = category === "all" ? null : categoryWithChildren(category);
+    const picked = new Set(form.picked);
     return listings.filter((item) => {
+      if (pickFilter === "selected" && !picked.has(item.slug)) return false;
+      if (pickFilter === "unselected" && picked.has(item.slug)) return false;
       if (inCategory && !(item.categories ?? []).some((slug) => inCategory.has(slug))) return false;
       if (!q) return true;
       return item.name.toLowerCase().includes(q) || item.slug.toLowerCase().includes(q);
     });
-  }, [listings, category, query]);
+  }, [listings, category, query, pickFilter, form.picked]);
 
   const listingName = (slug: string) => listings.find((item) => item.slug === slug)?.name ?? slug;
 
   function startCreate() {
     setEditingId(null);
+    setOriginalStart("");
     setForm(emptyForm());
     setError("");
     setStep("customise");
   }
 
+  const today = localToday();
+  // Earliest allowed start: today, or the original start of a sale that is already running.
+  const minStart = originalStart && originalStart < today ? originalStart : today;
+  const minEnd = form.startsAt && form.startsAt > today ? form.startsAt : today;
+  const maxEnd = form.startsAt ? addDays(form.startsAt, MAX_SALE_DAYS) : undefined;
+
+  function dateProblem() {
+    if (!form.startsAt || !form.endsAt) return "Choose a start date and an end date.";
+    if (form.startsAt < minStart) return "The start date cannot be in the past.";
+    if (form.endsAt < form.startsAt) return "The end date must be on or after the start date.";
+    if (form.endsAt < today) return "The end date cannot be in the past.";
+    if (maxEnd && form.endsAt > maxEnd) return `A sale can run for up to ${MAX_SALE_DAYS} days.`;
+    return null;
+  }
+
+  function changeStart(value: string) {
+    // Keep the end date only if it still fits the new start (on/after it, within 30 days).
+    const endStillValid = form.endsAt && form.endsAt >= value && form.endsAt <= addDays(value, MAX_SALE_DAYS);
+    setForm({ ...form, startsAt: value, endsAt: endStillValid ? form.endsAt : "" });
+  }
+
   function startEdit(sale: ShopSale) {
     setEditingId(sale.id);
+    setOriginalStart(sale.startsAt.slice(0, 10));
     setForm({
       percent: String(sale.percent),
       region: sale.region === "everywhere" ? "Everywhere" : sale.region,
@@ -143,6 +206,11 @@ export function AdminSalePanel({ channel }: { channel: "retail" | "wholesale" })
 
   async function save() {
     setError("");
+    const dateError = dateProblem();
+    if (dateError) {
+      setError(dateError);
+      return;
+    }
     setBusy(true);
     try {
       const payload = {
@@ -301,7 +369,8 @@ export function AdminSalePanel({ channel }: { channel: "retail" | "wholesale" })
                 className="input mt-1"
                 type="date"
                 value={form.startsAt}
-                onChange={(e) => setForm({ ...form, startsAt: e.target.value })}
+                min={minStart}
+                onChange={(e) => changeStart(e.target.value)}
                 required
               />
             </label>
@@ -311,11 +380,20 @@ export function AdminSalePanel({ channel }: { channel: "retail" | "wholesale" })
                 className="input mt-1"
                 type="date"
                 value={form.endsAt}
+                min={minEnd}
+                max={maxEnd}
+                disabled={!form.startsAt}
+                title={form.startsAt ? undefined : "Choose the start date first"}
                 onChange={(e) => setForm({ ...form, endsAt: e.target.value })}
                 required
               />
             </label>
           </div>
+          {form.startsAt && form.endsAt && dateProblem() ? (
+            <p className="mt-2 text-xs font-medium text-red-700">{dateProblem()}</p>
+          ) : !form.startsAt ? (
+            <p className="mt-2 text-xs text-navy-500">Choose the start date first. The end date can be the same day or up to {MAX_SALE_DAYS} days later.</p>
+          ) : null}
         </div>
         <label className="block text-sm">
           <span className="font-semibold text-navy-900">Terms and conditions (if applicable)</span>
@@ -403,6 +481,38 @@ export function AdminSalePanel({ channel }: { channel: "retail" | "wholesale" })
             ))}
           </div>
           <input className="input" placeholder="Search for a specific listing" value={query} onChange={(e) => setQuery(e.target.value)} />
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Show selected or not selected listings">
+            {(
+              [
+                ["all", `All (${listings.length})`],
+                ["selected", `Selected (${form.picked.length})`],
+                ["unselected", `Not selected (${Math.max(0, listings.length - form.picked.length)})`],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={pickFilter === value}
+                className={`rounded-full px-3 py-1 text-xs ${pickFilter === value ? "bg-[#031D38] text-white" : "border"}`}
+                onClick={() => setPickFilter(value)}
+              >
+                {label}
+              </button>
+            ))}
+            {pickFilter !== "all" || query || category !== "all" ? (
+              <button
+                type="button"
+                className="px-1 text-xs text-navy-600 underline"
+                onClick={() => {
+                  setPickFilter("all");
+                  setQuery("");
+                  setCategory("all");
+                }}
+              >
+                Reset filters
+              </button>
+            ) : null}
+          </div>
           {visible.length ? (
             <div className="flex gap-3 text-xs">
               <button
@@ -425,7 +535,24 @@ export function AdminSalePanel({ channel }: { channel: "retail" | "wholesale" })
             </div>
           ) : null}
           {visible.length === 0 ? (
-            <p className="rounded-xl border border-dashed px-4 py-8 text-center text-sm text-navy-600">Add some listings to get started</p>
+            listingsError ? (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-6 text-center text-sm text-red-800">
+                <p>{listingsError}</p>
+                <button type="button" className="mt-3 rounded-full border border-red-300 bg-white px-4 py-1.5 text-xs font-semibold" onClick={() => void load()}>
+                  Retry
+                </button>
+              </div>
+            ) : listingsLoading ? (
+              <p className="rounded-xl border border-dashed px-4 py-8 text-center text-sm text-navy-600">Loading listings…</p>
+            ) : (
+            <p className="rounded-xl border border-dashed px-4 py-8 text-center text-sm text-navy-600">
+              {pickFilter === "selected" && !form.picked.length
+                ? "No listings selected yet."
+                : query || category !== "all" || pickFilter !== "all"
+                  ? "No listings match these filters."
+                  : "Add some listings to get started"}
+            </p>
+            )
           ) : (
             <div className="max-h-96 space-y-1 overflow-y-auto rounded-xl border p-2">
               {visible.map((item) => {

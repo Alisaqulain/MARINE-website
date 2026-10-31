@@ -2,6 +2,7 @@
 
 import { CatalogCard } from "@/components/CatalogCard";
 import { products as staticProducts, type Product } from "@/lib/products";
+import { useRegion } from "@/lib/region-context";
 import { canAccessWholesale, isRetailCustomer } from "@/lib/wholesale-access";
 import { wholesaleCatalogHref } from "@/lib/wholesale-links";
 import { useWholesaleGate } from "@/components/WholesaleGateProvider";
@@ -23,6 +24,7 @@ export function HomeAllProducts() {
   const [sort, setSort] = useState<SortKey>("newest");
   const [goPage, setGoPage] = useState("");
   const ref = useRef<HTMLElement>(null);
+  const { priceFor } = useRegion();
   const router = useRouter();
   const { data: session } = useSession();
   const wholesaleOk = canAccessWholesale(session?.user);
@@ -60,12 +62,14 @@ export function HomeAllProducts() {
 
   const sorted = useMemo(() => {
     const next = [...products];
+    // Sort by the price the card shows (visitor region, retail or wholesale, sale applied).
+    const shown = (p: Product) => priceFor(p, displayMode === "b2b");
     if (sort === "name") next.sort((a, b) => a.name.localeCompare(b.name));
-    else if (sort === "price-asc") next.sort((a, b) => a.price - b.price);
-    else if (sort === "price-desc") next.sort((a, b) => b.price - a.price);
-    // newest: API already returns mongo/new items first
+    else if (sort === "price-asc") next.sort((a, b) => shown(a) - shown(b));
+    else if (sort === "price-desc") next.sort((a, b) => shown(b) - shown(a));
+    // newest: the API already returns the newest products first, for both B2C and B2B
     return next;
-  }, [products, sort]);
+  }, [products, sort, priceFor, displayMode]);
 
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -135,8 +139,8 @@ export function HomeAllProducts() {
             >
               <option value="newest">Newest first</option>
               <option value="name">Name A–Z</option>
-              <option value="price-asc">Price: low to high</option>
-              <option value="price-desc">Price: high to low</option>
+              <option value="price-asc">Price: Low to High</option>
+              <option value="price-desc">Price: High to Low</option>
             </select>
           </label>
         </div>

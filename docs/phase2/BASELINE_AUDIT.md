@@ -21,7 +21,7 @@ Stack that stays in place: Next.js 15 App Router, React 19, TypeScript, Tailwind
 
 ## Credentials still required
 
-- `OPENAI_API_KEY` optional. Without it, chat answers from the catalogue only.
+- `GEMINI_API_KEY` (replaces the former optional OpenAI key). Without it, chat answers from the catalogue only.
 - `VOICE_PROVIDER` and `VOICE_WEBHOOK_SECRET` for call webhooks. Voice is not live without them.
 - A search-data provider and Google Merchant Center account are not configured. The product feed is generated locally and is not uploaded.
 

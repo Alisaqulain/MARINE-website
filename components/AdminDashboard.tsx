@@ -153,6 +153,8 @@ export function AdminDashboard() {
     wholesalePriceIndia: "",
     wholesalePriceUs: "",
     quantity: "",
+    /** With listBoth: separate wholesale stock (retail uses `quantity`). */
+    wholesaleQuantity: "",
     b2cOutOfStock: false,
     b2bOutOfScope: false,
     tags: [] as string[],
@@ -364,6 +366,7 @@ export function AdminDashboard() {
       wholesalePriceIndia: shareRetailPrice ? productForm.priceIndia : productForm.wholesalePriceIndia,
       wholesalePriceUs: shareRetailPrice ? productForm.priceUs : productForm.wholesalePriceUs,
       quantity: productForm.quantity,
+      wholesaleQuantity: productForm.listBoth ? productForm.wholesaleQuantity : "",
       b2cOutOfStock: productForm.b2cOutOfStock,
       b2bOutOfScope: productForm.b2bOutOfScope,
       image: productForm.images[0]?.url ?? productForm.image,
@@ -383,7 +386,8 @@ export function AdminDashboard() {
   async function saveProduct(e: React.FormEvent) {
     e.preventDefault();
     if (panel === "wholesale" || productForm.listBoth) {
-      const qty = productForm.quantity === "" ? NaN : Number(productForm.quantity);
+      const wholesaleStock = productForm.listBoth ? productForm.wholesaleQuantity : productForm.quantity;
+      const qty = wholesaleStock === "" ? NaN : Number(wholesaleStock);
       if (!Number.isFinite(qty) || qty < 20) {
         window.alert("Wholesale quantity in stock must be at least 20.");
         return;
@@ -427,6 +431,9 @@ export function AdminDashboard() {
       wholesalePriceIndia: p.wholesalePriceIndia != null && p.wholesalePriceIndia !== "" ? String(p.wholesalePriceIndia) : "",
       wholesalePriceUs: p.wholesalePriceUs != null && p.wholesalePriceUs !== "" ? String(p.wholesalePriceUs) : "",
       quantity: p.quantity != null ? String(p.quantity) : "",
+      // Older "both" listings shared one stock number; start the wholesale box from it.
+      wholesaleQuantity:
+        p.wholesaleQuantity != null ? String(p.wholesaleQuantity) : p.channel === "both" && p.quantity != null ? String(p.quantity) : "",
       b2cOutOfStock: p.b2cOutOfStock === true,
       b2bOutOfScope: p.b2bOutOfScope === true,
       image: String(p.image ?? ""),
@@ -837,7 +844,7 @@ export function AdminDashboard() {
                   <span>
                     <span className="block font-medium">List on both Retail and Wholesale</span>
                     <span className="block text-[10px] text-navy-500">
-                      One product shown on both sides, with one shared quantity in stock (min. 20 for wholesale).
+                      One product shown on both sides, with separate retail and wholesale stock (min. 20 for wholesale).
                     </span>
                   </span>
                 </label>
@@ -894,32 +901,66 @@ export function AdminDashboard() {
                     />
                   </fieldset>
                 ) : null}
-                <label className="block text-xs">
-                  <span className="mb-1 block text-navy-600">Quantity in stock</span>
-                  <input
-                    className="input"
-                    type="number"
-                    min={panel === "wholesale" || productForm.listBoth ? 20 : 0}
-                    step={1}
-                    placeholder={panel === "wholesale" || productForm.listBoth ? "Min 20" : "e.g. 100"}
-                    value={productForm.quantity}
-                    onChange={(e) => setProductForm({ ...productForm, quantity: e.target.value })}
-                    required={panel === "wholesale" || productForm.listBoth}
-                  />
-                  {panel === "wholesale" || productForm.listBoth ? (
-                    <span className="mt-1 block text-[11px] font-semibold text-red-700">
-                      Min. stock for wholesale is 20
-                    </span>
-                  ) : lowStockMessage(productForm.quantity === "" ? undefined : Number(productForm.quantity)) ? (
-                    <span className="mt-1 block text-[11px] font-medium text-[#9a3412]">
-                      {lowStockMessage(Number(productForm.quantity))}
-                    </span>
-                  ) : (
-                    <span className="mt-1 block text-[10px] text-navy-500">
-                      Shared inventory for retail and wholesale. 5 or fewer shows a low-stock note on retail.
-                    </span>
-                  )}
-                </label>
+                {productForm.listBoth ? (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="block text-xs">
+                      <span className="mb-1 block text-navy-600">Retail quantity in stock</span>
+                      <input
+                        className="input"
+                        type="number"
+                        min={0}
+                        step={1}
+                        placeholder="e.g. 100"
+                        value={productForm.quantity}
+                        onChange={(e) => setProductForm({ ...productForm, quantity: e.target.value })}
+                      />
+                      {lowStockMessage(productForm.quantity === "" ? undefined : Number(productForm.quantity)) ? (
+                        <span className="mt-1 block text-[11px] font-medium text-[#9a3412]">
+                          {lowStockMessage(Number(productForm.quantity))}
+                        </span>
+                      ) : (
+                        <span className="mt-1 block text-[10px] text-navy-500">Retail only. 5 or fewer shows a low-stock note.</span>
+                      )}
+                    </label>
+                    <label className="block text-xs">
+                      <span className="mb-1 block text-navy-600">Wholesale quantity in stock</span>
+                      <input
+                        className="input"
+                        type="number"
+                        min={20}
+                        step={1}
+                        placeholder="Min 20"
+                        value={productForm.wholesaleQuantity}
+                        onChange={(e) => setProductForm({ ...productForm, wholesaleQuantity: e.target.value })}
+                        required
+                      />
+                      <span className="mt-1 block text-[11px] font-semibold text-red-700">Min. stock for wholesale is 20</span>
+                    </label>
+                  </div>
+                ) : (
+                  <label className="block text-xs">
+                    <span className="mb-1 block text-navy-600">Quantity in stock</span>
+                    <input
+                      className="input"
+                      type="number"
+                      min={panel === "wholesale" ? 20 : 0}
+                      step={1}
+                      placeholder={panel === "wholesale" ? "Min 20" : "e.g. 100"}
+                      value={productForm.quantity}
+                      onChange={(e) => setProductForm({ ...productForm, quantity: e.target.value })}
+                      required={panel === "wholesale"}
+                    />
+                    {panel === "wholesale" ? (
+                      <span className="mt-1 block text-[11px] font-semibold text-red-700">Min. stock for wholesale is 20</span>
+                    ) : lowStockMessage(productForm.quantity === "" ? undefined : Number(productForm.quantity)) ? (
+                      <span className="mt-1 block text-[11px] font-medium text-[#9a3412]">
+                        {lowStockMessage(Number(productForm.quantity))}
+                      </span>
+                    ) : (
+                      <span className="mt-1 block text-[10px] text-navy-500">5 or fewer shows a low-stock note on retail.</span>
+                    )}
+                  </label>
+                )}
                 <fieldset className="space-y-2 rounded-xl border border-[#e6dfd2] p-3">
                   <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-navy-600">
                     Availability
@@ -1232,7 +1273,9 @@ export function AdminDashboard() {
               />
             </div>
           ) : null}
-          {tab === "listing-stats" ? <AdminListingStats /> : null}
+          {tab === "listing-stats" ? (
+            <AdminListingStats key={panel} channel={panel === "wholesale" ? "wholesale" : "retail"} />
+          ) : null}
           {tab === "testimonials" ? (
             <div className="space-y-8">
               <AdminProductReviewsPanel canDelete={canDelete} />
@@ -1258,26 +1301,6 @@ export function AdminDashboard() {
                 <Stat label="Today" value={String(visitorSummary.today)} />
                 <Stat label="Last 7 days" value={String(visitorSummary.last7Days)} />
                 <Stat label="Listing views" value={String(listingViews.totalViews)} />
-              </div>
-              <div className="rounded-xl bg-white p-5 shadow-sm">
-                <h3 className="font-serif text-lg text-navy-900">Shoppers viewed your listings</h3>
-                <p className="mt-1 text-sm text-navy-600">
-                  Shoppers viewed your listings <span className="font-semibold text-navy-900">{listingViews.totalViews}</span> times.
-                </p>
-                {listingViews.listings.length ? (
-                  <ul className="mt-4 max-h-64 space-y-2 overflow-y-auto text-sm">
-                    {listingViews.listings.slice(0, 25).map((row) => (
-                      <li key={row.slug} className="flex items-center justify-between gap-3 border-b border-[#f0ebe3] py-2">
-                        <a href={`/product/${row.slug}`} className="truncate text-navy-800 hover:text-[#8C6E28]">
-                          {row.slug}
-                        </a>
-                        <span className="shrink-0 font-semibold text-navy-900">{row.views}</span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="mt-3 text-sm text-navy-500">No product page views recorded yet.</p>
-                )}
               </div>
               <div className="overflow-x-auto rounded-xl bg-white shadow-sm">
                 <div className="border-b bg-[#FAF7F2] px-4 py-3 text-xs text-navy-600">

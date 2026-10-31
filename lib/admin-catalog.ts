@@ -14,6 +14,7 @@ export type AdminProductRow = {
   wholesalePriceIndia?: number;
   wholesalePriceUs?: number;
   quantity?: number;
+  wholesaleQuantity?: number;
   b2cOutOfStock?: boolean;
   b2bOutOfScope?: boolean;
   image: string;

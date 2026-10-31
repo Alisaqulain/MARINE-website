@@ -1,6 +1,6 @@
 "use client";
 
-import { B2B_MIN_ORDER_QTY, saleInfo, showsFreeShipping, type Product } from "@/lib/products";
+import { B2B_MIN_ORDER_QTY, saleInfo, showsFreeShipping, stockFor, type Product } from "@/lib/products";
 import { imageAdjustStyle, lowStockMessage } from "@/lib/product-display";
 import { useWishlist } from "@/lib/wishlist-context";
 import { Heart } from "lucide-react";
@@ -27,7 +27,7 @@ export function CatalogCard({
   const sale = saleInfo(product, wholesale);
   const href = wholesale ? `/wholesale/product/${product.slug}` : `/product/${product.slug}`;
   const unavailable = wholesale ? product.b2bOutOfScope : product.b2cOutOfStock;
-  const quantityMessage = lowStockMessage(product.quantity);
+  const quantityMessage = lowStockMessage(stockFor(product, wholesale));
   const availabilityMessage = unavailable
     ? "Out of stock"
     : wholesale

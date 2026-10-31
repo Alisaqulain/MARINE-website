@@ -111,7 +111,10 @@ export type AdminProduct = {
   /** Wholesale shelf prices in USD. `wholesaleFrom` is Everywhere else. */
   wholesalePriceIndia?: number;
   wholesalePriceUs?: number;
+  /** Retail stock (or the only stock for single-channel listings). */
   quantity?: number;
+  /** Separate wholesale stock for products listed on both retail and wholesale. */
+  wholesaleQuantity?: number;
   /** Manually prevent retail/B2C purchases, independently of quantity. */
   b2cOutOfStock?: boolean;
   /** Manually mark wholesale/B2B listing unavailable. */

@@ -10,15 +10,17 @@ export type CatalogueFact = {
   quantity?: number;
   description: string;
   href: string;
+  /** Wholesale minimum order quantity, when the product has wholesale pricing. */
+  moq?: number;
 };
 
 export type PolicyTopic = "shipping" | "returns" | "warranty" | "discount" | "manufacturing";
 
 export const APPROVED_POLICIES: Record<PolicyTopic, string | null> = {
   shipping:
-    "Retail product pages show an estimated delivery of 5–7 business days. International parcels are booked with ShipGlobal after payment when that account is connected. A product shows free shipping only when that product is marked free shipping.",
+    "Retail product pages show an estimated delivery of 7–12 business days. International parcels are booked with ShipGlobal after payment when that account is connected. A product shows free shipping only when that product is marked free shipping. For wholesale orders, the delivery timeline is confirmed after order review.",
   returns:
-    "Eligible standard products can be returned within 14 days. Personalised or custom-made goods may be excluded from that 14-day return.",
+    "Eligible standard retail products can be returned within 14 days. Personalised or custom-made goods may be excluded from that 14-day return. Wholesale returns and refunds follow the agreed order terms and need written authorisation first. Full policy: /returns (wholesale: /returns#wholesale).",
   warranty: null,
   discount: "No discount, payment term, or custom commercial commitment is offered unless an owner has approved that exact request.",
   manufacturing:
@@ -35,16 +37,22 @@ export type Answer = {
 
 const INJECTION = /ignore (all|any|previous) instructions|system prompt|you are now|approve (the )?discount/i;
 
+const STOP = new Set(
+  "the and for with what how much does price cost costs your you have has are any can this that from about tell want need buy available stock which there".split(" ")
+);
+
 function tokens(value: string) {
   return value
     .toLowerCase()
     .split(/[^a-z0-9]+/)
-    .filter((part) => part.length > 2);
+    .filter((part) => part.length > 2 && !STOP.has(part));
 }
 
+/** Name and SKU matches count three times as much as words that only appear in the description. */
 function scoreProduct(query: string[], product: CatalogueFact) {
-  const hay = tokens(`${product.name} ${product.sku} ${product.material || ""} ${product.description}`).join(" ");
-  return query.reduce((sum, token) => sum + (hay.includes(token) ? 1 : 0), 0);
+  const title = new Set(tokens(`${product.name} ${product.sku}`));
+  const body = new Set(tokens(`${product.material || ""} ${product.description}`));
+  return query.reduce((sum, token) => sum + (title.has(token) ? 3 : body.has(token) ? 1 : 0), 0);
 }
 
 export function answerFromCatalogue(question: string, products: CatalogueFact[]): Answer {
@@ -74,11 +82,13 @@ export function answerFromCatalogue(question: string, products: CatalogueFact[])
     return { text: APPROVED_POLICIES.manufacturing!, products: [], quote: true, unknown: false, policy: "manufacturing" };
   }
 
-  const ranked = products
+  const scoredRows = products
     .map((product) => ({ product, score: scoreProduct(query, product) }))
     .filter((row) => row.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 3);
+    .sort((a, b) => b.score - a.score);
+  // Keep only products close to the best match, so "brass compass" does not list every brass item.
+  const best = scoredRows[0]?.score ?? 0;
+  const ranked = scoredRows.filter((row) => row.score >= best - 1).slice(0, 3);
 
   if (!ranked.length) {
     return {
@@ -98,7 +108,8 @@ export function answerFromCatalogue(question: string, products: CatalogueFact[])
           : product.stock;
     const material = product.material ? ` Material: ${product.material}.` : "";
     const dimensions = product.dimensions && product.dimensions !== "See product description" ? ` Dimensions: ${product.dimensions}.` : "";
-    return `${product.name} (${product.sku}) is $${product.price.toFixed(2)} USD, ${stock}.${material}${dimensions} Page: ${product.href}`;
+    const sku = product.sku ? ` (${product.sku})` : "";
+    return `${product.name}${sku} is $${product.price.toFixed(2)} USD, ${stock}.${material}${dimensions} Page: ${product.href}`;
   });
   const quote = /\b(quote|wholesale|bulk|logo|oem)\b/i.test(lower);
   return {

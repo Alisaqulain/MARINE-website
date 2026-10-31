@@ -6,6 +6,7 @@ import { PageViewBeacon } from "./PageViewBeacon";
 import { AttributionBeacon } from "./AttributionBeacon";
 import { ChatWidget } from "./ChatWidget";
 import { CookieNotice } from "./CookieNotice";
+import { GoogleAnalytics } from "./GoogleAnalytics";
 import { Footer } from "./Footer";
 import { Header } from "./Header";
 import { TopBar } from "./TopBar";
@@ -41,6 +42,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </div>
       <PageViewBeacon />
       <AttributionBeacon />
+      <GoogleAnalytics />
       <main className="flex-1">{children}</main>
       <Footer />
       <CookieNotice />
