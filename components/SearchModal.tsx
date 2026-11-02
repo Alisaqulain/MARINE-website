@@ -2,6 +2,7 @@
 
 import { products as staticProducts, formatPrice, type Product } from "@/lib/products";
 import { filterProductsByQuery } from "@/lib/product-search";
+import { loadCatalog } from "@/lib/catalog-client";
 import { Search, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -20,29 +21,13 @@ export function SearchModal({
   const [products, setProducts] = useState<Product[]>(staticProducts);
 
   // Warm the live catalogue on mount so newly added products (e.g. test1) are searchable.
+  // Shared, cached catalogue (lib/catalog-client): warmed on mount, refreshed when the search opens if older than a minute.
   useEffect(() => {
+    if (!open) setQ("");
     let cancelled = false;
-    void fetch("/api/catalog/products", { cache: "no-store" })
-      .then((r) => r.json())
-      .then((data) => {
-        if (!cancelled && Array.isArray(data.items) && data.items.length) setProducts(data.items);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!open) {
-      setQ("");
-      return;
-    }
-    let cancelled = false;
-    void fetch("/api/catalog/products", { cache: "no-store" })
-      .then((r) => r.json())
-      .then((data) => {
-        if (!cancelled && Array.isArray(data.items) && data.items.length) setProducts(data.items);
+    void loadCatalog()
+      .then((items) => {
+        if (!cancelled && items.length) setProducts(items);
       })
       .catch(() => {});
     return () => {

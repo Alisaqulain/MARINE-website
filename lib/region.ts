@@ -22,22 +22,21 @@ type WholesalePriced = Priced & {
   wholesalePriceUs?: number;
 };
 
+/** A regional price counts only when it is a real positive amount; 0 or blank falls back to the default price. */
+const set = (value: number | undefined | null): value is number => value != null && Number.isFinite(value) && value > 0;
+
 /** India / US price when the admin set one, otherwise the default ("other countries") price. */
 export function regionalPrice(product: Priced, region: PriceRegion): number {
-  if (region === "india" && product.priceIndia != null && Number.isFinite(product.priceIndia)) return product.priceIndia;
-  if (region === "us" && product.priceUs != null && Number.isFinite(product.priceUs)) return product.priceUs;
+  if (region === "india" && set(product.priceIndia)) return product.priceIndia;
+  if (region === "us" && set(product.priceUs)) return product.priceUs;
   return product.price;
 }
 
 /** Wholesale shelf price for the visitor's location. Falls back to retail only when no wholesale price is set. */
 export function regionalWholesalePrice(product: WholesalePriced, region: PriceRegion): number {
-  if (region === "india" && product.wholesalePriceIndia != null && Number.isFinite(product.wholesalePriceIndia)) {
-    return product.wholesalePriceIndia;
-  }
-  if (region === "us" && product.wholesalePriceUs != null && Number.isFinite(product.wholesalePriceUs)) {
-    return product.wholesalePriceUs;
-  }
-  if (product.wholesaleFrom != null && Number.isFinite(product.wholesaleFrom)) return product.wholesaleFrom;
+  if (region === "india" && set(product.wholesalePriceIndia)) return product.wholesalePriceIndia;
+  if (region === "us" && set(product.wholesalePriceUs)) return product.wholesalePriceUs;
+  if (set(product.wholesaleFrom)) return product.wholesaleFrom;
   return regionalPrice(product, region);
 }
 

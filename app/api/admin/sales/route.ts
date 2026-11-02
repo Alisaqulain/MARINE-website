@@ -1,21 +1,27 @@
+import { invalidatesCatalog } from "@/lib/storefront-catalog";
 import { ObjectId } from "mongodb";
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/admin-auth";
 import { getDb } from "@/lib/mongodb";
+import { products as staticProducts } from "@/lib/products";
 import { loadSales, saleDateProblem, saleInChannel, saleNameOk } from "@/lib/sales";
 
 export async function GET(req: Request) {
   const { error } = await requireAdminSession("view");
   if (error) return error;
   const channelParam = new URL(req.url).searchParams.get("channel");
-  const items = await loadSales();
+  // Hide products that no longer exist (deleted before sales were cleaned up on delete).
+  const db = await getDb();
+  const saved = await db.collection("products").find({}, { projection: { slug: 1 } }).toArray();
+  const existing = new Set([...staticProducts.map((p) => p.slug), ...saved.map((p) => String(p.slug))]);
+  const items = (await loadSales()).map((sale) => ({ ...sale, productSlugs: sale.productSlugs.filter((slug) => existing.has(slug)) }));
   if (channelParam === "retail" || channelParam === "wholesale") {
     return NextResponse.json({ items: items.filter((sale) => saleInChannel(sale, channelParam)) });
   }
   return NextResponse.json({ items });
 }
 
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   const { error } = await requireAdminSession("addProduct");
   if (error) return error;
   const body = await req.json().catch(() => null);
@@ -71,7 +77,7 @@ export async function POST(req: Request) {
   return NextResponse.json({ id: String(result.insertedId) });
 }
 
-export async function PATCH(req: Request) {
+async function handlePATCH(req: Request) {
   const { error } = await requireAdminSession("addProduct");
   if (error) return error;
   const body = await req.json().catch(() => null);
@@ -130,7 +136,7 @@ export async function PATCH(req: Request) {
   return NextResponse.json({ ok: true });
 }
 
-export async function DELETE(req: Request) {
+async function handleDELETE(req: Request) {
   const { error } = await requireAdminSession("delete");
   if (error) return error;
   const id = new URL(req.url).searchParams.get("id") ?? "";
@@ -141,3 +147,9 @@ export async function DELETE(req: Request) {
   await db.collection("sales").deleteOne({ _id: new ObjectId(id) });
   return NextResponse.json({ ok: true });
 }
+
+export const POST = invalidatesCatalog(handlePOST);
+
+export const PATCH = invalidatesCatalog(handlePATCH);
+
+export const DELETE = invalidatesCatalog(handleDELETE);

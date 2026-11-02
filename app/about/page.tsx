@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { BannerHero } from "@/components/BannerHero";
 import { WholesaleNavLink } from "@/components/WholesaleNavLink";
-import { heroImg, img } from "@/lib/images";
+import { img } from "@/lib/images";
 
 const pillars = [
   {
@@ -116,28 +116,34 @@ export default function AboutPage() {
 
       <section className="px-5 py-10 md:py-14">
         <div className="mx-auto grid max-w-[1320px] items-center gap-8 md:grid-cols-2">
-          <div className="relative aspect-[4/3] overflow-hidden rounded-3xl">
+          {/* Same shape as the image (1373×1145), so the whole picture shows with nothing cropped. */}
+          <div className="relative aspect-[1373/1145] overflow-hidden rounded-3xl">
             <Image
-              src={heroImg.telescope}
-              alt="Brass nautical telescope"
+              src="/about-built-to-view.jpeg"
+              alt="Handcrafted brass telescope, binoculars, compass, sextant and nautical instruments by the sea at sunset"
               fill
+              sizes="(min-width: 768px) 50vw, 100vw"
               className="object-cover"
             />
           </div>
           <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-[#8C6E28]">Instruments &amp; programmes</p>
-            <h2 className="mt-2 font-serif text-[1.65rem] md:text-4xl">Built to view, finished to last</h2>
-            <p className="mt-5 leading-relaxed text-navy-700">
-              Our telescopes and binoculars are designed for actual viewing as well as premium
-              presentation, with different models, lens sizes and specifications available.
+            <h2 className="font-serif text-[1.65rem] leading-snug md:text-4xl">Authentic Craftsmanship. Quality You Can Trust.</h2>
+            <p className="mt-4 leading-relaxed text-navy-700">
+              At MARINA MUSE INTERNATIONAL, we bring together traditional craftsmanship, timeless design and practical
+              functionality. Our collection spans handcrafted brass homeware, kitchenware, optical instruments, nautical
+              décor, lighting, jewellery and heritage-inspired creations.
+            </p>
+            <h3 className="mt-7 font-serif text-xl leading-snug md:text-2xl">Made with Care. Backed by Craftsmanship.</h3>
+            <p className="mt-3 leading-relaxed text-navy-700">
+              As manufacturers, we offer custom production and bulk orders, with options for tailored designs, sizes,
+              materials and finishes according to product requirements.
             </p>
             <p className="mt-4 leading-relaxed text-navy-700">
-              We also undertake custom manufacturing and bulk orders, allowing customers to request
-              specific designs, sizes, materials, finishes and specifications. Every product is
-              carefully checked and securely packed before dispatch. We provide worldwide shipping
-              and aim to deliver authentic handcrafted products with professional service and
-              customer satisfaction.
+              Every product is carefully inspected and securely packed before dispatch. We welcome individual customers,
+              retailers, wholesalers and international business partners, offering personalized service and worldwide
+              shipping.
             </p>
+            <p className="mt-4 leading-relaxed text-navy-700">Discover distinctive craftsmanship from our own manufacturing workshop.</p>
             <div className="mt-8 grid gap-3 sm:flex sm:flex-wrap">
               <Link href="/custom-manufacturing" className="btn-gold w-full sm:w-auto">
                 Custom manufacturing

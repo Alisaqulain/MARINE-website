@@ -12,7 +12,8 @@ import {
   SUPPLIED_APP_ID,
   type SignupBody,
 } from "@/lib/whatsapp/coexistence";
-import { readCoexistenceState, writeCoexistenceState } from "@/lib/whatsapp/store";
+import { readCoexistenceState, startOnboarding, writeCoexistenceState } from "@/lib/whatsapp/store";
+import { verifyOnboardedNumber } from "@/lib/whatsapp/coexistence-actions";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -119,13 +120,17 @@ export async function POST(req: Request) {
     );
   }
   console.info("[whatsapp] signup exchanged");
+  // Fresh onboarding window (24 h for the one-time syncs), then a read-only check of which number was onboarded.
+  // A number that is neither the approved test number nor production-approved loses its token right here.
+  await startOnboarding(at).catch(() => undefined);
+  const check = await verifyOnboardedNumber(actor);
   return NextResponse.json({
-    ok: true,
+    ok: check.ok,
     calledMeta: true,
-    stored: true,
-    credentialMode: "stored",
-    coexistenceVerified: "not verified",
+    stored: check.ok || !/deleted/.test(check.detail),
+    credentialMode: /deleted/.test(check.detail) ? "none" : "stored",
+    coexistenceVerified: check.ok ? "verified" : "not verified",
     webhookSubscription: "not verified",
-    detail: "Token stored on the server. The phone number was not registered and coexistence is not verified.",
+    detail: `${check.detail} The phone number was not registered or migrated.`,
   });
 }

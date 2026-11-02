@@ -79,7 +79,7 @@ export default function ContactPage() {
             <div className="mt-10 grid gap-4 sm:grid-cols-3">
               {desks.map((d) => (
                 <div key={d.title} className="rounded-2xl border border-[#eee7db] bg-white p-4">
-                  <p className="font-serif text-xl">{d.title}</p>
+                  <p className="whitespace-nowrap font-serif text-lg md:text-[1.05rem] lg:text-xl">{d.title}</p>
                   <p className="mt-1 text-sm text-navy-600">{d.body}</p>
                 </div>
               ))}

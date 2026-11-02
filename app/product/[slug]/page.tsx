@@ -47,6 +47,7 @@ import { ProductGalleryViewer } from "@/components/ProductGalleryViewer";
 import { imageAdjustStyle, lowStockMessage } from "@/lib/product-display";
 import { imageIndexForColor } from "@/lib/listing-images";
 import { useRegion } from "@/lib/region-context";
+import { loadCatalog } from "@/lib/catalog-client";
 
 export default function ProductPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -107,10 +108,9 @@ export default function ProductPage() {
 
   useEffect(() => {
     let cancelled = false;
-    void fetch(`/api/catalog/products?channel=${b2b ? "wholesale" : "retail"}`, { cache: "no-store" })
-      .then((res) => res.json())
-      .then((data) => {
-        if (!cancelled && Array.isArray(data.items) && data.items.length) setShopItems(data.items);
+    void loadCatalog(b2b ? "wholesale" : "retail")
+      .then((items) => {
+        if (!cancelled && items.length) setShopItems(items);
       })
       .catch(() => {});
     return () => {
@@ -177,13 +177,8 @@ export default function ProductPage() {
         ? "Out of stock"
         : null
       : quantityAlert;
-  const stockLabel = stockAlert
-    ? stockAlert
-    : product.stock === "in-stock"
-      ? "In Stock"
-      : product.stock === "low"
-        ? "Low stock"
-        : "Made to order";
+  // Wholesale only ever shows "In Stock" or "Out of stock"; retail adds the "only N left" alert above when 1–5 remain.
+  const stockLabel = stockAlert ? stockAlert : product.stock === "made-to-order" ? "Made to order" : "In Stock";
 
   const personalisationCharge =
     product.personalisationPrice != null && Number.isFinite(product.personalisationPrice)
@@ -206,9 +201,10 @@ export default function ProductPage() {
     message: personalisationMessage,
     personalisationPrice: personalisationCharge ?? undefined,
     name: product.name,
-    price: product.price,
-    priceIndia: product.priceIndia,
-    priceUs: product.priceUs,
+    // The live listing's prices for this side (wholesale lines carry wholesale prices).
+    price: b2b ? (product.wholesaleFrom ?? product.price) : product.price,
+    priceIndia: b2b ? product.wholesalePriceIndia : product.priceIndia,
+    priceUs: b2b ? product.wholesalePriceUs : product.priceUs,
     image: product.image,
   } as const;
 
@@ -412,14 +408,12 @@ export default function ProductPage() {
                 </label>
                 {personalisation === "yes" ? (
                   <div className="mt-3 rounded-xl border border-[#e6dfd2] bg-[#FAF7F2] p-4 text-[14px] text-[#222]">
-                    <p className="font-semibold">Personalization</p>
                     <p className="mt-1 font-medium">Personalize It Your Way</p>
                     <p className="mt-1 text-navy-700">
-                      Whatever you want—your logo, name, initials, or a special message—we can engrave it directly on
-                      the binoculars or tripod
+                      Whatever you want—your logo, name, initials, or a special message on products
                     </p>
                     <ul className="mt-2 space-y-1">
-                      {["Company Logo", "Event Name", "Anniversary Date", "Personalized Message", "Custom Branding"].map(
+                      {["Company Logo", "Event Name", "Anniversary Date", "Personalizedwe can engrave it directly on the binoculars or tripod Message", "Custom Branding"].map(
                         (item) => (
                           <li key={item}>✅ {item}</li>
                         )
@@ -519,9 +513,6 @@ export default function ProductPage() {
                   +
                 </button>
               </div>
-              {b2b && stock != null && stock > 0 ? (
-                <p className="mt-1 text-[11px] text-navy-500">{stock} available</p>
-              ) : null}
             </div>
 
             <div className="mt-5 grid grid-cols-2 gap-3">

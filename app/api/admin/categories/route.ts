@@ -1,3 +1,4 @@
+import { invalidatesCatalog } from "@/lib/storefront-catalog";
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/admin-auth";
 import { getDb } from "@/lib/mongodb";
@@ -9,7 +10,7 @@ export async function GET() {
   return NextResponse.json(await loadCategoryCatalog());
 }
 
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   const { error } = await requireAdminSession("addProduct");
   if (error) return error;
   const body = await req.json().catch(() => ({}));
@@ -32,3 +33,5 @@ export async function POST(req: Request) {
   });
   return NextResponse.json({ ok: true, ...(await loadCategoryCatalog()) });
 }
+
+export const POST = invalidatesCatalog(handlePOST);

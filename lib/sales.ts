@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/mongodb";
+import { saleEndIso, saleWindowLive } from "@/lib/sale-time";
 
 export type ShopSale = {
   id: string;
@@ -49,9 +50,9 @@ export function saleDateProblem(input: { startsAt: string; endsAt: string; previ
   return null;
 }
 
+/** Live from the start date 00:00 to the end date 23:59:59 in the shop's time zone (see lib/sale-time). */
 export function saleIsLive(sale: ShopSale, now = new Date()) {
-  const today = now.toISOString().slice(0, 10);
-  return sale.startsAt.slice(0, 10) <= today && today <= sale.endsAt.slice(0, 10);
+  return saleWindowLive(sale, now.getTime());
 }
 
 export function saleAppliesTo(
@@ -94,8 +95,8 @@ export function applySales<
   if (!retail && !wholesale) return product;
   const cutBy = (sale: ShopSale) => (value: number | undefined) =>
     value != null ? Number((value * (1 - sale.percent / 100)).toFixed(2)) : value;
-  // End of the sale end-date (countdown uses end-of-day UTC).
-  const endOf = (sale: ShopSale) => `${sale.endsAt.slice(0, 10)}T23:59:59.999Z`;
+  // End of the sale's last day in the shop's time zone (drives the countdown).
+  const endOf = (sale: ShopSale) => saleEndIso(sale.endsAt);
   let next: T = product;
   if (retail) {
     const cut = cutBy(retail);

@@ -101,7 +101,45 @@ async function loadDeactivatedSlugs(): Promise<Set<string>> {
   }
 }
 
+/**
+ * Short-lived catalogue cache. Every storefront page asks for the full catalogue, so rebuilding it from MongoDB
+ * on each request made the site slow. Entries live 20 s and are dropped immediately after any admin change to
+ * products or sales in this process (see `invalidatesCatalog`), so new prices and sales still show right away.
+ */
+const CATALOG_TTL_MS = 20_000;
+type CatalogCache = Map<string, { at: number; value: Promise<Product[]> }>;
+function catalogCache(): CatalogCache {
+  const g = globalThis as typeof globalThis & { __marinaCatalogCache?: CatalogCache };
+  if (!g.__marinaCatalogCache) g.__marinaCatalogCache = new Map();
+  return g.__marinaCatalogCache;
+}
+
+export function invalidateStorefrontCache() {
+  catalogCache().clear();
+}
+
+/** Wraps an admin route handler: after a successful write, the storefront cache is cleared. */
+export function invalidatesCatalog<A extends unknown[]>(handler: (...args: A) => Promise<Response>) {
+  return async (...args: A) => {
+    const res = await handler(...args);
+    if (res.ok) invalidateStorefrontCache();
+    return res;
+  };
+}
+
 export async function getStorefrontProducts(channel?: "retail" | "wholesale"): Promise<Product[]> {
+  const key = channel ?? "all";
+  const cache = catalogCache();
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < CATALOG_TTL_MS) return hit.value;
+  const value = buildStorefrontProducts(channel);
+  cache.set(key, { at: Date.now(), value });
+  // A failed build must not be cached.
+  value.catch(() => cache.delete(key));
+  return value;
+}
+
+async function buildStorefrontProducts(channel?: "retail" | "wholesale"): Promise<Product[]> {
   const [mongo, sales, deactivated] = await Promise.all([
     loadMongoStorefrontProducts(channel),
     loadActiveSales(),

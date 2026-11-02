@@ -440,3 +440,108 @@ export async function runIntegrationChecks() {
   const [platform, agents] = await Promise.all([platformChecks(), agentChecks(integrations)]);
   return { integrations, platform, agents, summary: summarise(integrations.map((i) => i.status)), checkedAt: new Date().toISOString(), ms: Date.now() - started };
 }
+
+export type CoexistenceReport = {
+  mode: "not_configured" | "test" | "ready_for_onboarding" | "live";
+  connected: boolean;
+  rows: { label: string; result: CheckStep["result"]; detail: string }[];
+  steps: { label: string; state: string; detail: string }[];
+  approvals: string[];
+};
+
+const COEXISTENCE_FIELDS = ["messages", "history", "smb_app_state_sync", "smb_message_echoes", "account_update"];
+
+/** WhatsApp Business app coexistence status for /test. Read-only; never shows tokens, secrets or full numbers. */
+export async function checkCoexistence(): Promise<CoexistenceReport> {
+  const { publicStatus, verifySignature, verifyHandshake } = await import("@/lib/whatsapp/coexistence");
+  const { appWebhookFields } = await import("@/lib/whatsapp/coexistence-actions");
+  const stored = await readCoexistenceState();
+  const status = publicStatus(process.env, stored);
+  const has = (name: string) => Boolean(process.env[name]?.trim());
+  const meta = process.env.META_APP_SECRET?.trim() ? await appWebhookFields() : null;
+  const missingFields = meta?.ok ? COEXISTENCE_FIELDS.filter((f) => !meta.fields.includes(f)) : COEXISTENCE_FIELDS;
+  const secret = process.env.META_WEBHOOK_APP_SECRET?.trim() || process.env.META_APP_SECRET?.trim();
+  const forgedRejected = !verifySignature("{}", "sha256=00", secret).ok;
+  const wrongTokenRejected = !verifyHandshake({ mode: "subscribe", token: "wrong-token", challenge: "1", expected: process.env.META_WEBHOOK_VERIFY_TOKEN }).ok;
+  const credentialNames = ["META_APP_ID", "META_CONFIG_ID", "META_APP_SECRET", "META_WEBHOOK_VERIFY_TOKEN", "AUTH_SECRET", "WHATSAPP_COEXISTENCE_TEST_NUMBER"];
+  const missing = credentialNames.filter((n) => !has(n));
+  const fieldsVerified = Boolean(meta?.ok) && missingFields.length === 0;
+  const connected = status.coexistenceVerified === "verified" && status.webhookSubscription === "subscribed" && fieldsVerified;
+
+  const rows: CoexistenceReport["rows"] = [
+    {
+      label: "Meta credentials",
+      result: missing.length === 0 ? "pass" : missing.some((n) => n !== "WHATSAPP_COEXISTENCE_TEST_NUMBER") ? "fail" : "warn",
+      detail: missing.length ? `Missing: ${missing.join(", ")}. Values are never shown.` : "App ID, config ID, app secret, verify token, AUTH_SECRET and the test number are set (values not shown).",
+    },
+    {
+      label: "Embedded Signup configuration",
+      result: has("META_APP_ID") || status.appId ? "pass" : "fail",
+      detail: `App ${status.appId} · config ${status.configId} · Embedded Signup ${status.embeddedSignupVersion} · featureType whatsapp_business_app_onboarding sent · code flow · Graph ${status.graphVersion}. Signup is ${status.signupMode === "closed" ? "closed" : status.signupMode === "test" ? `open for the test number ${status.testNumberHint} only` : "open for production (approved)"}.`,
+    },
+    {
+      label: "Backend authorization-code endpoint",
+      result: status.signupMode === "closed" ? "warn" : "pass",
+      detail: `POST /api/meta/whatsapp/signup/exchange — main admin only, same-origin, rate-limited, code replay blocked, token encrypted with AUTH_SECRET. ${status.signupMode === "closed" ? "Closed: needs WHATSAPP_COEXISTENCE_ENABLED=true, META_APP_SECRET, AUTH_SECRET and a test number (or production approval)." : "Open."}`,
+    },
+    {
+      label: "Webhook endpoint & verification",
+      result: status.verifyTokenConfigured && status.webhookSecretConfigured && forgedRejected && wrongTokenRejected ? (stored?.webhookHandshakeAt ? "pass" : "warn") : "fail",
+      detail: `/api/meta/whatsapp/webhook · verify token ${status.verifyTokenConfigured ? "set" : "missing"} · signature secret ${status.webhookSecretConfigured ? "set" : "missing"} · forged signature ${forgedRejected ? "rejected" : "ACCEPTED"} · wrong verify token ${wrongTokenRejected ? "rejected" : "ACCEPTED"} · Meta handshake ${stored?.webhookHandshakeAt ? `seen ${stored.webhookHandshakeAt.slice(0, 16)}` : "not seen yet"}.`,
+    },
+    {
+      label: "Coexistence events",
+      result: fieldsVerified ? "pass" : meta?.ok ? "fail" : "warn",
+      detail: `Handled in code: history, smb_app_state_sync, smb_message_echoes, message statuses, duplicates. ${
+        meta == null
+          ? "Meta subscription not checked (META_APP_SECRET missing)."
+          : !meta.ok
+            ? meta.detail
+            : missingFields.length
+              ? `Not subscribed at Meta: ${missingFields.join(", ")}.`
+              : `All required fields subscribed at Meta (${meta.detail})`
+      }`,
+    },
+    {
+      label: "WABA ID",
+      result: status.wabaIdMasked && status.idSource === "signup" ? "pass" : "warn",
+      detail: !status.wabaIdMasked
+        ? "Not stored — comes from a completed signup."
+        : status.idSource === "signup"
+          ? `${status.wabaIdMasked} (from a real signup)`
+          : `${status.wabaIdMasked} — sample ID from a simulated run, not a real account.`,
+    },
+    {
+      label: "Phone Number ID",
+      result: status.phoneNumberIdMasked && status.idSource === "signup" ? "pass" : "warn",
+      detail: !status.phoneNumberIdMasked
+        ? "Not stored — looked up after a completed signup."
+        : status.idSource === "signup"
+          ? `${status.phoneNumberIdMasked}${status.displayNumberHint ? ` · number ${status.displayNumberHint}${status.isTestNumber ? " (test number)" : ""}` : ""}`
+          : `${status.phoneNumberIdMasked} — sample ID from a simulated run, not a real number.`,
+    },
+    { label: "Token", result: status.credentialsStored ? (status.tokenExpiry === "expired" ? "fail" : "pass") : "warn", detail: status.credentialsStored ? `Encrypted on the server · ${status.tokenExpiry}. Never shown.` : "No token stored." },
+    {
+      label: "Coexistence verified (is_on_biz_app + CLOUD_API)",
+      result: status.coexistenceVerified === "verified" ? "pass" : "warn",
+      detail: status.coexistenceVerified === "verified" ? "The onboarded number is on the WhatsApp Business app and Cloud API." : "Not verified yet.",
+    },
+    {
+      label: "Automatic replies",
+      result: status.outboundAllowed ? "pass" : "skip",
+      detail: status.outboundAllowed ? "On for this number (inside the 24-hour window, paused while the owner replies from the app)." : "Off — replies are drafted and withheld.",
+    },
+  ];
+  return {
+    mode: status.mode,
+    connected,
+    rows,
+    steps: status.steps.map((s) => ({ label: s.label, state: s.state, detail: s.detail })),
+    approvals: [
+      "Onboarding the client's live number: set WHATSAPP_PRODUCTION_ONBOARDING_APPROVED=true (your written approval), then run Embedded Signup with that number.",
+      "Contacts sync and history sync for any number: each is a one-time Meta action, confirmed per click in Admin → WhatsApp.",
+      "Live AI replies on the client's number: WHATSAPP_OUTBOUND_ENABLED=true together with production approval.",
+      "Number migration, registration or deregistration: not possible from this site.",
+    ],
+  };
+}

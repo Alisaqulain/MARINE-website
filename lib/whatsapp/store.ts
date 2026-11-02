@@ -16,6 +16,79 @@ function ensureIndex() {
   return indexReady;
 }
 
+const str = (value: unknown) => (typeof value === "string" && value ? value : undefined);
+
+/** Onboarding facts that only the server sets (number check, subscription, syncs, history progress). */
+type OnboardingFields = Pick<
+  StoredCoexistence,
+  | "onboardedAt"
+  | "displayNumber"
+  | "verifiedName"
+  | "isOnBizApp"
+  | "platformType"
+  | "numberCheckedAt"
+  | "isTestNumber"
+  | "subscribedAt"
+  | "contactsSyncRequestedAt"
+  | "historySyncRequestedAt"
+  | "historyStatus"
+  | "phoneNumberId"
+>;
+
+export async function updateOnboardingFields(patch: Partial<OnboardingFields>) {
+  const db = await getDb();
+  await db.collection(STATE).updateOne({ id: "current" }, { $set: { id: "current", ...patch, updatedAt: new Date().toISOString() } }, { upsert: true });
+}
+
+/** A new real signup starts a fresh onboarding: previous number checks, subscription and syncs no longer apply. */
+export async function startOnboarding(onboardedAt: string) {
+  const db = await getDb();
+  await db.collection(STATE).updateOne(
+    { id: "current" },
+    {
+      $set: { id: "current", onboardedAt },
+      $unset: {
+        displayNumber: "",
+        verifiedName: "",
+        isOnBizApp: "",
+        platformType: "",
+        numberCheckedAt: "",
+        isTestNumber: "",
+        subscribedAt: "",
+        contactsSyncRequestedAt: "",
+        historySyncRequestedAt: "",
+        historyStatus: "",
+      },
+    },
+    { upsert: true }
+  );
+}
+
+/** Removes stored credentials and onboarding facts (used when an onboarded number is not allowed). */
+export async function clearCredentials(lastAttempt: NonNullable<StoredCoexistence["lastAttempt"]>) {
+  const db = await getDb();
+  await db.collection(STATE).updateOne(
+    { id: "current" },
+    {
+      $set: { id: "current", mode: "none", tokenCiphertext: "", tokenExpiresAt: "", lastAttempt, updatedAt: new Date().toISOString() },
+      $unset: {
+        onboardedAt: "",
+        displayNumber: "",
+        verifiedName: "",
+        isOnBizApp: "",
+        platformType: "",
+        numberCheckedAt: "",
+        isTestNumber: "",
+        subscribedAt: "",
+        contactsSyncRequestedAt: "",
+        historySyncRequestedAt: "",
+        historyStatus: "",
+      },
+    },
+    { upsert: true }
+  );
+}
+
 export async function readCoexistenceState(): Promise<StoredCoexistence | null> {
   try {
     const db = await getDb();
@@ -30,6 +103,17 @@ export async function readCoexistenceState(): Promise<StoredCoexistence | null> 
       tokenExpiresAt: typeof doc.tokenExpiresAt === "string" ? doc.tokenExpiresAt : undefined,
       usedCodeHashes: Array.isArray(doc.usedCodeHashes) ? doc.usedCodeHashes.filter((item) => typeof item === "string") : undefined,
       webhookHandshakeAt: typeof doc.webhookHandshakeAt === "string" ? doc.webhookHandshakeAt : undefined,
+      onboardedAt: str(doc.onboardedAt),
+      displayNumber: str(doc.displayNumber),
+      verifiedName: str(doc.verifiedName),
+      isOnBizApp: typeof doc.isOnBizApp === "boolean" ? doc.isOnBizApp : undefined,
+      platformType: str(doc.platformType),
+      numberCheckedAt: str(doc.numberCheckedAt),
+      isTestNumber: doc.isTestNumber === true,
+      subscribedAt: str(doc.subscribedAt),
+      contactsSyncRequestedAt: str(doc.contactsSyncRequestedAt),
+      historySyncRequestedAt: str(doc.historySyncRequestedAt),
+      historyStatus: doc.historyStatus && typeof doc.historyStatus === "object" ? (doc.historyStatus as StoredCoexistence["historyStatus"]) : undefined,
       lastAttempt: doc.lastAttempt && typeof doc.lastAttempt === "object" ? (doc.lastAttempt as StoredCoexistence["lastAttempt"]) : undefined,
     };
   } catch {

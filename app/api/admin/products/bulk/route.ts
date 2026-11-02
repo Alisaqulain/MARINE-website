@@ -1,10 +1,11 @@
+import { invalidatesCatalog } from "@/lib/storefront-catalog";
 import { ObjectId } from "mongodb";
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/admin-auth";
 import type { AdminProduct, CatalogOverride } from "@/lib/db/types";
 import { getDb } from "@/lib/mongodb";
 
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   const { error } = await requireAdminSession("addProduct");
   if (error) return error;
   const body = await req.json().catch(() => null);
@@ -49,3 +50,5 @@ export async function POST(req: Request) {
   }
   return NextResponse.json({ ok: true, updated });
 }
+
+export const POST = invalidatesCatalog(handlePOST);

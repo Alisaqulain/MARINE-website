@@ -14,7 +14,7 @@ const btnPad =
   "box-border h-9 w-[11.5rem] px-2.5 text-[10px] tracking-[0.05em] sm:h-9 sm:w-[11.25rem] sm:text-[8px] md:h-9 md:w-[12.25rem] md:px-3 md:text-[9px] md:tracking-[0.08em] lg:h-10 lg:w-[13.5rem] lg:px-4 lg:text-[10px]";
 
 const heroBtnPad =
-  "box-border h-11 w-[14rem] px-3 text-[12px] tracking-[0.06em] sm:h-11 sm:w-[14.75rem] sm:text-[11px] md:h-12 md:w-[16.25rem] md:px-4 md:text-[12px] md:tracking-[0.08em] lg:h-[3.25rem] lg:w-[18rem] lg:text-[13px]";
+  "box-border h-11 w-[12rem] px-3 text-[12px] tracking-[0.06em] sm:h-11 sm:w-[12.25rem] sm:text-[11px] md:h-12 md:w-[13.5rem] md:px-4 md:text-[12px] md:tracking-[0.08em] lg:h-[3.25rem] lg:w-[15rem] lg:text-[13px]";
 
 const arrowCls =
   "absolute top-1/2 z-30 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-white/35 bg-[#081525]/50 text-white shadow-[0_4px_16px_rgba(0,0,0,0.28)] backdrop-blur-sm transition hover:bg-[#081525]/80 sm:h-10 sm:w-10 lg:h-11 lg:w-11";

@@ -1,3 +1,4 @@
+import { invalidatesCatalog } from "@/lib/storefront-catalog";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { requireAdminSession } from "@/lib/admin-auth";
@@ -135,7 +136,7 @@ export async function GET(req: Request) {
   });
 }
 
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   const { session, error } = await requireAdminSession("addProduct");
   if (error || !session) return error;
   const body = await req.json();
@@ -224,3 +225,5 @@ export async function POST(req: Request) {
   const result = await col.insertOne(doc);
   return NextResponse.json({ id: String(result.insertedId) });
 }
+
+export const POST = invalidatesCatalog(handlePOST);

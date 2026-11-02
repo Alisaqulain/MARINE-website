@@ -19,7 +19,6 @@ import {
 import { BannerHero } from "@/components/BannerHero";
 import { CustomFaq } from "@/components/CustomFaq";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
-import { img } from "@/lib/images";
 import { companyWhatsApp } from "@/lib/company";
 
 export const metadata: Metadata = {
@@ -42,15 +41,15 @@ const reasons = [
 ];
 
 const customizable = [
-  { label: "Product Size", image: img.tripodWood },
-  { label: "Lens", image: img.magnifier },
-  { label: "Magnification", image: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=600&q=80" },
-  { label: "Brass Finish", image: img.telescope },
-  { label: "Wood", image: img.workshop },
-  { label: "Leather", image: img.binoculars },
-  { label: "Tripod/Stand", image: img.tripodSpyglass },
-  { label: "Quantity", image: img.gift },
-  { label: "Packaging", image: img.antiques5 },
+  { label: "Product Size", image: "/custom-manufacturing/product-size.jpg" },
+  { label: "Lens", image: "/custom-manufacturing/lens.jpg" },
+  { label: "Magnification", image: "/custom-manufacturing/magnification.jpg" },
+  { label: "Brass Finish", image: "/custom-manufacturing/brass-finish.jpg" },
+  { label: "Wood", image: "/custom-manufacturing/wood.jpg" },
+  { label: "Leather", image: "/custom-manufacturing/leather.jpg" },
+  { label: "Tripod/Stand", image: "/custom-manufacturing/tripod-stand.jpg" },
+  { label: "Quantity", image: "/custom-manufacturing/quantity.jpg" },
+  { label: "Packaging", image: "/custom-manufacturing/packaging.jpg" },
 ];
 
 const process = [
@@ -126,7 +125,7 @@ export default function CustomManufacturingPage() {
               {customizable.map((c) => (
                 <div key={c.label} className="min-w-0 text-center">
                   <div className="relative mx-auto aspect-square w-full max-w-[96px] overflow-hidden rounded-full border-[3px] border-[#C9A84C]/70 shadow-soft">
-                    <Image src={c.image} alt={c.label} fill className="object-cover" />
+                    <Image src={c.image} alt={c.label} fill sizes="96px" className="object-cover" />
                   </div>
                   <p className="mt-2 text-[11px] font-medium leading-tight text-navy-900 sm:mt-3 sm:text-sm">
                     {c.label}

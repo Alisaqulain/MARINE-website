@@ -7,6 +7,7 @@ import { findNamedCategory, type NamedCategory } from "@/lib/category-label";
 import { findShopNowLabel, shopNowSubtree, shopNowTree } from "@/lib/shop-now-data";
 import { products as staticProducts, saleInfo, stockFor, type Product } from "@/lib/products";
 import { useRegion } from "@/lib/region-context";
+import { loadCatalog } from "@/lib/catalog-client";
 import { Camera, ChevronDown, ChevronRight, LayoutGrid, LayoutList, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -46,10 +47,9 @@ export function ShopNowCatalog({ retail = false }: { retail?: boolean }) {
 
   useEffect(() => {
     const channel = retail ? "retail" : "wholesale";
-    void fetch(`/api/catalog/products?channel=${channel}`, { cache: "no-store" })
-      .then((r) => r.json())
-      .then((data) => {
-        if (Array.isArray(data.items) && data.items.length) setCatalogProducts(data.items);
+    void loadCatalog(channel)
+      .then((items) => {
+        if (items.length) setCatalogProducts(items);
       })
       .catch(() => {});
   }, [retail]);

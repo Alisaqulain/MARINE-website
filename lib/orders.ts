@@ -1,5 +1,5 @@
-import { regionalPrice, type PriceRegion } from "@/lib/region";
-import { getProduct } from "@/lib/products";
+import { regionalPrice, regionalWholesalePrice, type PriceRegion } from "@/lib/region";
+import { getProduct, stockFor } from "@/lib/products";
 import { getStorefrontProduct } from "@/lib/storefront-catalog";
 import { company, companyWhatsApp } from "@/lib/company";
 import { countryName } from "@/lib/countries";
@@ -170,7 +170,8 @@ export async function pricedItemsAsync(
     const product = (await getStorefrontProduct(line.slug)) ?? getProduct(line.slug);
     if (!product) continue;
     if (line.b2b ? product.b2bOutOfScope : product.b2cOutOfStock) continue;
-    if (product.quantity != null && product.quantity <= 0) continue;
+    const stock = stockFor(product, Boolean(line.b2b));
+    if (stock != null && stock <= 0) continue;
     const qty = Math.max(1, Math.floor(Number(line.qty) || 1));
     const personalisation = line.personalisation === "yes" || line.personalisation === "no" ? line.personalisation : undefined;
     const charge =
@@ -178,7 +179,8 @@ export async function pricedItemsAsync(
         ? Math.max(0, product.personalisationPrice)
         : 0;
     const message = personalisation === "yes" ? String(line.message ?? "").trim().slice(0, 300) : undefined;
-    const unitPrice = regionalPrice(product, region) + charge;
+    // Same price the shop shows: wholesale lines use the wholesale price, sales already applied.
+    const unitPrice = (line.b2b ? regionalWholesalePrice(product, region) : regionalPrice(product, region)) + charge;
     items.push({
       slug: product.slug,
       name: product.name,

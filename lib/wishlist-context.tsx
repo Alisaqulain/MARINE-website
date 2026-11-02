@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { products as staticProducts, type Product } from "./products";
+import { loadCatalog } from "./catalog-client";
 
 type WishlistContextValue = {
   slugs: string[];
@@ -64,12 +65,9 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
-    void fetch("/api/catalog/products", { cache: "no-store" })
-      .then((r) => r.json())
-      .then((data) => {
-        if (!cancelled && Array.isArray(data.items) && data.items.length) {
-          setCatalog(data.items);
-        }
+    void loadCatalog()
+      .then((items) => {
+        if (!cancelled && items.length) setCatalog(items);
       })
       .catch(() => {});
     return () => {

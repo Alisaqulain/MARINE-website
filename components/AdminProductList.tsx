@@ -5,6 +5,7 @@ import { imageAdjustStyle, lowStockMessage } from "@/lib/product-display";
 import { ChevronDown, Settings } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { ShopSale } from "@/lib/sales";
+import { saleWindowLive } from "@/lib/sale-time";
 
 type Row = Record<string, unknown>;
 
@@ -61,13 +62,7 @@ export function AdminProductList({
   }, [products, priceMode]);
 
   function saleFor(slug: string) {
-    const today = new Date().toISOString().slice(0, 10);
-    const live = sales.filter(
-      (sale) =>
-        sale.startsAt.slice(0, 10) <= today &&
-        today <= sale.endsAt.slice(0, 10) &&
-        (sale.scope === "all" || sale.productSlugs.includes(slug))
-    );
+    const live = sales.filter((sale) => saleWindowLive(sale) && (sale.scope === "all" || sale.productSlugs.includes(slug)));
     return live.length ? live.reduce((a, b) => (a.percent > b.percent ? a : b)) : null;
   }
   const ids = products.map((product) => String(product.id));

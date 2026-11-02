@@ -1,3 +1,4 @@
+import { invalidatesCatalog } from "@/lib/storefront-catalog";
 import { NextResponse } from "next/server";
 import { ObjectId } from "mongodb";
 import { requireAdminSession } from "@/lib/admin-auth";
@@ -8,7 +9,7 @@ function builtinSlug(id: string) {
   return id.startsWith("builtin__") ? id.slice("builtin__".length) : "";
 }
 
-export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+async function handlePATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { error } = await requireAdminSession("addProduct");
   if (error) return error;
   const { id } = await params;
@@ -40,7 +41,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   return NextResponse.json({ ok: true, ...(await loadCategoryCatalog()) });
 }
 
-export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+async function handleDELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { error } = await requireAdminSession("delete");
   if (error) return error;
   const { id } = await params;
@@ -79,3 +80,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   }
   return NextResponse.json({ ok: true, ...(await loadCategoryCatalog()) });
 }
+
+export const PATCH = invalidatesCatalog(handlePATCH);
+
+export const DELETE = invalidatesCatalog(handleDELETE);

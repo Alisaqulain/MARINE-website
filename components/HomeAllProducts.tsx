@@ -3,6 +3,7 @@
 import { CatalogCard } from "@/components/CatalogCard";
 import { products as staticProducts, type Product } from "@/lib/products";
 import { useRegion } from "@/lib/region-context";
+import { loadCatalog } from "@/lib/catalog-client";
 import { canAccessWholesale, isRetailCustomer } from "@/lib/wholesale-access";
 import { wholesaleCatalogHref } from "@/lib/wholesale-links";
 import { useWholesaleGate } from "@/components/WholesaleGateProvider";
@@ -37,10 +38,9 @@ export function HomeAllProducts() {
   useEffect(() => {
     let cancelled = false;
     function loadChannel(channel: "retail" | "wholesale", set: (items: Product[]) => void) {
-      void fetch(`/api/catalog/products?channel=${channel}`, { cache: "no-store" })
-        .then((r) => r.json())
-        .then((data) => {
-          if (!cancelled && Array.isArray(data.items)) set(data.items);
+      void loadCatalog(channel)
+        .then((items) => {
+          if (!cancelled && items.length) set(items);
         })
         .catch(() => {});
     }

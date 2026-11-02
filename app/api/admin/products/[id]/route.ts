@@ -1,3 +1,4 @@
+import { invalidatesCatalog } from "@/lib/storefront-catalog";
 import { NextResponse } from "next/server";
 import { ObjectId } from "mongodb";
 import { requireAdminSession } from "@/lib/admin-auth";
@@ -13,7 +14,7 @@ function money(value: unknown) {
   return Number.isFinite(n) ? Math.max(0, n) : undefined;
 }
 
-export async function PATCH(req: Request, ctx: Ctx) {
+async function handlePATCH(req: Request, ctx: Ctx) {
   const { error } = await requireAdminSession("addProduct");
   if (error) return error;
   const { id } = await ctx.params;
@@ -96,7 +97,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
   return NextResponse.json({ ok: true });
 }
 
-export async function DELETE(_req: Request, ctx: Ctx) {
+async function handleDELETE(_req: Request, ctx: Ctx) {
   const { error } = await requireAdminSession("delete");
   if (error) return error;
   const { id } = await ctx.params;
@@ -105,9 +106,18 @@ export async function DELETE(_req: Request, ctx: Ctx) {
   }
 
   const db = await getDb();
+  const doc = await db.collection<AdminProduct>("products").findOne({ _id: new ObjectId(id) }, { projection: { slug: 1 } });
   const result = await db.collection<AdminProduct>("products").deleteOne({ _id: new ObjectId(id) });
   if (result.deletedCount === 0) {
     return NextResponse.json({ error: "Product not found" }, { status: 404 });
   }
+  // A deleted product must not stay listed in any sale.
+  if (doc?.slug) {
+    await db.collection("sales").updateMany({ productSlugs: doc.slug }, { $pull: { productSlugs: doc.slug } } as never);
+  }
   return NextResponse.json({ ok: true });
 }
+
+export const PATCH = invalidatesCatalog(handlePATCH);
+
+export const DELETE = invalidatesCatalog(handleDELETE);

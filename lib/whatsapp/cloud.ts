@@ -1,9 +1,9 @@
 /**
  * Meta WhatsApp Cloud API for Agent 4: credentials, read-only health checks, gated sending and status updates.
- * Sending stays behind the existing approval flags (`shouldSendWhatsApp`) and never targets the client's live number.
+ * Sending stays behind the approval flags (`outboundAllowed`: production approval, or test mode from the verified test number) and never targets the client's live number.
  * Relative imports only, so the pure parts run under `npm run check:phase2`.
  */
-import { BLOCKED_LIVE_NUMBER, decryptToken, graphVersion, shouldSendWhatsApp, type StoredCoexistence } from "./coexistence.ts";
+import { BLOCKED_LIVE_NUMBER, decryptToken, graphVersion, outboundAllowed, type StoredCoexistence } from "./coexistence.ts";
 import { env, requestJson } from "../ai/http.ts";
 
 export type WaCredentials = { token: string; phoneNumberId: string; wabaId: string; source: "env" | "signup" | "none" };
@@ -126,9 +126,11 @@ export async function pingWhatsAppCloud(creds: WaCredentials, webhook: { handsha
 export type SendGate = { allowed: boolean; reason: string };
 
 /** Every rule a message must pass before it is sent. */
-export function sendGate(input: { to: string; suppressed: boolean; template: boolean; windowOpen: boolean; consent: boolean; creds: WaCredentials }): SendGate {
+export function sendGate(input: { to: string; suppressed: boolean; template: boolean; windowOpen: boolean; consent: boolean; creds: WaCredentials; businessNumber?: string }): SendGate {
   const to = input.to.replace(/\D/g, "");
-  if (!shouldSendWhatsApp(process.env)) return { allowed: false, reason: "WhatsApp sending is off until WHATSAPP_COEXISTENCE_ENABLED, WHATSAPP_PRODUCTION_ONBOARDING_APPROVED and WHATSAPP_OUTBOUND_ENABLED are all true." };
+  if (!outboundAllowed(process.env, input.businessNumber)) {
+    return { allowed: false, reason: "WhatsApp sending is off: it needs WHATSAPP_COEXISTENCE_ENABLED and WHATSAPP_OUTBOUND_ENABLED, plus written production approval or replies from the verified test number." };
+  }
   if (!input.creds.token || !input.creds.phoneNumberId) return { allowed: false, reason: "WhatsApp Cloud API credentials are missing." };
   if (!/^\d{8,15}$/.test(to)) return { allowed: false, reason: "Recipient is not a valid number." };
   if (to === BLOCKED_LIVE_NUMBER) return { allowed: false, reason: "The business's own number cannot be messaged." };

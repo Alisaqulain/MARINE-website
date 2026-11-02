@@ -5,7 +5,7 @@ import { isDashboardRole } from "@/lib/staff-access";
 import { pingDatabase } from "@/lib/mongodb";
 import { pingPayPal } from "@/lib/paypal";
 import { pingShipGlobal } from "@/lib/shipglobal";
-import { runIntegrationChecks } from "@/lib/ai/integrations";
+import { checkCoexistence, runIntegrationChecks } from "@/lib/ai/integrations";
 import { runPhase2SelfTest } from "@/lib/ai/selftest";
 import type { CheckStep, IntegrationStatus } from "@/lib/ai/integration-status";
 
@@ -51,7 +51,25 @@ export default async function TestPage() {
     if (!session?.user || !isDashboardRole(session.user.role)) redirect("/admin/login?callbackUrl=/test");
   }
 
-  const [db, paypal, shipping, checks] = await Promise.all([pingDatabase(), pingPayPal(), pingShipGlobal(), runIntegrationChecks()]);
+  const [db, paypal, shipping, checks, coexistence] = await Promise.all([
+    pingDatabase(),
+    pingPayPal(),
+    pingShipGlobal(),
+    runIntegrationChecks(),
+    checkCoexistence().catch((err) => ({
+      mode: "not_configured" as const,
+      connected: false,
+      rows: [{ label: "Coexistence check", result: "fail" as const, detail: err instanceof Error ? err.message.slice(0, 200) : "Check failed" }],
+      steps: [],
+      approvals: [],
+    })),
+  ]);
+  const COEX_MODE = {
+    not_configured: { label: "Not configured", className: "bg-gray-500 text-white" },
+    test: { label: "Test", className: "bg-sky-600 text-white" },
+    ready_for_onboarding: { label: "Ready for onboarding", className: "bg-amber-500 text-white" },
+    live: { label: "Live", className: "bg-emerald-600 text-white" },
+  } as const;
   const selfTest = runPhase2SelfTest();
   const selfTestFailed = selfTest.filter((r) => !r.pass).length;
   const { summary } = checks;
@@ -130,6 +148,51 @@ export default async function TestPage() {
           </section>
         ))}
       </div>
+
+      <h2 className="mt-12 font-serif text-2xl text-navy-900">WhatsApp Coexistence</h2>
+      <section className="mt-4 rounded-2xl border border-[#e6dfd2] bg-white p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm text-navy-700">WhatsApp Business app + Cloud API on the same number. Read-only check; nothing is onboarded, synced or sent.</p>
+          <div className="flex gap-2">
+            <span className={`rounded-full px-3 py-1 text-xs font-semibold ${COEX_MODE[coexistence.mode].className}`}>{COEX_MODE[coexistence.mode].label}</span>
+            <span className={`rounded-full px-3 py-1 text-xs font-semibold ${coexistence.connected ? "bg-emerald-600 text-white" : "bg-gray-200 text-gray-800"}`}>
+              {coexistence.connected ? "Connected" : "Not connected"}
+            </span>
+          </div>
+        </div>
+        <ul className="mt-4 space-y-2 text-sm">
+          {coexistence.rows.map((row) => (
+            <li key={row.label} className={RESULT[row.result].className}>
+              <span className="font-semibold">
+                {RESULT[row.result].icon} {row.label}
+              </span>
+              <span className="block break-words pl-4 text-xs text-navy-700">{row.detail}</span>
+            </li>
+          ))}
+        </ul>
+        {coexistence.steps.length ? (
+          <>
+            <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-navy-600">Onboarding steps</p>
+            <ol className="mt-2 list-decimal space-y-1 pl-5 text-xs text-navy-700">
+              {coexistence.steps.map((step) => (
+                <li key={step.label}>
+                  <span className="font-semibold">{step.label}</span> — {step.state}: {step.detail}
+                </li>
+              ))}
+            </ol>
+          </>
+        ) : null}
+        {coexistence.approvals.length ? (
+          <>
+            <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-navy-600">Needs your explicit approval</p>
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-navy-700">
+              {coexistence.approvals.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </>
+        ) : null}
+      </section>
 
       <h2 className="mt-12 font-serif text-2xl text-navy-900">Agents</h2>
       <ul className="mt-4 space-y-2 rounded-2xl border border-[#e6dfd2] bg-white p-5 text-sm">

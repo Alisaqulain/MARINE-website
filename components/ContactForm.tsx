@@ -60,7 +60,7 @@ export function ContactForm() {
         </button>
         <button
           type="button"
-          className={`rounded-full py-2 ${kind === "wholesale" ? "bg-white shadow" : "text-navy-600"}`}
+          className={`whitespace-nowrap rounded-full px-2 py-2 ${kind === "wholesale" ? "bg-white shadow" : "text-navy-600"}`}
           onClick={() => setKind("wholesale")}
         >
           Wholesale / B2B

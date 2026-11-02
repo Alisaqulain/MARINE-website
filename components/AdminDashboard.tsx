@@ -66,6 +66,20 @@ type Tab =
   | "ai"
   | "whatsapp";
 
+/** Short page titles for phones, where "wholesale · Bulk quotes" would wrap. */
+const MOBILE_TAB_LABELS: Partial<Record<Tab, string>> = {
+  "add-product": "Add",
+  quotes: "Quotes",
+  categories: "Categories",
+  "listing-stats": "Stats",
+  sales: "Sale",
+  applications: "Trade",
+  testimonials: "Reviews",
+  shipments: "Shipping",
+  visitors: "Visitors",
+  team: "Team",
+};
+
 export function AdminDashboard() {
   const { data: session } = useSession();
   const manageTeam = session?.user?.role === "admin" || session?.user?.manageTeam === true;
@@ -619,8 +633,14 @@ export function AdminDashboard() {
                 <Menu className="h-6 w-6 shrink-0 text-navy-900" />
               </button>
             ) : null}
-            <h1 className="min-w-0 font-serif text-xl text-navy-900 capitalize">
-              {panel} · {nav.find((n) => n.id === tab)?.label}
+            <h1 className="min-w-0 truncate font-serif text-xl text-navy-900 capitalize">
+              {/* Phones: short form, e.g. "W · Quotes" / "C · Add"; larger screens keep the full title. */}
+              <span className="sm:hidden">
+                {panel === "wholesale" ? "W" : "C"} · {MOBILE_TAB_LABELS[tab] ?? nav.find((n) => n.id === tab)?.label}
+              </span>
+              <span className="hidden sm:inline">
+                {panel} · {nav.find((n) => n.id === tab)?.label}
+              </span>
             </h1>
           </div>
           <div className="flex items-center gap-3">

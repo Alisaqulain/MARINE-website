@@ -11,9 +11,18 @@ function formatRemaining(ms: number) {
   return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
-const SHOW_WITHIN_MS = 24 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** Live countdown under sale prices (Sale ends in 9:14:32), shown only in the sale's last 24 hours. */
+/** "3 days" while more than 24 hours are left (rounded up, so 2 days 5 hours shows "3 days"). */
+function formatDays(ms: number) {
+  const days = Math.ceil(ms / DAY_MS);
+  return `${days} day${days === 1 ? "" : "s"}`;
+}
+
+/**
+ * Countdown under sale prices for the whole sale: "Sale ends in 3 days" while more than 24 hours are left,
+ * then a live hours:minutes:seconds timer ("Sale ends in 9:14:32") in the last 24 hours.
+ */
 export function SaleEndsIn({
   endsAt,
   percent,
@@ -37,11 +46,11 @@ export function SaleEndsIn({
     }
     const tick = () => {
       const left = end - Date.now();
-      if (left <= 0 || left > SHOW_WITHIN_MS) {
+      if (left <= 0) {
         setLabel(null);
         return;
       }
-      setLabel(`${percent}% off · Sale ends in ${formatRemaining(left)}`);
+      setLabel(`${percent}% off · Sale ends in ${left > DAY_MS ? formatDays(left) : formatRemaining(left)}`);
     };
     tick();
     const id = window.setInterval(tick, 1000);

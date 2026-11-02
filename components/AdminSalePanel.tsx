@@ -3,12 +3,12 @@
 import { ProductImage } from "@/components/ProductImage";
 import { listingCategories } from "@/lib/listing-categories";
 import type { ShopSale } from "@/lib/sales";
+import { saleWindowLive, saleWindowPast } from "@/lib/sale-time";
 import { shopNowTree, type ShopNowChild } from "@/lib/shop-now-data";
 import { useEffect, useMemo, useState } from "react";
 
 function saleIsLive(sale: ShopSale) {
-  const today = new Date().toISOString().slice(0, 10);
-  return sale.startsAt.slice(0, 10) <= today && today <= sale.endsAt.slice(0, 10);
+  return saleWindowLive(sale);
 }
 
 /** Today in the admin's own timezone, as YYYY-MM-DD (what the date picker uses). */
@@ -26,7 +26,7 @@ function addDays(date: string, days: number) {
 const MAX_SALE_DAYS = 30;
 
 function saleIsPast(sale: ShopSale) {
-  return sale.endsAt.slice(0, 10) < new Date().toISOString().slice(0, 10);
+  return saleWindowPast(sale);
 }
 
 function categoryWithChildren(slug: string): Set<string> {

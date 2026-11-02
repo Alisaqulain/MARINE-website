@@ -1,6 +1,7 @@
-import { applyStatusUpdates, draftInbound } from "@/lib/whatsapp/inbound";
+import { applyCoexistenceUpdates, applyStatusUpdates, draftInbound } from "@/lib/whatsapp/inbound";
 import { statusUpdatesFromWebhook } from "@/lib/whatsapp/cloud";
 import {
+  coexistenceUpdates,
   normaliseWebhook,
   planEvents,
   verifyHandshake,
@@ -58,14 +59,22 @@ export async function POST(req: Request) {
   const plans = planEvents(normaliseWebhook(body), seenStore());
   let draftsWithheld = 0;
   let sent = 0;
+  const newKeys = new Set<string>();
   for (const plan of plans) {
     const saved = await recordWebhookKey(plan.key, { field: plan.field, action: plan.action, reason: plan.reason });
-    if (saved.duplicate || plan.action !== "draft") continue;
+    if (saved.duplicate || plan.reason === "duplicate") continue;
+    newKeys.add(plan.key);
+    if (plan.action !== "draft") continue;
     const result = await draftInbound(plan);
     if (result.sent) sent += 1;
     else if (result.drafted) draftsWithheld += 1;
   }
+  // Coexistence: history sync, contact sync and messages sent from the WhatsApp Business app (stored, never answered).
+  const coexistence = await applyCoexistenceUpdates(coexistenceUpdates(body), newKeys).catch((err) => {
+    console.error("[whatsapp] coexistence update failed", err instanceof Error ? err.message : "failed");
+    return { historyMessages: 0, contacts: 0, echoes: 0 };
+  });
   const statuses = await applyStatusUpdates(statusUpdatesFromWebhook(body)).catch(() => 0);
   const summary = webhookSummary(plans);
-  return NextResponse.json({ ...summary, draftsWithheld, sent, statuses });
+  return NextResponse.json({ ...summary, draftsWithheld, sent, statuses, coexistence });
 }

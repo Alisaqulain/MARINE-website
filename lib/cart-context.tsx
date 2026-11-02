@@ -84,20 +84,27 @@ function makeLine(slug: string, qty: number, opts?: AddOptions): CartLine {
   });
 }
 
-function toItems(lines: CartLine[], region: PriceRegion): CartItem[] {
+/** Same key the server quote uses for a bag line. */
+function quoteKey(line: { slug: string; b2b?: boolean; personalisation?: string }) {
+  return `${line.slug}|${line.b2b ? 1 : 0}|${line.personalisation ?? ""}`;
+}
+
+function toItems(lines: CartLine[], region: PriceRegion, live: Record<string, number>): CartItem[] {
   const items: CartItem[] = [];
   for (const l of lines) {
     const found = productFromLine(l);
     if (!found) continue;
     // Price for the visitor's location (India, United States or everywhere else).
     const product = { ...found, price: regionalPrice(found, region) };
+    // The server quote (live listing, wholesale price, active sale) wins over anything stored in the browser.
+    const quoted = live[quoteKey(l)];
     items.push({
-      product,
+      product: quoted != null ? { ...product, price: quoted - (unitPrice(product, l) - product.price) } : product,
       qty: l.qty,
       b2b: Boolean(l.b2b),
       personalisation: l.personalisation,
       message: l.message,
-      unitPrice: unitPrice(product, l),
+      unitPrice: quoted != null ? quoted : unitPrice(product, l),
     });
   }
   return items;
@@ -105,6 +112,10 @@ function toItems(lines: CartLine[], region: PriceRegion): CartItem[] {
 
 function productFromLine(line: CartLine): Product | undefined {
   const found = products.find((p) => p.slug === line.slug);
+  // Prices captured from the live listing when the item was added beat the old built-in catalogue.
+  if (found && line.price != null) {
+    return { ...found, name: line.name || found.name, price: line.price, priceIndia: line.priceIndia, priceUs: line.priceUs, image: line.image || found.image };
+  }
   if (found) return found;
   if (!line.name || line.price == null) return undefined;
   return {
@@ -159,6 +170,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [lines, setLines] = useState<CartLine[]>([]);
   const [buyNowLine, setBuyNowLine] = useState<CartLine | null>(null);
   const [ready, setReady] = useState(false);
+  const [live, setLive] = useState<Record<string, number>>({});
 
   useEffect(() => {
     try {
@@ -191,10 +203,41 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   }, [buyNowLine, ready]);
 
+  // Re-price the bag from the server whenever its contents or the visitor's region change.
+  const quoteLines = JSON.stringify(
+    [...lines, ...(buyNowLine ? [buyNowLine] : [])].map((l) => ({ slug: l.slug, b2b: Boolean(l.b2b), personalisation: l.personalisation }))
+  );
+  useEffect(() => {
+    if (!ready) return;
+    const wanted = JSON.parse(quoteLines) as { slug: string; b2b: boolean; personalisation?: string }[];
+    if (!wanted.length) return;
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      void fetch("/api/cart/quote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lines: wanted.map((l) => ({ ...l, qty: 1 })) }),
+        signal: controller.signal,
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data: { items?: { slug: string; b2b: boolean; personalisation?: string; unitPrice: number | null }[] } | null) => {
+          if (!data?.items) return;
+          const next: Record<string, number> = {};
+          for (const item of data.items) if (item.unitPrice != null) next[quoteKey(item)] = item.unitPrice;
+          setLive(next);
+        })
+        .catch(() => {});
+    }, 250);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [quoteLines, ready, region]);
+
   const value = useMemo<CartContextValue>(() => {
-    const items = toItems(lines, region);
+    const items = toItems(lines, region, live);
     const buyNowLines = buyNowLine ? [buyNowLine] : [];
-    const buyNowItems = toItems(buyNowLines, region);
+    const buyNowItems = toItems(buyNowLines, region, live);
     return {
       lines,
       add: (slug, qty = 1, opts) =>
@@ -228,7 +271,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       items,
       subtotal: items.reduce((n, i) => n + i.unitPrice * i.qty, 0),
     };
-  }, [lines, buyNowLine, region]);
+  }, [lines, buyNowLine, region, live]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }
