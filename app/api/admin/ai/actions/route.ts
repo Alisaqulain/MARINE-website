@@ -6,6 +6,7 @@ import { rateLimit } from "@/lib/ai/crm";
 import { hasConsent, isSuppressed, type FollowUp } from "@/lib/ai/followups";
 import { CONTENT_KINDS, decideContent, generateContentDraft, type ContentKind } from "@/lib/ai/growth-agent";
 import { startOutboundCall, syncAssistant } from "@/lib/ai/vapi";
+import { agentEnabled } from "@/lib/ai/agents";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -53,6 +54,7 @@ export async function POST(req: Request) {
   }
 
   if (action === "generate_content") {
+    if (!agentEnabled("growth")) return NextResponse.json({ error: "The growth agent is switched off (AI_AGENTS_DISABLED)." }, { status: 409 });
     const kind = CONTENT_KINDS.find((k) => k === body?.kind) as ContentKind | undefined;
     if (!kind) return NextResponse.json({ error: `kind must be one of ${CONTENT_KINDS.join(", ")}` }, { status: 400 });
     const result = await generateContentDraft({

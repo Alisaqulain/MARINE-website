@@ -368,7 +368,7 @@ export default function ProductPage() {
               trailing={!b2b && showsFreeShipping(product) ? <FreeShippingTag /> : null}
             />
             {sale.percent ? (
-              <SaleEndsIn endsAt={sale.endsAt} percent={sale.percent} className="mt-1 text-sm" />
+              <SaleEndsIn endsAt={sale.endsAt} percent={sale.percent} name={sale.name} className="mt-1 text-sm" />
             ) : null}
             {sale.terms ? <p className="mt-2 text-sm text-navy-700">{sale.terms}</p> : null}
             {personalisation === "no" ? (

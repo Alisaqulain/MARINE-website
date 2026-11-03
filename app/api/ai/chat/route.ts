@@ -1,6 +1,7 @@
 import { handleCustomerMessage, rateLimit } from "@/lib/ai/crm";
 import { isPriceRegion, REGION_COOKIE, type PriceRegion } from "@/lib/region";
 import { NextResponse } from "next/server";
+import { agentEnabled } from "@/lib/ai/agents";
 
 function regionFrom(req: Request): PriceRegion {
   const cookie = req.headers.get("cookie") || "";
@@ -10,6 +11,9 @@ function regionFrom(req: Request): PriceRegion {
 }
 
 export async function POST(req: Request) {
+  if (!agentEnabled("chat")) {
+    return NextResponse.json({ error: "Marina chat is switched off right now. Please use the contact page or WhatsApp." }, { status: 503 });
+  }
   const ip = (req.headers.get("x-forwarded-for") || "local").split(",")[0].trim();
   if (!rateLimit(`chat:${ip}`)) {
     return NextResponse.json({ error: "Too many messages. Please wait a minute." }, { status: 429 });

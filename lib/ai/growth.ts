@@ -10,6 +10,7 @@ import {
   type Touch,
 } from "@/lib/ai/attribution";
 import { getSiteOrigin } from "@/lib/auth-url";
+import { growthRecommendations, internalLinkSuggestions, journeyFunnel, lowConversionProducts, type ProductActivity } from "@/lib/ai/growth-insights";
 
 export async function buildMerchantFeed() {
   const origin = getSiteOrigin();
@@ -37,6 +38,74 @@ export async function recordTouch(input: { sessionId: string; touch: Touch }) {
     },
     { upsert: true }
   );
+}
+
+/**
+ * Shopper journey (visit → cart → checkout → paid, plus chats, calls, quotes), per-product activity,
+ * internal-link suggestions and labelled recommendations — all from first-party records.
+ */
+export async function journeyInsights(sinceIso?: string, external: { searchConnected?: boolean; analyticsConnected?: boolean } = {}) {
+  const db = await getDb();
+  const since = sinceIso ?? new Date(0).toISOString();
+  const [visitors, cartSessions, orders, enquiries, calls, quotes, openHighValue, views, carts, products] = await Promise.all([
+    db.collection("ai_attribution").countDocuments({ createdAt: { $gte: since } }),
+    db.collection("ai_events").distinct("sessionId", { type: "add_to_cart", at: { $gte: since } }),
+    db.collection("orders").find({ createdAt: { $gte: since } }, { projection: { status: 1, items: 1 } }).limit(2000).toArray(),
+    db.collection("ai_sessions").countDocuments({ createdAt: { $gte: since } }),
+    db.collection("ai_calls").countDocuments({ createdAt: { $gte: since } }),
+    db.collection("bulk_quotes").countDocuments({ $or: [{ createdAt: { $gte: new Date(since) } }, { createdAt: { $gte: since } }] }),
+    db.collection("ai_leads").countDocuments({ stage: "high-value", updatedAt: { $gte: since } }),
+    db
+      .collection("page_views")
+      .aggregate<{ _id: string; n: number }>([
+        { $match: { at: { $gte: since }, path: { $regex: "^(/wholesale)?/product/" } } },
+        { $group: { _id: { $arrayElemAt: [{ $split: [{ $arrayElemAt: [{ $split: ["$path", "?"] }, 0] }, "/product/"] }, 1] }, n: { $sum: 1 } } },
+      ])
+      .toArray(),
+    db
+      .collection("ai_events")
+      .aggregate<{ _id: string; n: number }>([{ $match: { type: "add_to_cart", at: { $gte: since } } }, { $group: { _id: "$slug", n: { $sum: 1 } } }])
+      .toArray(),
+    getStorefrontProducts("retail"),
+  ]);
+  const paid = orders.filter((o) => o.status === "paid");
+  const viewMap = new Map(views.map((v) => [decodeURIComponent(String(v._id || "")), v.n]));
+  const cartMap = new Map(carts.map((c) => [String(c._id || ""), c.n]));
+  const orderMap = new Map<string, number>();
+  for (const o of paid) for (const item of (Array.isArray(o.items) ? o.items : []) as { slug?: string }[]) if (item.slug) orderMap.set(item.slug, (orderMap.get(item.slug) ?? 0) + 1);
+  const activity: ProductActivity[] = products.map((p) => ({
+    slug: p.slug,
+    name: p.name,
+    category: p.categories?.[0] || p.category || p.collection,
+    views: viewMap.get(p.slug) ?? 0,
+    carts: cartMap.get(p.slug) ?? 0,
+    orders: orderMap.get(p.slug) ?? 0,
+    inStock: !p.b2cOutOfStock && (p.quantity == null || p.quantity > 0),
+  }));
+  const funnel = journeyFunnel({
+    visitors,
+    cartSessions: cartSessions.length,
+    checkoutsStarted: orders.length,
+    paidOrders: paid.length,
+    enquiries,
+    calls,
+    quotes,
+  });
+  const links = internalLinkSuggestions(activity);
+  const lowConversion = lowConversionProducts(activity);
+  return {
+    funnel,
+    links,
+    lowConversion,
+    recommendations: growthRecommendations({
+      funnel,
+      lowConversion,
+      links,
+      openHighValueLeads: openHighValue,
+      searchConnected: Boolean(external.searchConnected),
+      analyticsConnected: Boolean(external.analyticsConnected),
+    }),
+  };
 }
 
 export async function growthReport(sinceIso?: string) {
@@ -114,7 +183,7 @@ export async function growthReport(sinceIso?: string) {
       "Revenue is the sum of paid orders. It is attributed to a source only when the order's session was tracked.",
       "Estimated pipeline is not revenue.",
       "Visitors are tracked sessions; enquiries are chat/WhatsApp conversations.",
-      "Search volumes and competitor rankings are unavailable until a search-data provider is configured.",
+      "Search queries and rankings come only from Search Console (when connected); competitor research is AI-generated with cited Google Search sources.",
       "This report does not change ads, prices, or the website.",
     ],
   };

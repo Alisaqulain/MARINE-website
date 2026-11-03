@@ -26,7 +26,8 @@ import {
   type ScoreResult,
 } from "@/lib/ai/scoring";
 import { agentInstructions, factsBlock, replyIsGrounded, type AgentId } from "@/lib/ai/agents";
-import { generate, geminiConfigured, geminiModel, type GeminiTurn } from "@/lib/ai/gemini";
+import { geminiConfigured, geminiModel, type GeminiTurn } from "@/lib/ai/gemini";
+import { generateFor } from "@/lib/ai/usage";
 import { vapiStatus } from "@/lib/ai/vapi";
 
 export type AiLead = {
@@ -142,7 +143,7 @@ async function groundedReply(input: {
     role: "user",
     text: `${facts}\n\nCatalogue answer to rephrase or extend (already verified):\n${input.grounded}\n\nCustomer message:\n${input.message}`,
   });
-  const result = await generate({ system: agentInstructions(input.agent), turns, temperature: 0.3, maxOutputTokens: 1024 });
+  const result = await generateFor(input.agent, "reply", { system: agentInstructions(input.agent), turns, temperature: 0.3, maxOutputTokens: 1024 });
   if (!result.ok) return { text: input.grounded, model: "catalogue", error: result.error };
   const check = replyIsGrounded(result.text, `${facts}\n${input.grounded}`);
   if (!check.grounded) {

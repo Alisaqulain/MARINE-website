@@ -83,7 +83,7 @@ export function CatalogCard({
         className="mt-1"
         trailing={!wholesale && showsFreeShipping(product) ? <FreeShippingTag /> : null}
       />
-      <SaleEndsIn endsAt={sale.endsAt} percent={sale.percent} className="mt-0.5" />
+      <SaleEndsIn endsAt={sale.endsAt} percent={sale.percent} name={sale.name} className="mt-0.5" />
       {availabilityMessage ? (
         <p className="mt-1 text-[12px] font-medium text-[#9a3412]">{availabilityMessage}</p>
       ) : null}

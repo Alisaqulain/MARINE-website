@@ -86,6 +86,9 @@ export type Product = {
   saleEndsAt?: string;
   /** Same three fields for a running wholesale (B2B) sale, set by applySales. */
   wholesaleSaleTerms?: string;
+  /** Name of the running sale (admin "Run a sale"), shown on the product. */
+  saleName?: string;
+  wholesaleSaleName?: string;
   wholesaleSalePercent?: number;
   wholesaleSaleEndsAt?: string;
   /** Extra charge when the buyer chooses personalisation. Hidden when unset. */
@@ -847,8 +850,8 @@ export const trustStats = [
 /** The running sale for the customer (B2C) or wholesale (B2B) shop. */
 export function saleInfo(product: Product, wholesale = false) {
   return wholesale
-    ? { percent: product.wholesaleSalePercent, endsAt: product.wholesaleSaleEndsAt, terms: product.wholesaleSaleTerms }
-    : { percent: product.salePercent, endsAt: product.saleEndsAt, terms: product.saleTerms };
+    ? { percent: product.wholesaleSalePercent, endsAt: product.wholesaleSaleEndsAt, terms: product.wholesaleSaleTerms, name: product.wholesaleSaleName }
+    : { percent: product.salePercent, endsAt: product.saleEndsAt, terms: product.saleTerms, name: product.saleName };
 }
 
 /** Stock for the side being shown: wholesale uses its own quantity when one is set. */

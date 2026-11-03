@@ -7,6 +7,7 @@ import Link from "next/link";
 import { WholesaleNavLink } from "@/components/WholesaleNavLink";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
+import { trackEvent } from "@/lib/ai/track-client";
 
 function CheckoutForm() {
   const cart = useCart();
@@ -34,6 +35,7 @@ function CheckoutForm() {
 
   async function pay(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    trackEvent("begin_checkout", { qty: lines.reduce((n, l) => n + l.qty, 0) });
     setError("");
     setBusy(true);
     const form = new FormData(e.currentTarget);

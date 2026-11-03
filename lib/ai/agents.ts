@@ -14,6 +14,12 @@ export const AGENTS: Record<AgentId, { name: string; purpose: string }> = {
   whatsapp: { name: "Marina AI WhatsApp Sales & Support Agent", purpose: "WhatsApp Cloud API conversations, enquiries and follow-ups" },
 };
 
+/** AI_AGENTS_DISABLED="voice,growth" switches agents off without a deploy. Empty = all four on. */
+export function agentEnabled(agent: AgentId, source: Record<string, string | undefined> = process.env) {
+  const off = (source.AI_AGENTS_DISABLED || "").split(",").map((s) => s.trim().toLowerCase());
+  return !off.includes(agent);
+}
+
 const SHARED_RULES = `You represent Marina Muse International, a maker and exporter of handcrafted brass and nautical decor (retail, wholesale, B2B, bulk and OEM/custom manufacturing).
 Hard rules:
 - Use ONLY the VERIFIED FACTS provided. Never invent or estimate product specifications, prices, stock, delivery times, discounts, warranties or company policies.

@@ -1,33 +1,23 @@
 import Image from "next/image";
 import Link from "next/link";
-import {
-  Aperture,
-  PackageCheck,
-  ShieldCheck,
-  Sparkles,
-} from "lucide-react";
 import { BannerHero } from "@/components/BannerHero";
 import { WholesaleNavLink } from "@/components/WholesaleNavLink";
 import { img } from "@/lib/images";
 
 const pillars = [
   {
-    icon: Sparkles,
     title: "Authentic craftsmanship",
     body: "Skilled artisans in our own facility, combining traditional handwork with modern production.",
   },
   {
-    icon: ShieldCheck,
     title: "Premium materials",
     body: "Solid brass, steel and selected woods — specified for finish, weight and lasting use.",
   },
   {
-    icon: Aperture,
     title: "Detailed finishing",
     body: "Patina, polish, assembly and optics checked piece by piece before anything is packed.",
   },
   {
-    icon: PackageCheck,
     title: "Export-ready quality",
     body: "Inspection, secure packing and worldwide dispatch for retail, wholesale and OEM orders.",
   },
@@ -115,17 +105,8 @@ export default function AboutPage() {
       </section>
 
       <section className="px-5 py-10 md:py-14">
-        <div className="mx-auto grid max-w-[1320px] items-center gap-8 md:grid-cols-2">
-          {/* Same shape as the image (1373×1145), so the whole picture shows with nothing cropped. */}
-          <div className="relative aspect-[1373/1145] overflow-hidden rounded-3xl">
-            <Image
-              src="/about-built-to-view.jpeg"
-              alt="Handcrafted brass telescope, binoculars, compass, sextant and nautical instruments by the sea at sunset"
-              fill
-              sizes="(min-width: 768px) 50vw, 100vw"
-              className="object-cover"
-            />
-          </div>
+        {/* Centred, comfortable reading width (~850px) instead of the full 1320px. */}
+        <div className="mx-auto max-w-[850px] text-center">
           <div>
             <h2 className="font-serif text-[1.65rem] leading-snug md:text-4xl">Authentic Craftsmanship. Quality You Can Trust.</h2>
             <p className="mt-4 leading-relaxed text-navy-700">
@@ -144,7 +125,7 @@ export default function AboutPage() {
               shipping.
             </p>
             <p className="mt-4 leading-relaxed text-navy-700">Discover distinctive craftsmanship from our own manufacturing workshop.</p>
-            <div className="mt-8 grid gap-3 sm:flex sm:flex-wrap">
+            <div className="mt-8 grid gap-3 sm:flex sm:flex-wrap sm:justify-center">
               <Link href="/custom-manufacturing" className="btn-gold w-full sm:w-auto">
                 Custom manufacturing
               </Link>
@@ -156,18 +137,24 @@ export default function AboutPage() {
         </div>
       </section>
 
-      <section className="bg-white px-5 py-10 md:py-14">
-        <div className="mx-auto max-w-[1320px]">
-          <h2 className="text-center font-serif text-[1.65rem] md:text-4xl">What we stand for</h2>
-          <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {pillars.map((v) => (
-              <div key={v.title} className="rounded-2xl border border-[#eee7db] bg-[#FAF7F2] p-6">
-                <v.icon className="h-6 w-6 text-[#C9A84C]" strokeWidth={1.5} />
-                <h3 className="mt-4 font-serif text-xl md:text-2xl">{v.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-navy-600">{v.body}</p>
-              </div>
-            ))}
-          </div>
+      <section className="bg-[#0B1D36]">
+        {/* The four values are part of the image; the same text stays readable for screen readers and search. */}
+        <h2 className="sr-only">What we stand for</h2>
+        <ul className="sr-only">
+          {pillars.map((v) => (
+            <li key={v.title}>
+              {v.title}: {v.body}
+            </li>
+          ))}
+        </ul>
+        <div className="relative mx-auto aspect-[1600/533] w-full max-w-[1600px]">
+          <Image
+            src="/about-bottom.jpeg"
+            alt="Authentic craftsmanship, premium materials, detailed finishing and export-ready quality"
+            fill
+            sizes="(min-width: 1600px) 1600px, 100vw"
+            className="object-cover"
+          />
         </div>
       </section>
 

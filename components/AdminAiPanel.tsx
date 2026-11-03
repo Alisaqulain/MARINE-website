@@ -52,6 +52,10 @@ type Board = {
   followUps?: { id: string; channel: string; to: string; reason: string; status: string; note?: string; lastError?: string; createdAt: string }[];
   content?: { id: string; kind: string; topic: string; status: string; body: unknown; sources?: { title: string; uri: string }[]; groundingIssues?: string[]; createdAt: string }[];
   whatsapp?: { to: string; text?: string; status: string; reason?: string; at: string }[];
+  journey?: {
+    funnel: { visitors: number; cartSessions: number; checkoutsStarted: number; paidOrders: number; enquiries: number; calls: number; quotes: number; visitToCart: number | null; cartToCheckout: number | null; checkoutToPaid: number | null; checkoutAbandonment: number | null };
+    recommendations: { area: string; text: string; basis: "data" | "estimate" | "ai" }[];
+  } | null;
   error?: string;
 };
 
@@ -258,6 +262,32 @@ export function AdminAiPanel() {
               ) : null}
             </details>
           ))}
+        </div>
+      ) : null}
+      {section === "Growth" && data?.journey ? (
+        <div className="rounded-xl bg-white p-5 text-sm text-navy-800 shadow-sm">
+          <p className="font-medium">Shopper journey — last 30 days (measured)</p>
+          <p className="mt-1">
+            {data.journey.funnel.visitors} visits → {data.journey.funnel.cartSessions} added to cart ({data.journey.funnel.visitToCart ?? "—"}%) →{" "}
+            {data.journey.funnel.checkoutsStarted} checkouts started ({data.journey.funnel.cartToCheckout ?? "—"}%) → {data.journey.funnel.paidOrders} paid (
+            {data.journey.funnel.checkoutToPaid ?? "—"}%)
+          </p>
+          <p className="mt-1 text-xs text-navy-600">
+            Checkout abandonment {data.journey.funnel.checkoutAbandonment ?? "—"}% · chats {data.journey.funnel.enquiries} · calls {data.journey.funnel.calls} · quotes{" "}
+            {data.journey.funnel.quotes}
+          </p>
+          <p className="mt-4 font-medium">Recommendations</p>
+          <ul className="mt-1 space-y-1">
+            {data.journey.recommendations.map((r) => (
+              <li key={r.text}>
+                <span className={`mr-1.5 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${r.basis === "data" ? "bg-emerald-100 text-emerald-900" : r.basis === "estimate" ? "bg-amber-100 text-amber-900" : "bg-sky-100 text-sky-900"}`}>
+                  {r.basis === "data" ? "real data" : r.basis === "estimate" ? "estimate" : "AI"}
+                </span>
+                {r.text}
+              </li>
+            ))}
+            {!data.journey.recommendations.length ? <li className="text-navy-600">No recommendations yet — not enough tracked activity.</li> : null}
+          </ul>
         </div>
       ) : null}
       {section === "Overview" || section === "Growth" ? (

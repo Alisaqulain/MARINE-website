@@ -65,7 +65,7 @@ async function checkGemini(): Promise<IntegrationReport> {
     steps.push(s("API key accepted", ping.auth ? "pass" : "fail", ping.authDetail, "credential"));
     if (ping.generation) steps.push(s(`Live generation (${ping.model})`, ping.generation.ok ? "pass" : "fail", `${ping.generation.detail} in ${ping.generation.ms} ms.`, "live"));
   }
-  const status = rollupStatus({ requiredSet: ping.configured ? 1 : 0, requiredTotal: 1, steps });
+  const status = rollupStatus({ requiredSet: ping.configured ? 1 : 0, requiredTotal: 1, steps, activity: Boolean(ping.configured && ping.generation?.ok) });
   return {
     id: "gemini",
     name: "Google Gemini API",
@@ -177,7 +177,7 @@ async function checkVapi(): Promise<IntegrationReport> {
     id: "vapi",
     name: "Vapi voice AI",
     purpose: "Agent 2 — inbound/outbound AI calls, transcripts, summaries",
-    status: rollupStatus({ requiredSet, requiredTotal: required.length, steps }),
+    status: rollupStatus({ requiredSet, requiredTotal: required.length, steps, activity: Boolean(last) }),
     steps,
     env: envList(required, ["VAPI_PHONE_NUMBER_ID", "VAPI_SIP_CREDENTIAL_ID", "VAPI_OUTBOUND_ENABLED", "VAPI_MODEL", "VAPI_API_BASE"]),
     troubleshooting: [
@@ -212,7 +212,7 @@ async function checkExotel(): Promise<IntegrationReport> {
     id: "exotel",
     name: "Exotel telephony",
     purpose: "Agent 2 — Indian business number, SIP trunk to Vapi, missed calls",
-    status: rollupStatus({ requiredSet, requiredTotal: required.length, steps }),
+    status: rollupStatus({ requiredSet, requiredTotal: required.length, steps, activity: Boolean(last) }),
     steps,
     env: envList(required, ["EXOTEL_SUBDOMAIN", "EXOTEL_PHONE_NUMBER", "EXOTEL_TRUNK_SID", "EXOTEL_WEBHOOK_TOKEN"]),
     troubleshooting: [
@@ -259,7 +259,7 @@ async function checkWhatsApp(): Promise<IntegrationReport> {
     id: "whatsapp",
     name: "Meta WhatsApp Cloud API",
     purpose: "Agent 4 — WhatsApp sales & support conversations",
-    status: rollupStatus({ requiredSet, requiredTotal: requiredNames.length + 1, steps }),
+    status: rollupStatus({ requiredSet, requiredTotal: requiredNames.length + 1, steps, activity: Boolean(sent) }),
     steps,
     env: [
       ...envList(["WHATSAPP_ACCESS_TOKEN", ...requiredNames], ["META_WEBHOOK_APP_SECRET", "META_GRAPH_API_VERSION", "WHATSAPP_FOLLOWUP_TEMPLATE", "WHATSAPP_TEMPLATE_LANGUAGE", "WHATSAPP_COEXISTENCE_ENABLED", "WHATSAPP_PRODUCTION_ONBOARDING_APPROVED", "WHATSAPP_OUTBOUND_ENABLED"]),
@@ -274,8 +274,11 @@ async function checkWhatsApp(): Promise<IntegrationReport> {
   };
 }
 
+/** The JSON key file is the recommended form; the email + private-key pair is only required if that is what was started. */
 function saRequired() {
-  return process.env.GOOGLE_SERVICE_ACCOUNT_JSON?.trim() ? ["GOOGLE_SERVICE_ACCOUNT_JSON"] : ["GOOGLE_SERVICE_ACCOUNT_EMAIL", "GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY"];
+  return process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL?.trim() && !process.env.GOOGLE_SERVICE_ACCOUNT_JSON?.trim()
+    ? ["GOOGLE_SERVICE_ACCOUNT_EMAIL", "GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY"]
+    : ["GOOGLE_SERVICE_ACCOUNT_JSON"];
 }
 
 async function checkGa4(): Promise<IntegrationReport> {
@@ -308,7 +311,7 @@ async function checkGa4(): Promise<IntegrationReport> {
     id: "ga4",
     name: "Google Analytics 4",
     purpose: "Agent 3 — traffic, conversions, landing pages, revenue attribution",
-    status: rollupStatus({ requiredSet, requiredTotal: required.length, steps }),
+    status: rollupStatus({ requiredSet, requiredTotal: required.length, steps, activity: Boolean(ping.configured && "data" in ping && ping.data) }),
     steps,
     env: envList(required, ["GA4_MEASUREMENT_ID", "GA4_API_SECRET", "NEXT_PUBLIC_GA4_MEASUREMENT_ID"]),
     troubleshooting: [
@@ -335,7 +338,7 @@ async function checkSearchConsole(): Promise<IntegrationReport> {
     id: "search-console",
     name: "Google Search Console",
     purpose: "Agent 3 — queries, rankings, keyword opportunities",
-    status: rollupStatus({ requiredSet, requiredTotal: required.length, steps }),
+    status: rollupStatus({ requiredSet, requiredTotal: required.length, steps, activity: Boolean(ping.configured && "data" in ping && ping.data) }),
     steps,
     env: envList(required, []),
     troubleshooting: [
@@ -348,70 +351,8 @@ async function checkSearchConsole(): Promise<IntegrationReport> {
   };
 }
 
-export type PlatformCheck = { name: string; result: CheckStep["result"]; detail: string };
-
-async function platformChecks(): Promise<PlatformCheck[]> {
-  const out: PlatformCheck[] = [];
-  const db = await pingDatabase();
-  out.push({ name: "Database connectivity", result: db.ok ? "pass" : "fail", detail: db.ok ? `MongoDB reachable (${db.connectionMode || "connected"}).` : db.message });
-  if (db.ok) {
-    try {
-      const handle = await getDb();
-      const id = `hc_${Date.now()}`;
-      await handle.collection("ai_healthcheck").insertOne({ id, at: new Date().toISOString() });
-      const read = await handle.collection("ai_healthcheck").findOne({ id });
-      await handle.collection("ai_healthcheck").deleteOne({ id });
-      out.push({ name: "Database write / read / delete", result: read ? "pass" : "fail", detail: read ? "Round-trip on a scratch document succeeded." : "Written document could not be read back." });
-      const names = ["ai_sessions", "ai_messages", "ai_leads", "ai_approvals", "ai_calls", "ai_followups", "ai_consent", "ai_wa_messages", "ai_content", "ai_audit"];
-      const counts = await Promise.all(names.map((n) => handle.collection(n).countDocuments()));
-      out.push({ name: "CRM & agent collections", result: "pass", detail: names.map((n, i) => `${n.replace("ai_", "")} ${counts[i]}`).join(" · ") });
-      const now = Date.now();
-      for (const job of SCHEDULED_JOBS) {
-        const last = await handle.collection("ai_jobs").findOne({ name: job.name }, { sort: { at: -1 } });
-        const age = last ? (now - Date.parse(String(last.at))) / 3_600_000 : null;
-        out.push({
-          name: `Scheduled job: ${job.name} (${job.schedule})`,
-          result: !process.env.CRON_SECRET?.trim() ? "fail" : last == null ? "warn" : !last.ok ? "fail" : age! > job.maxAgeHours ? "warn" : "pass",
-          detail: !process.env.CRON_SECRET?.trim()
-            ? "CRON_SECRET not set — the scheduler cannot authenticate."
-            : last == null
-              ? `Never run. Schedule ${job.path} with "Authorization: Bearer $CRON_SECRET".`
-              : `Last run ${String(last.at).slice(0, 16)} — ${last.ok ? "ok" : `failed: ${JSON.stringify(last.summary).slice(0, 120)}`}${age! > job.maxAgeHours ? " (overdue)" : ""}.`,
-        });
-      }
-    } catch (err) {
-      out.push({ name: "Database write / read / delete", result: "fail", detail: err instanceof Error ? err.message : "failed" });
-    }
-  }
-  const mail = await verifyOwnerMail();
-  out.push({ name: "Owner alert email (SMTP)", result: mail.ok ? "pass" : "fail", detail: mail.message });
-  out.push({
-    name: "/test access control",
-    result: process.env.NODE_ENV === "production" ? "pass" : "warn",
-    detail: process.env.NODE_ENV === "production" ? "Production: admin sign-in required." : "Development: open without sign-in. In production it requires an admin session.",
-  });
-  return out;
-}
-
-async function agentChecks(integrations: IntegrationReport[]): Promise<{ id: AgentId; name: string; result: CheckStep["result"]; detail: string }[]> {
-  const by = (id: string) => integrations.find((i) => i.id === id)?.status ?? "not_configured";
-  const products = await getStorefrontProducts().catch(() => []);
-  const tests = runPhase2SelfTest();
-  const failed = tests.filter((t) => !t.pass).length;
-  const brain = by("gemini") === "connected" ? "Gemini replies (fact-checked)" : "catalogue-only replies (Gemini not connected)";
-  const level = (deps: IntegrationStatus[]): CheckStep["result"] => (deps.every((d) => d === "connected") ? "pass" : deps.some((d) => d === "failed") ? "fail" : "warn");
-  return [
-    { id: "chat", name: AGENTS.chat.name, result: products.length && !failed ? level([by("gemini")]) : "fail", detail: `${products.length} products · ${brain} · lead scoring, CRM, owner alerts, approvals, recovery follow-ups.` },
-    { id: "voice", name: AGENTS.voice.name, result: level([by("gemini"), by("vapi"), by("exotel")]), detail: `Vapi ${by("vapi")} · Exotel ${by("exotel")} · Gemini ${by("gemini")}. Tools: lookup_product, record_enquiry. Missed calls → owner alert + callback approval.` },
-    { id: "growth", name: AGENTS.growth.name, result: level([by("gemini"), by("ga4"), by("search-console")]), detail: `GA4 ${by("ga4")} · Search Console ${by("search-console")} · Gemini ${by("gemini")}. First-party attribution, Shopping feed, content drafts, daily report.` },
-    { id: "whatsapp", name: AGENTS.whatsapp.name, result: level([by("gemini"), by("whatsapp")]), detail: `WhatsApp ${by("whatsapp")} · Gemini ${by("gemini")}. Same catalogue, scoring and CRM as chat; STOP/START consent.` },
-    { id: "chat", name: "Blueprint self-test (pure logic)", result: failed ? "fail" : "pass", detail: `${tests.length - failed}/${tests.length} checks passed (same as npm run check:phase2).` },
-  ];
-}
-
-/** Everything /test shows. Each provider check runs in parallel and is time-boxed by its own client. */
-export async function runIntegrationChecks() {
-  const started = Date.now();
+/** The six provider integrations, checked in parallel. Each provider client has its own timeout. */
+export async function runIntegrationChecks(): Promise<IntegrationReport[]> {
   const settle = async (fn: () => Promise<IntegrationReport>, id: string, name: string): Promise<IntegrationReport> => {
     try {
       return await fn();
@@ -420,7 +361,7 @@ export async function runIntegrationChecks() {
         id,
         name,
         purpose: "",
-        status: "failed",
+        status: "api_error",
         steps: [s("Check crashed", "fail", err instanceof Error ? err.message.slice(0, 200) : "Unknown error", "live")],
         env: [],
         troubleshooting: [],
@@ -429,7 +370,7 @@ export async function runIntegrationChecks() {
       };
     }
   };
-  const integrations = await Promise.all([
+  return Promise.all([
     settle(checkGemini, "gemini", "Google Gemini API"),
     settle(checkVapi, "vapi", "Vapi voice AI"),
     settle(checkExotel, "exotel", "Exotel telephony"),
@@ -437,8 +378,6 @@ export async function runIntegrationChecks() {
     settle(checkGa4, "ga4", "Google Analytics 4"),
     settle(checkSearchConsole, "search-console", "Google Search Console"),
   ]);
-  const [platform, agents] = await Promise.all([platformChecks(), agentChecks(integrations)]);
-  return { integrations, platform, agents, summary: summarise(integrations.map((i) => i.status)), checkedAt: new Date().toISOString(), ms: Date.now() - started };
 }
 
 export type CoexistenceReport = {

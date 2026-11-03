@@ -20,7 +20,10 @@ import { agentInstructions, factsBlock, replyIsGrounded } from "./agents.ts";
 import { redactSecrets } from "./http.ts";
 import { assistantDrift, desiredAssistant, e164, isMissedCall, parseVapiMessage, vapiRequestAuthorized } from "./vapi.ts";
 import { exotelCallbackAuthorized, exotelRows, parseExotelCallback } from "./exotel.ts";
-import { rollupStatus, summarise } from "./integration-status.ts";
+import { agentScore, agentStatus, rollupStatus, summarise, type AgentCheck } from "./integration-status.ts";
+import { ENV_REGISTRY, envReport } from "./env-registry.ts";
+import { agentEnabled } from "./agents.ts";
+import { growthRecommendations, internalLinkSuggestions, journeyFunnel, lowConversionProducts, type ProductActivity } from "./growth-insights.ts";
 import { isOptOut, sendGate, statusUpdatesFromWebhook, templatePayload } from "../whatsapp/cloud.ts";
 import { normaliseWebhook, planEvents, verifyHandshake, verifySignature } from "../whatsapp/coexistence.ts";
 import { signJwt } from "../google/auth.ts";
@@ -366,10 +369,83 @@ export function runPhase2SelfTest(): SelfTestResult[] {
   section = "/test status rules";
   check("Nothing set → Not configured", rollupStatus({ requiredSet: 0, requiredTotal: 2, steps: [] }) === "not_configured");
   check("Some variables missing → Partially configured", rollupStatus({ requiredSet: 1, requiredTotal: 2, steps: [] }) === "partial");
-  check("Credential rejected → Failed", rollupStatus({ requiredSet: 2, requiredTotal: 2, steps: [{ label: "", result: "fail", detail: "", kind: "credential" }] }) === "failed");
+  const step = (result: "pass" | "fail" | "warn", kind: "config" | "credential" | "live") => ({ label: "", result, detail: "", kind });
+  check("Credential rejected → Authentication failed", rollupStatus({ requiredSet: 2, requiredTotal: 2, steps: [step("fail", "credential")] }) === "auth_failed");
+  check("Credentials OK but API operation failed → API error", rollupStatus({ requiredSet: 2, requiredTotal: 2, steps: [step("pass", "credential"), step("fail", "live")] }) === "api_error");
   check("Settings present but no live check → never Connected", rollupStatus({ requiredSet: 2, requiredTotal: 2, steps: [{ label: "", result: "pass", detail: "", kind: "config" }] }) === "partial");
-  check("All live checks passed → Connected", rollupStatus({ requiredSet: 2, requiredTotal: 2, steps: [{ label: "", result: "pass", detail: "", kind: "live" }] }) === "connected");
-  check("Summary counts", JSON.stringify(summarise(["connected", "failed", "partial", "not_configured", "connected"])) === JSON.stringify({ total: 5, connected: 2, partial: 1, failed: 1, notConfigured: 1 }));
+  check("All live checks passed → Connected", rollupStatus({ requiredSet: 2, requiredTotal: 2, steps: [step("pass", "live")] }) === "connected");
+  check("Connected + real activity → Operational", rollupStatus({ requiredSet: 2, requiredTotal: 2, steps: [step("pass", "live")], activity: true }) === "operational");
+  check("Activity never upgrades a failing check", rollupStatus({ requiredSet: 2, requiredTotal: 2, steps: [step("fail", "live")], activity: true }) === "api_error");
+  check(
+    "Summary counts",
+    JSON.stringify(summarise(["connected", "auth_failed", "partial", "not_configured", "operational", "api_error"])) ===
+      JSON.stringify({ total: 6, operational: 1, connected: 1, partial: 1, failed: 2, notConfigured: 1 })
+  );
+
+  section = "/test agent status rules";
+  const ac = (ok: boolean, level: AgentCheck["level"]): AgentCheck => ({ label: "x", ok, level, detail: "" });
+  check("Missing critical dependency → Not operational", agentStatus(true, [ac(false, "critical"), ac(true, "required")]) === "not_operational");
+  check("Missing required dependency → Degraded (never Operational)", agentStatus(true, [ac(true, "critical"), ac(false, "required")]) === "degraded");
+  check("All dependencies OK → Operational", agentStatus(true, [ac(true, "critical"), ac(true, "required"), ac(false, "info")]) === "operational");
+  check("Switched off → Disabled", agentStatus(false, [ac(true, "critical")]) === "disabled");
+  check("Agent score counts critical + required only", agentScore([ac(true, "critical"), ac(false, "required"), ac(false, "info")]) === 50);
+  check(
+    "AI_AGENTS_DISABLED switches single agents off",
+    !agentEnabled("voice", { AI_AGENTS_DISABLED: "voice, growth" }) && agentEnabled("chat", { AI_AGENTS_DISABLED: "voice, growth" }) && agentEnabled("whatsapp", {})
+  );
+
+  section = "Environment registry";
+  const names = ENV_REGISTRY.map((v) => v.name);
+  check("Every variable is registered once", new Set(names).size === names.length, names.filter((n, i) => names.indexOf(n) !== i).join(","));
+  const expected = [
+    "GEMINI_API_KEY", "VAPI_API_KEY", "VAPI_ASSISTANT_ID", "VAPI_WEBHOOK_SECRET", "VAPI_PHONE_NUMBER_ID", "VAPI_SIP_CREDENTIAL_ID",
+    "EXOTEL_API_KEY", "EXOTEL_API_TOKEN", "EXOTEL_ACCOUNT_SID", "EXOTEL_PHONE_NUMBER", "EXOTEL_TRUNK_SID", "EXOTEL_WEBHOOK_TOKEN",
+    "WHATSAPP_ACCESS_TOKEN", "WHATSAPP_PHONE_NUMBER_ID", "WHATSAPP_BUSINESS_ACCOUNT_ID", "META_WEBHOOK_VERIFY_TOKEN", "META_APP_SECRET",
+    "GOOGLE_SERVICE_ACCOUNT_JSON", "GA4_PROPERTY_ID", "SEARCH_CONSOLE_SITE_URL", "GA4_MEASUREMENT_ID", "GA4_API_SECRET", "CRON_SECRET",
+  ];
+  const absentFromRegistry = expected.filter((n) => !names.includes(n));
+  check("All Phase 2 variables are documented", !absentFromRegistry.length, absentFromRegistry.join(", "));
+  const sample = envReport({
+    GEMINI_API_KEY: "AIzaSyD-valid-looking-key-0123456789",
+    GA4_PROPERTY_ID: "G-ABC123",
+    ADMIN_PASSWORD: "Admin@marinamuse",
+    META_APP_SECRET: "0123456789abcdef0123456789abcdef",
+  });
+  const get = (n: string) => sample.find((e) => e.name === n)!;
+  check("Valid Gemini key format accepted", get("GEMINI_API_KEY").valid === true);
+  check("G- id in GA4_PROPERTY_ID flagged as invalid", get("GA4_PROPERTY_ID").valid === false && /digits/.test(get("GA4_PROPERTY_ID").problem || ""), get("GA4_PROPERTY_ID").problem || "");
+  check("Sample admin password flagged", get("ADMIN_PASSWORD").valid === false, get("ADMIN_PASSWORD").problem || "");
+  check("Missing variables are reported as not set", get("VAPI_API_KEY").set === false && get("VAPI_API_KEY").valid === false);
+  check("Report never contains a value", !JSON.stringify(sample).includes("AIzaSyD-valid") && !JSON.stringify(sample).includes("0123456789abcdef0123456789abcdef"));
+  const badJson = envReport({ GOOGLE_SERVICE_ACCOUNT_JSON: "{not json" }).find((e) => e.name === "GOOGLE_SERVICE_ACCOUNT_JSON")!;
+  check("Broken service-account JSON flagged", badJson.valid === false && !String(badJson.problem).includes("{not"), badJson.problem || "");
+
+  section = "Agent 3 · Shopper journey & recommendations";
+  const jf = journeyFunnel({ visitors: 1000, cartSessions: 40, checkoutsStarted: 10, paidOrders: 3, enquiries: 20, calls: 2, quotes: 4 });
+  check(
+    "Funnel: visit→cart 4%, cart→checkout 25%, checkout→paid 30%",
+    jf.visitToCart === 4 && jf.cartToCheckout === 25 && jf.checkoutToPaid === 30 && jf.checkoutAbandonment === 70,
+    JSON.stringify(jf)
+  );
+  check(
+    "Funnel with no data has no fake rates",
+    journeyFunnel({ visitors: 0, cartSessions: 0, checkoutsStarted: 0, paidOrders: 0, enquiries: 0, calls: 0, quotes: 0 }).checkoutAbandonment === null
+  );
+  const acts: ProductActivity[] = [
+    { slug: "a", name: "Big Telescope", category: "telescopes", views: 400, carts: 2, orders: 1, inStock: true },
+    { slug: "b", name: "Small Telescope", category: "telescopes", views: 10, carts: 1, orders: 0, inStock: true },
+    { slug: "c", name: "Sold-out Scope", category: "telescopes", views: 1, carts: 0, orders: 0, inStock: false },
+    { slug: "d", name: "Compass", category: "compasses", views: 30, carts: 0, orders: 0, inStock: true },
+  ];
+  const links = internalLinkSuggestions(acts);
+  check("Internal link: busy page → related low-traffic, in-stock product", links.length >= 1 && links[0].from === "a" && links[0].to === "b", JSON.stringify(links));
+  check("Out-of-stock products are never suggested", !links.some((l) => l.to === "c"));
+  const low = lowConversionProducts(acts);
+  check("Viewed-but-not-added products found", low.some((x) => x.slug === "a") && low.some((x) => x.slug === "d"), JSON.stringify(low));
+  const recs = growthRecommendations({ funnel: jf, lowConversion: low, links, openHighValueLeads: 2, searchConnected: false, analyticsConnected: false });
+  check("Recommendations carry their basis (data / estimate / ai)", recs.length > 0 && recs.every((r) => ["data", "estimate", "ai"].includes(r.basis)));
+  check("Checkout abandonment is reported from real counts", recs.some((r) => r.area === "checkout" && r.basis === "data" && r.text.includes("70%")));
+  check("Internal-link benefit is labelled an estimate", recs.filter((r) => r.area === "seo" && r.text.includes("internal link")).every((r) => r.basis === "estimate"));
   const leaked = redactSecrets("HTTP 400 key=AIzaSyA1234567890abcdefghijklmnop token EAAB1234567890abcdef my-secret-val", ["my-secret-val"]);
   check("Errors shown on /test are scrubbed of keys and tokens", !/AIza|EAAB|my-secret-val/.test(leaked), leaked);
 

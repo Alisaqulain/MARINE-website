@@ -11,6 +11,7 @@ import {
 import { B2B_MIN_ORDER_QTY, products, type Product } from "./products";
 import { regionalPrice, type PriceRegion } from "./region";
 import { useRegion } from "./region-context";
+import { trackEvent } from "./ai/track-client";
 
 export type CartLine = {
   slug: string;
@@ -240,7 +241,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
     const buyNowItems = toItems(buyNowLines, region, live);
     return {
       lines,
-      add: (slug, qty = 1, opts) =>
+      add: (slug, qty = 1, opts) => {
+        trackEvent("add_to_cart", { slug, qty, b2b: Boolean(opts?.b2b) });
         setLines((prev) => {
           const next = makeLine(slug, qty, opts);
           const found = prev.find(
@@ -252,8 +254,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
             );
           }
           return [...prev, next];
-        }),
-      buyNow: (slug, qty = 1, opts) => setBuyNowLine(makeLine(slug, qty, opts)),
+        });
+      },
+      buyNow: (slug, qty = 1, opts) => {
+        trackEvent("add_to_cart", { slug, qty, b2b: Boolean(opts?.b2b) });
+        setBuyNowLine(makeLine(slug, qty, opts));
+      },
       clearBuyNow: () => setBuyNowLine(null),
       buyNowLines,
       buyNowItems,

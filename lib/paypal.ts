@@ -123,7 +123,9 @@ export async function createPayPalCheckout(input: {
             shipping_preference: "SET_PROVIDED_ADDRESS",
             user_action: "PAY_NOW",
             payment_method_preference: "IMMEDIATE_PAYMENT_REQUIRED",
-            landing_page: "NO_PREFERENCE",
+            // Ask PayPal to open the guest debit/credit card form instead of the login page.
+            // PayPal still decides eligibility (country, account settings, risk); it may show login instead.
+            landing_page: "GUEST_CHECKOUT",
             return_url: returnUrl,
             cancel_url: cancelUrl,
           },

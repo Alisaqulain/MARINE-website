@@ -13,16 +13,40 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-const PAGE_SIZE = 8;
+/** 4 rows of 4 on desktop. */
+const PAGE_SIZE = 16;
 const PAGE_WINDOW = 10;
 const MOBILE_WINDOW = 7;
 
-type SortKey = "newest" | "name" | "price-asc" | "price-desc";
+type SortKey = "featured" | "newest" | "name" | "price-asc" | "price-desc";
+
+/** Small seeded shuffle, so the mix stays stable while browsing pages and changes on the next visit. */
+function shuffled<T>(items: T[], seed: number): T[] {
+  const out = [...items];
+  let state = seed >>> 0 || 1;
+  const random = () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
 
 export function HomeAllProducts() {
   const [mode, setMode] = useState<"b2c" | "b2b">("b2c");
   const [page, setPage] = useState(1);
-  const [sort, setSort] = useState<SortKey>("newest");
+  const [sort, setSort] = useState<SortKey>("featured");
+  // 0 until mounted: the server and the first browser render show the same order, then the mix is applied.
+  const [mixSeed, setMixSeed] = useState(0);
+  useEffect(() => {
+    setMixSeed(Math.floor(Math.random() * 2 ** 31) + 1);
+  }, []);
   const [goPage, setGoPage] = useState("");
   const ref = useRef<HTMLElement>(null);
   const { priceFor } = useRegion();
@@ -67,9 +91,10 @@ export function HomeAllProducts() {
     if (sort === "name") next.sort((a, b) => a.name.localeCompare(b.name));
     else if (sort === "price-asc") next.sort((a, b) => shown(a) - shown(b));
     else if (sort === "price-desc") next.sort((a, b) => shown(b) - shown(a));
-    // newest: the API already returns the newest products first, for both B2C and B2B
+    // featured: a different mix on every visit; newest: the API already returns the newest first
+    else if (sort === "featured" && mixSeed) return shuffled(next, mixSeed);
     return next;
-  }, [products, sort, priceFor, displayMode]);
+  }, [products, sort, priceFor, displayMode, mixSeed]);
 
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -137,6 +162,7 @@ export function HomeAllProducts() {
                 setPage(1);
               }}
             >
+              <option value="featured">Featured (mixed)</option>
               <option value="newest">Newest first</option>
               <option value="name">Name A–Z</option>
               <option value="price-asc">Price: Low to High</option>

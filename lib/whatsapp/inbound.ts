@@ -1,5 +1,6 @@
 import { getDb } from "@/lib/mongodb";
 import { handleCustomerMessage, regionFromPhone } from "@/lib/ai/crm";
+import { agentEnabled } from "@/lib/ai/agents";
 import { isSuppressed, recordConsent } from "@/lib/ai/followups";
 import { HUMAN_TAKEOVER_HOURS, type CoexistenceUpdates, type WaPlan } from "@/lib/whatsapp/coexistence";
 import { isOptOut, postMessage, resolveCredentials, sendGate, textPayload, type WaStatusUpdate } from "@/lib/whatsapp/cloud";
@@ -68,6 +69,9 @@ export async function draftInbound(plan: WaPlan) {
       await recordConsent({ channel: "whatsapp", address: from, granted: true, source: "whatsapp_start", sessionId });
       return deliver(from, "Thank you — you'll receive order and enquiry updates from Marina Muse on WhatsApp. Reply STOP any time to opt out.", sessionId, { system: true });
     }
+
+    // Agent switched off (AI_AGENTS_DISABLED): the message is kept for the team, no AI reply is drafted.
+    if (!agentEnabled("whatsapp")) return { sent: false as const, drafted: false as const };
 
     const result = await handleCustomerMessage({
       sessionId,

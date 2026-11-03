@@ -1,5 +1,22 @@
 # WhatsApp Business app coexistence
 
+## Status on 3 November 2026
+
+- **Not active.** No real Embedded Signup has run; `/test` → WhatsApp Business app coexistence shows *Partially configured / not connected*.
+- In this environment `META_APP_SECRET` is set but not in Meta's 32-hex format, so webhook signatures and Meta's subscription list cannot be verified yet; `WHATSAPP_COEXISTENCE_ENABLED` and `WHATSAPP_COEXISTENCE_TEST_NUMBER` are not set, so signup stays closed.
+- The client's live number has not been registered, migrated, deregistered or messaged.
+
+### Standard Cloud API vs coexistence — kept separate
+
+| | Standard Cloud API | Coexistence (this build) |
+| --- | --- | --- |
+| Signup event | `FINISH` | `FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING` |
+| What the site does | **Refuses** it (HTTP 409, nothing registered) | Exchanges the code on the server, checks the number |
+| `/register`, `/deregister` | — | **Never called** (blocked by `coexistenceCallAllowed`) |
+| Phone stays on the WhatsApp Business app | No | Yes |
+
+Required Meta setup, eligibility and the approval sequence are below.
+
 Coexistence keeps a WhatsApp Business **app** number working on the phone while the same number is connected to the Cloud API (and Marina AI). This build implements the full flow, gated so that only an approved **test number** can be onboarded until you give written production approval. The client's live number `+91 74570 99540` is refused in code and is never registered, migrated or deregistered by this site.
 
 ## Modes (shown in Admin → WhatsApp and on `/test`)

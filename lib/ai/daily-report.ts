@@ -3,6 +3,7 @@ import { sendOwnerMail } from "@/lib/mail";
 import { dailyReportText, type DailyReportInput } from "@/lib/ai/alerts";
 import { growthReport } from "@/lib/ai/growth";
 import { externalGrowthData, growthNarrative } from "@/lib/ai/growth-agent";
+import { agentEnabled } from "@/lib/ai/agents";
 
 /** Last 24 hours of orders, leads, approvals, calls, conversion and feed health, plus 7 days of GA4 and Search Console. */
 export async function buildDailyReport(now = new Date()) {
@@ -64,7 +65,7 @@ export async function buildDailyReport(now = new Date()) {
       : undefined,
     followUps: { sent: followSent, needsApproval: followApproval },
   };
-  input.insights = await growthNarrative({
+  input.insights = !agentEnabled("growth") ? null : await growthNarrative({
     orders: input.orders,
     revenue: input.revenue,
     funnel: input.funnel,

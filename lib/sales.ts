@@ -82,6 +82,8 @@ export function applySales<
     salePercent?: number;
     saleEndsAt?: string;
     wholesaleSaleTerms?: string;
+    saleName?: string;
+    wholesaleSaleName?: string;
     wholesaleSalePercent?: number;
     wholesaleSaleEndsAt?: string;
   },
@@ -107,6 +109,7 @@ export function applySales<
       priceIndia: cut(product.priceIndia),
       priceUs: cut(product.priceUs),
       saleTerms: retail.terms || undefined,
+      saleName: retail.name || undefined,
       salePercent: retail.percent,
       saleEndsAt: endOf(retail),
     };
@@ -119,6 +122,7 @@ export function applySales<
       wholesalePriceIndia: cut(product.wholesalePriceIndia),
       wholesalePriceUs: cut(product.wholesalePriceUs),
       wholesaleSaleTerms: wholesale.terms || undefined,
+      wholesaleSaleName: wholesale.name || undefined,
       wholesaleSalePercent: wholesale.percent,
       wholesaleSaleEndsAt: endOf(wholesale),
     };

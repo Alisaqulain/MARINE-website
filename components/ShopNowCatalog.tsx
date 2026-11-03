@@ -163,7 +163,7 @@ export function ShopNowCatalog({ retail = false }: { retail?: boolean }) {
           <button
             type="button"
             onClick={showAll}
-            className={`shrink-0 rounded-full border px-3 py-1.5 text-[12px] ${
+            className={`min-w-[4.5rem] shrink-0 rounded-full border px-5 py-2 text-center text-[13px] ${
               !filtered ? "border-[#031D38] bg-[#031D38] text-white" : "border-[#ddd] bg-white text-[#222]"
             }`}
           >
@@ -174,7 +174,7 @@ export function ShopNowCatalog({ retail = false }: { retail?: boolean }) {
               key={c.slug}
               type="button"
               onClick={() => toggleParent(c.slug)}
-              className={`shrink-0 rounded-full border px-3 py-1.5 text-[12px] ${
+              className={`min-w-[4.5rem] shrink-0 rounded-full border px-5 py-2 text-center text-[13px] ${
                 parent === c.slug ? "border-[#031D38] bg-[#031D38] text-white" : "border-[#ddd] bg-white text-[#222]"
               }`}
             >
@@ -189,7 +189,7 @@ export function ShopNowCatalog({ retail = false }: { retail?: boolean }) {
                 key={child.slug}
                 type="button"
                 onClick={() => pickChild(parent!, child.slug)}
-                className={`shrink-0 rounded-full px-3 py-1 text-[11px] ${
+                className={`min-w-[4rem] shrink-0 rounded-full px-4 py-1.5 text-center text-[12px] ${
                   sub === child.slug || (sub && shopNowSubtree(child.slug).includes(sub))
                     ? "bg-[#C9A84C]/20 font-semibold text-[#7a5c12]"
                     : "bg-[#f4f1ea] text-[#444]"

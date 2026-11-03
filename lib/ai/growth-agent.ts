@@ -3,7 +3,8 @@ import { getSiteOrigin } from "@/lib/auth-url";
 import { getStorefrontProducts } from "@/lib/storefront-catalog";
 import { agentInstructions, factsBlock, replyIsGrounded } from "@/lib/ai/agents";
 import { approvedPolicyLines } from "@/lib/ai/crm";
-import { generate, geminiConfigured, parseJsonReply } from "@/lib/ai/gemini";
+import { geminiConfigured, parseJsonReply } from "@/lib/ai/gemini";
+import { generateFor } from "@/lib/ai/usage";
 import { ga4Summary } from "@/lib/google/analytics";
 import { searchConsoleSummary } from "@/lib/google/search-console";
 
@@ -46,7 +47,7 @@ export async function generateContentDraft(input: { kind: ContentKind; slug?: st
 
   if (input.kind === "competitor_research") {
     if (!topic) return { error: "Enter a product type, keyword or competitor to research." as const };
-    const result = await generate({
+    const result = await generateFor("growth", "competitor_research", {
       system: agentInstructions("growth"),
       turns: [
         {
@@ -81,7 +82,7 @@ Use Google Search. Report: (1) which competitors and marketplaces rank for this 
   });
   const descriptions = chosen.slice(0, 10).map((p) => `- ${p.name}: ${(p.description || "").replace(/\s+/g, " ").slice(0, 400)}`).join("\n");
   const search = await searchContext();
-  const result = await generate({
+  const result = await generateFor("growth", "content_draft", {
     system: agentInstructions("growth"),
     turns: [
       {
@@ -141,7 +142,7 @@ export async function externalGrowthData(days = 7) {
 
 export async function growthNarrative(data: Record<string, unknown>) {
   if (!geminiConfigured()) return null;
-  const result = await generate({
+  const result = await generateFor("growth", "insights", {
     system: agentInstructions("growth"),
     turns: [
       {

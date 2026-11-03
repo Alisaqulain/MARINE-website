@@ -5,8 +5,9 @@ import { getSiteOrigin } from "@/lib/auth-url";
 import { contactFromText, leadSegment, scoreLead, signalsFromText } from "@/lib/ai/scoring";
 import { parseVoiceLanguages, summarizeCall, validateCallInsight, voiceLanguageSupported } from "@/lib/ai/calls";
 import { lookupProductsForAgent, recordLead, regionFromPhone, voiceStatus } from "@/lib/ai/crm";
-import { agentInstructions } from "@/lib/ai/agents";
-import { generate, geminiConfigured, parseJsonReply } from "@/lib/ai/gemini";
+import { agentEnabled, agentInstructions } from "@/lib/ai/agents";
+import { geminiConfigured, parseJsonReply } from "@/lib/ai/gemini";
+import { generateFor } from "@/lib/ai/usage";
 import { isMissedCall, parseVapiMessage, vapiRequestAuthorized, type VapiMessage, type VapiToolCall } from "@/lib/ai/vapi";
 import { exotelCallbackAuthorized, parseExotelCallback } from "@/lib/ai/exotel";
 import { queueFollowUp, recordConsent } from "@/lib/ai/followups";
@@ -114,7 +115,7 @@ export async function acceptVoiceEvent(raw: string, signature: string | null) {
 async function analyseCall(transcript: string) {
   const rules = summarizeCall(transcript);
   if (!transcript.trim() || !geminiConfigured()) return { insight: null, rules };
-  const result = await generate({
+  const result = await generateFor("voice", "call_summary", {
     system: `${agentInstructions("voice")}\n\nYou are now analysing a finished call for the sales team. Use only what was said in the transcript.`,
     turns: [
       {
@@ -229,6 +230,10 @@ export async function acceptVapiMessage(raw: string, headers: { get(name: string
   const db = await getDb();
 
   if (message.kind === "tool-calls") {
+    // Agent switched off (AI_AGENTS_DISABLED): answer without catalogue data so the assistant offers a callback.
+    if (!agentEnabled("voice")) {
+      return { status: 200, body: { results: message.toolCalls.map((call) => ({ name: call.name, toolCallId: call.id, result: "The product assistant is unavailable. Offer a callback from the team." })) } };
+    }
     const results = [];
     for (const call of message.toolCalls.slice(0, 5)) {
       const result = await runTool(call, message).catch((err) => {

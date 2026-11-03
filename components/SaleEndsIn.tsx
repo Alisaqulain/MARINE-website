@@ -26,10 +26,13 @@ function formatDays(ms: number) {
 export function SaleEndsIn({
   endsAt,
   percent,
+  name,
   className = "",
 }: {
   endsAt?: string;
   percent?: number;
+  /** The sale's name from admin "Run a sale", e.g. "DiwaliSale". */
+  name?: string;
   className?: string;
 }) {
   const [label, setLabel] = useState<string | null>(null);
@@ -50,12 +53,12 @@ export function SaleEndsIn({
         setLabel(null);
         return;
       }
-      setLabel(`${percent}% off · Sale ends in ${left > DAY_MS ? formatDays(left) : formatRemaining(left)}`);
+      setLabel(`${name ? `${name} · ` : ""}${percent}% off · Sale ends in ${left > DAY_MS ? formatDays(left) : formatRemaining(left)}`);
     };
     tick();
     const id = window.setInterval(tick, 1000);
     return () => window.clearInterval(id);
-  }, [endsAt, percent]);
+  }, [endsAt, percent, name]);
 
   if (!label) return null;
   return <p className={`text-[11px] font-semibold text-red-700 sm:text-[12px] ${className}`}>{label}</p>;
