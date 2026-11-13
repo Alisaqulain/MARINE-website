@@ -2,7 +2,10 @@
 
 import { useEffect } from "react";
 
-const MEASUREMENT_ID = process.env.NEXT_PUBLIC_GA4_MEASUREMENT_ID?.trim() || "";
+/** Development builds stay out of the live property unless NEXT_PUBLIC_GA4_IN_DEVELOPMENT=1 (then in debug mode). */
+const IS_PRODUCTION = process.env.NODE_ENV === "production";
+const TAG_ENABLED = IS_PRODUCTION || process.env.NEXT_PUBLIC_GA4_IN_DEVELOPMENT === "1";
+const MEASUREMENT_ID = TAG_ENABLED ? process.env.NEXT_PUBLIC_GA4_MEASUREMENT_ID?.trim() || "" : "";
 const CHOICE_KEY = "marina-cookie-choice";
 
 type GtagWindow = Window & { dataLayer?: unknown[]; gtag?: (...args: unknown[]) => void };
@@ -17,7 +20,7 @@ function load() {
   };
   w.gtag("js", new Date());
   w.gtag("consent", "default", { ad_storage: "denied", ad_user_data: "denied", ad_personalization: "denied", analytics_storage: "granted" });
-  w.gtag("config", MEASUREMENT_ID, { anonymize_ip: true });
+  w.gtag("config", MEASUREMENT_ID, IS_PRODUCTION ? { anonymize_ip: true } : { anonymize_ip: true, debug_mode: true });
   const script = document.createElement("script");
   script.async = true;
   script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(MEASUREMENT_ID)}`;

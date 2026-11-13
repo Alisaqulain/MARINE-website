@@ -177,7 +177,8 @@ export async function connectWithAtlasStrategy(
     }
   }
 
-  if (!directOnly) {
+  // The direct-only rule exists for broken SRV TLS; a standard mongodb:// URI is always tried as given.
+  if (!directOnly || !srvUri.startsWith("mongodb+srv://")) {
     try {
       const client = await tryConnect(srvUri);
       return { client, uri: srvUri };

@@ -125,9 +125,16 @@ export function purchaseEvent(order: { id: string; amount: number; currency: str
   };
 }
 
-/** Server-side purchase conversion. GA4 de-duplicates on transaction_id. */
+/**
+ * Server-side purchase conversion. GA4 de-duplicates on transaction_id.
+ * Outside production the event only goes to GA4's debug endpoint, so test orders are never recorded as revenue.
+ */
 export async function sendPurchase(order: Parameters<typeof purchaseEvent>[0]) {
   if (!measurementProtocolConfigured()) return { sent: false as const, reason: "not configured" };
+  if (process.env.NODE_ENV !== "production") {
+    const res = await requestJson(mpUrl(true), { method: "POST", body: JSON.stringify(purchaseEvent(order)), timeoutMs: 8_000, secrets: [env("GA4_API_SECRET")] });
+    return { sent: false as const, reason: res.ok ? "development: validated on the debug endpoint, not recorded" : res.error || "failed" };
+  }
   const res = await requestJson(mpUrl(false), { method: "POST", body: JSON.stringify(purchaseEvent(order)), timeoutMs: 8_000, secrets: [env("GA4_API_SECRET")] });
   return res.ok || res.status === 204 ? { sent: true as const } : { sent: false as const, reason: res.error || "failed" };
 }

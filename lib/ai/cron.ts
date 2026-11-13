@@ -1,10 +1,12 @@
 import { createHash, timingSafeEqual } from "crypto";
+import { looksLikePlaceholder } from "./http.ts";
 
 /** Scheduler requests carry `Authorization: Bearer $CRON_SECRET`. */
 export function cronAllowed(req: Request) {
   const secret = process.env.CRON_SECRET?.trim();
   const header = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim() ?? "";
-  if (!secret || !header) return false;
+  // A placeholder secret (copied from an example file) is guessable: refuse rather than accept it.
+  if (!secret || !header || looksLikePlaceholder(secret)) return false;
   const a = createHash("sha256").update(header).digest();
   const b = createHash("sha256").update(secret).digest();
   return header.length === secret.length && timingSafeEqual(a, b);

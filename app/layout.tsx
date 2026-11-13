@@ -16,9 +16,14 @@ export const metadata: Metadata = {
   },
   description:
     "Premium nautical instruments, handcrafted brass décor and custom-made products from India. Wholesale and global shipping.",
+  // Square crop of the sail "M" from the logo: the full wide logo is unreadable at tab size.
   icons: {
-    icon: "/newlogo.png",
-    apple: "/newlogo.png",
+    icon: [
+      { url: "/favicon-48.png", sizes: "48x48", type: "image/png" },
+      { url: "/favicon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    shortcut: "/favicon-48.png",
+    apple: { url: "/apple-touch-icon.png", sizes: "180x180" },
   },
   openGraph: {
     type: "website",

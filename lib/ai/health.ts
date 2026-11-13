@@ -10,6 +10,10 @@ import { checkCoexistence, runIntegrationChecks, type CoexistenceReport, type In
 import {
   agentScore,
   agentStatus,
+  FAILURE_LABEL,
+  failureOwner,
+  needsClient,
+  stepFailure,
   isFailing,
   isUp,
   summarise,
@@ -24,6 +28,7 @@ import { redactSecrets } from "@/lib/ai/http";
 import { POST as chatRoute } from "@/app/api/ai/chat/route";
 import { POST as voiceRoute } from "@/app/api/ai/voice/webhook/route";
 import { GET as whatsappVerifyRoute } from "@/app/api/meta/whatsapp/webhook/route";
+import { isDirectMode } from "@/lib/whatsapp/mode";
 import { POST as jobsRoute } from "@/app/api/ai/jobs/route";
 import { POST as eventRoute } from "@/app/api/ai/event/route";
 
@@ -47,6 +52,8 @@ export type HealthCard = {
   operationOk: boolean | null;
   error: string | null;
   nextAction: string;
+  /** Every failing or blocking step, explained: where it failed, the HTTP status, whose problem it is and what to do. */
+  issues: HealthIssue[];
   steps: CheckStep[];
   liveActivity: string;
   troubleshooting: string[];
@@ -54,6 +61,35 @@ export type HealthCard = {
   lastErrorAt: string | null;
   lastError: string | null;
 };
+
+export type HealthIssue = {
+  step: string;
+  http: number | null;
+  cause: string;
+  owner: "internal" | "external";
+  clientAction: boolean;
+  /** Sanitised provider/check message. */
+  detail: string;
+  action: string;
+};
+
+/** Failing steps, plus warnings that carry a failure class (e.g. activation still required). */
+function issuesFor(steps: CheckStep[]): HealthIssue[] {
+  return steps
+    .filter((x) => x.result === "fail" || (x.result === "warn" && x.failure))
+    .map((x) => {
+      const failure = stepFailure(x);
+      return {
+        step: x.label,
+        http: x.http ?? null,
+        cause: FAILURE_LABEL[failure],
+        owner: failureOwner(failure),
+        clientAction: needsClient(x),
+        detail: redactSecrets(x.detail).slice(0, 400),
+        action: x.action || (failure === "temporary" ? "Retry later; no change needed unless it persists." : "See the detail."),
+      };
+    });
+}
 
 export type AgentHealth = {
   id: AgentId;
@@ -77,15 +113,25 @@ function stepVerdict(steps: CheckStep[], kind: "credential" | "live") {
 }
 
 function nextActionFor(card: Pick<HealthCard, "status" | "missing" | "invalid" | "steps" | "troubleshooting" | "liveActivity">) {
-  if (card.invalid.length) return `Fix: ${card.invalid[0]}.`;
+  const firstFail = card.steps.find((x) => x.result === "fail");
   switch (card.status) {
     case "not_configured":
       return card.missing.length ? `Add ${card.missing.join(", ")} (see docs/phase2/ENVIRONMENT_SETUP.md).` : "Configure this integration.";
     case "auth_failed":
-      return card.steps.find((x) => x.result === "fail")?.detail || card.troubleshooting[0] || "Check the credentials.";
-    case "api_error":
-      return card.steps.find((x) => x.result === "fail")?.detail || "Check the provider status and configuration.";
+    case "config_error":
+    case "placeholder_credentials":
+    case "client_action_required":
+    case "activation_required":
+    case "quota_restricted":
+    case "provider_restricted":
+    case "temporary_failure":
+      return firstFail?.action || (card.invalid.length ? `Fix: ${card.invalid[0]}.` : firstFail?.detail) || card.troubleshooting[0] || "See the failing step.";
+    case "credentials_present":
+      return "Credentials are set but the provider could not be asked to verify them yet.";
+    case "authenticated":
+      return "Credentials verified. A safe API operation has not succeeded yet.";
     case "partial":
+      if (card.invalid.length) return `Fix: ${card.invalid[0]}.`;
       return card.missing.length
         ? `Add ${card.missing.join(", ")}.`
         : card.steps.find((x) => x.result === "fail" || x.result === "warn")?.detail || "Finish the remaining setup steps.";
@@ -109,7 +155,10 @@ function toCard(r: IntegrationReport, envChecks: ReturnType<typeof envReport>): 
     id: r.id,
     name: r.name,
     purpose: r.purpose,
-    status: invalid.length && r.status === "not_configured" ? "partial" : r.status,
+    // A required value with a wrong format is a configuration error even if other checks passed.
+    status: env.some((e) => e.required && e.set && e.problem) && !isFailing(r.status)
+      ? env.some((e) => e.required && e.set && /placeholder/.test(e.problem || "")) ? "placeholder_credentials" : "config_error"
+      : invalid.length && r.status === "not_configured" ? "partial" : r.status,
     env,
     missing,
     invalid,
@@ -117,6 +166,12 @@ function toCard(r: IntegrationReport, envChecks: ReturnType<typeof envReport>): 
     operationOk: stepVerdict(r.steps, "live"),
     error: firstFail ? redactSecrets(firstFail.detail).slice(0, 300) : null,
     nextAction: "",
+    issues: [
+      ...issuesFor(r.steps),
+      ...invalid
+        .filter((problem) => !r.steps.some((x) => x.detail.includes(problem.split(" ")[0]) && x.result === "fail"))
+        .map((problem) => ({ step: "Environment value", http: null, cause: /placeholder/.test(problem) ? FAILURE_LABEL.placeholder : FAILURE_LABEL.config, owner: /placeholder/.test(problem) ? ("external" as const) : ("internal" as const), clientAction: /placeholder/.test(problem), detail: problem, action: "Correct the value in .env.local (development) or the server's env, then restart." })),
+    ],
     steps: r.steps,
     liveActivity: r.liveActivity,
     troubleshooting: r.troubleshooting,
@@ -128,8 +183,8 @@ function toCard(r: IntegrationReport, envChecks: ReturnType<typeof envReport>): 
   return card;
 }
 
-function platformCard(input: Omit<HealthCard, "nextAction" | "lastSuccessAt" | "lastErrorAt" | "lastError" | "troubleshooting"> & { troubleshooting?: string[] }): HealthCard {
-  const card: HealthCard = { ...input, troubleshooting: input.troubleshooting ?? [], nextAction: "", lastSuccessAt: null, lastErrorAt: null, lastError: null };
+function platformCard(input: Omit<HealthCard, "nextAction" | "issues" | "lastSuccessAt" | "lastErrorAt" | "lastError" | "troubleshooting"> & { troubleshooting?: string[] }): HealthCard {
+  const card: HealthCard = { ...input, troubleshooting: input.troubleshooting ?? [], nextAction: "", issues: issuesFor(input.steps), lastSuccessAt: null, lastErrorAt: null, lastError: null };
   card.nextAction = nextActionFor(card);
   return card;
 }
@@ -161,7 +216,7 @@ async function databaseCard(envChecks: ReturnType<typeof envReport>): Promise<He
     }
   }
   const missing = env.filter((e) => e.required && !e.set).map((e) => e.name);
-  const status: IntegrationStatus = !env[0].set ? "not_configured" : !ping.ok ? "api_error" : roundTrip ? "operational" : "api_error";
+  const status: IntegrationStatus = !env[0].set ? "not_configured" : !ping.ok ? (/auth|credential|password/i.test(ping.message) ? "auth_failed" : "temporary_failure") : roundTrip ? "operational" : "config_error";
   return platformCard({
     id: "database",
     name: "Database (MongoDB)",
@@ -200,7 +255,7 @@ async function cronCard(envChecks: ReturnType<typeof envReport>, dbOk: boolean):
       );
     }
   }
-  const status: IntegrationStatus = !env[0].set ? "not_configured" : failing ? "api_error" : ran === SCHEDULED_JOBS.length ? "operational" : "partial";
+  const status: IntegrationStatus = !env[0].set ? "not_configured" : failing ? "config_error" : ran === SCHEDULED_JOBS.length ? "operational" : "partial";
   return platformCard({
     id: "cron",
     name: "Scheduled jobs (cron)",
@@ -238,7 +293,7 @@ async function emailCard(envChecks: ReturnType<typeof envReport>, dbOk: boolean)
     if (row) delivered = { at: String(row.at), action: String(row.action) };
   }
   const missing = env.filter((e) => e.required && !e.set).map((e) => e.name);
-  const status: IntegrationStatus = !env.find((e) => e.name === "SMTP_PASS")?.set ? "not_configured" : !mail.ok ? (/login|rejected|auth/i.test(mail.message) ? "auth_failed" : "api_error") : delivered ? "operational" : "connected";
+  const status: IntegrationStatus = !env.find((e) => e.name === "SMTP_PASS")?.set ? "not_configured" : !mail.ok ? (/login|rejected|auth/i.test(mail.message) ? "auth_failed" : "temporary_failure") : delivered ? "operational" : "connected";
   return platformCard({
     id: "email",
     name: "Email & owner alerts (SMTP)",
@@ -269,6 +324,23 @@ function coexistenceCard(report: CoexistenceReport, envChecks: ReturnType<typeof
   );
   const steps: CheckStep[] = report.rows.map((row) => s(row.label, row.result, row.detail, row.label.startsWith("Coexistence verified") || row.label === "Coexistence events" ? "live" : "config"));
   const anySet = env.some((e) => e.set && e.name !== "META_APP_ID" && e.name !== "META_CONFIG_ID");
+  // C8: direct Cloud API mode — coexistence is not applicable (reported as not configured, nothing missing).
+  if (report.mode === "not_applicable") {
+    return platformCard({
+      id: "coexistence",
+      name: "WhatsApp Business app coexistence",
+      purpose: "Not applicable: WhatsApp runs in direct Cloud API mode (Embedded Signup and Coexistence disabled)",
+      status: "not_configured",
+      env,
+      missing: [],
+      invalid: [],
+      authVerified: null,
+      operationOk: null,
+      error: null,
+      steps: report.rows.map((row) => s(row.label, row.result, row.detail, "config")),
+      liveActivity: "Not applicable in direct Cloud API mode.",
+    });
+  }
   const status: IntegrationStatus = !anySet || report.mode === "not_configured" ? (anySet ? "partial" : "not_configured") : report.connected ? (report.mode === "live" ? "operational" : "connected") : "partial";
   return platformCard({
     id: "coexistence",
@@ -297,7 +369,7 @@ async function feedCard(): Promise<HealthCard> {
     id: "merchant-feed",
     name: "Google Shopping feed",
     purpose: "Product feed for Google Merchant Center (Agent 3)",
-    status: feed ? "partial" : "api_error",
+    status: feed ? "partial" : "config_error",
     env: [],
     missing: [],
     invalid: [],
@@ -412,7 +484,10 @@ async function agentHealth(cards: HealthCard[], usage: UsageSummary[]): Promise<
       c("Knowledge base", kb.ok, "critical", kb.detail),
       c("CRM", crm.ok, "critical", crm.detail),
       geminiCheck("required"),
-      c("Business app coexistence", up("coexistence"), "required", state("coexistence")),
+      // C8: not required for Agent 4 in direct Cloud API mode.
+      isDirectMode()
+        ? c("Business app coexistence", true, "info", "Not applicable: direct Cloud API mode.")
+        : c("Business app coexistence", up("coexistence"), "required", state("coexistence")),
       c("Follow-up job (cron)", up("cron"), "required", state("cron")),
     ]),
   ];

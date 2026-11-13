@@ -7,6 +7,8 @@ export type ShopCategory = {
   slug: string;
   parentSlug?: string;
   image?: string;
+  /** Custom categories only: when it was added (ISO). */
+  createdAt?: string;
 };
 
 export type CategoryNode = {
@@ -15,6 +17,8 @@ export type CategoryNode = {
   slug: string;
   image?: string;
   builtin: boolean;
+  /** Custom categories only: when it was added (ISO). */
+  createdAt?: string;
   children: CategoryNode[];
 };
 
@@ -45,7 +49,7 @@ export function uniqueCategorySlug(name: string, taken: Set<string>) {
   return slug;
 }
 
-type CustomDoc = { _id: unknown; name?: string; slug?: string; parentSlug?: string; image?: string };
+type CustomDoc = { _id: unknown; name?: string; slug?: string; parentSlug?: string; image?: string; createdAt?: unknown };
 type OverrideDoc = { slug?: string; name?: string; image?: string; deleted?: boolean };
 
 function customNodes(parentSlug: string | undefined, docs: CustomDoc[], seen: Set<string>): CategoryNode[] {
@@ -55,12 +59,14 @@ function customNodes(parentSlug: string | undefined, docs: CustomDoc[], seen: Se
       const slug = String(doc.slug);
       seen.add(slug);
       const image = String(doc.image ?? "").trim();
+      const created = doc.createdAt instanceof Date ? doc.createdAt : doc.createdAt ? new Date(String(doc.createdAt)) : null;
       return {
         id: String(doc._id),
         name: String(doc.name ?? slug),
         slug,
         image: image || undefined,
         builtin: false,
+        createdAt: created && !Number.isNaN(created.getTime()) ? created.toISOString() : undefined,
         children: customNodes(slug, docs, seen),
       };
     });
@@ -121,15 +127,17 @@ export async function loadCategoryCatalog(): Promise<{ items: ShopCategory[]; tr
     const walk = (nodes: CategoryNode[], parentSlug?: string) => {
       for (const node of nodes) {
         if (!node.builtin) {
-          items.push({ id: node.id, name: node.name, slug: node.slug, parentSlug, image: node.image });
+          items.push({ id: node.id, name: node.name, slug: node.slug, parentSlug, image: node.image, createdAt: node.createdAt });
         }
         walk(node.children, node.slug);
       }
     };
     walk(tree);
     return { items, tree };
-  } catch {
-    return { items: [], tree: [] };
+  } catch (err) {
+    // Built-in categories without admin renames, rather than an empty shop menu and empty pickers.
+    console.error("[categories] could not load from the database:", err instanceof Error ? err.message : err);
+    return { items: [], tree: builtinNodes(shopNowTree, new Set(), new Map(), new Map(), [], new Set()) };
   }
 }
 

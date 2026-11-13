@@ -1,20 +1,17 @@
-import { getDb, pingDatabase } from "@/lib/mongodb";
-import { verifyOwnerMail } from "@/lib/mail";
+import { getDb } from "@/lib/mongodb";
 import { getSiteOrigin } from "@/lib/auth-url";
-import { getStorefrontProducts } from "@/lib/storefront-catalog";
-import { pingGemini, geminiModel } from "@/lib/ai/gemini";
-import { assistantDrift, desiredAssistant, getAssistant, vapiGet, vapiRequestAuthorized, vapiStatus } from "@/lib/ai/vapi";
+import { pingGemini, geminiModels } from "@/lib/ai/gemini";
+import { assistantDrift, desiredAssistant, vapiGet, vapiRequestAuthorized, vapiStatus, vapiValueProblem } from "@/lib/ai/vapi";
+import { classifyHttp, looksLikePlaceholder } from "@/lib/ai/http";
 import { exotelCallbackAuthorized, exotelConfig, pingExotel } from "@/lib/ai/exotel";
 import { pingWhatsAppCloud, resolveCredentials } from "@/lib/whatsapp/cloud";
 import { readFlags, shouldSendWhatsApp, verifyHandshake, verifySignature } from "@/lib/whatsapp/coexistence";
 import { readCoexistenceState } from "@/lib/whatsapp/store";
+import { isDirectMode, testConfigMatches } from "@/lib/whatsapp/mode";
 import { measurementProtocolConfigured, pingGa4, validateMeasurementProtocol } from "@/lib/google/analytics";
 import { pingSearchConsole } from "@/lib/google/search-console";
 import { serviceAccount } from "@/lib/google/auth";
-import { SCHEDULED_JOBS } from "@/lib/ai/cron";
-import { runPhase2SelfTest } from "@/lib/ai/selftest";
-import { AGENTS, type AgentId } from "@/lib/ai/agents";
-import { envPresence, rollupStatus, summarise, type CheckStep, type IntegrationStatus } from "@/lib/ai/integration-status";
+import { envPresence, rollupStatus, type CheckStep, type IntegrationStatus } from "@/lib/ai/integration-status";
 
 export type IntegrationReport = {
   id: string;
@@ -61,114 +58,231 @@ async function lastActivity(query: Record<string, unknown>, collection: string, 
 async function checkGemini(): Promise<IntegrationReport> {
   const [ping, ms] = await timed(() => pingGemini());
   const steps: CheckStep[] = [s("GEMINI_API_KEY set", ping.configured ? "pass" : "fail", ping.configured ? "Key is set (not shown)." : "Missing.", "config")];
+  let answered: string | undefined;
   if (ping.configured) {
-    steps.push(s("API key accepted", ping.auth ? "pass" : "fail", ping.authDetail, "credential"));
-    if (ping.generation) steps.push(s(`Live generation (${ping.model})`, ping.generation.ok ? "pass" : "fail", `${ping.generation.detail} in ${ping.generation.ms} ms.`, "live"));
+    steps.push({
+      ...s("API key accepted", ping.auth.ok ? "pass" : "fail", ping.auth.detail, "credential"),
+      http: ping.auth.status,
+      failure: ping.auth.failure,
+    });
+    const primaryOk = ping.models[0]?.ok ?? false;
+    answered = ping.models.find((m) => m.ok)?.model;
+    for (const m of ping.models) {
+      // A model that fails while another in the chain answers degrades the agents but does not take them down.
+      const covered = m.role === "primary" ? Boolean(answered) && (m.failure === "temporary" || m.failure === "quota") : primaryOk;
+      steps.push({
+        ...s(`${m.role === "primary" ? "Primary" : "Fallback"} model ${m.model}${m.listed === false ? " (not listed for this key)" : ""}`, m.ok ? "pass" : covered ? "warn" : "fail", m.detail, "live"),
+        http: m.status,
+        failure: m.failure,
+        action: m.ok
+          ? undefined
+          : m.status === 404
+            ? `Set ${m.role === "primary" ? "GEMINI_MODEL" : "GEMINI_FALLBACK_MODEL"} to a model this key can use${answered ? ` (e.g. ${answered}, which answered)` : ""}.`
+            : m.failure === "temporary"
+              ? `Temporary on Google's side. If it keeps happening, set GEMINI_MODEL=${answered || "a faster model"}.`
+              : m.failure === "quota"
+                ? `Quota on the key's Google project (AI Studio → Usage / Rate limits shows the tier and limit). The model is skipped without requests until the quota resets${answered ? `; replies come from ${answered} meanwhile` : ""}.`
+                : m.failure === "restriction"
+                  ? "Google refused this project access to the model (403). Check the project in AI Studio."
+                  : undefined,
+      });
+    }
+    if (ping.models.length > 1) {
+      steps.push(
+        s(
+          "Fallback chain",
+          answered ? "pass" : "fail",
+          answered
+            ? primaryOk
+              ? `Replies come from ${ping.models[0].model}; ${ping.models.slice(1).map((m) => m.model).join(", ")} take over on timeout, overload, 404 or a long quota wait.`
+              : `${ping.models[0].model} failed, so replies currently come from ${answered} (the fallback ran).`
+            : "No model in the chain answered.",
+          "config"
+        )
+      );
+    }
   }
-  const status = rollupStatus({ requiredSet: ping.configured ? 1 : 0, requiredTotal: 1, steps, activity: Boolean(ping.configured && ping.generation?.ok) });
+  // Production activity = a real agent reply logged in ai_usage, never this health-check prompt.
+  const used = answered ? await lastActivity({ ok: true }, "ai_usage", "at") : null;
+  const status = rollupStatus({ requiredSet: ping.configured ? 1 : 0, requiredTotal: 1, steps, activity: Boolean(used) });
   return {
     id: "gemini",
     name: "Google Gemini API",
     purpose: "Shared AI model for all four agents",
     status,
     steps,
-    env: envList(["GEMINI_API_KEY"], ["GEMINI_MODEL"]),
+    env: envList(["GEMINI_API_KEY"], ["GEMINI_MODEL", "GEMINI_FALLBACK_MODEL"]),
     troubleshooting: [
-      "Create an API key at aistudio.google.com/apikey (or Google Cloud → APIs → Generative Language API). A Gemini app/Pro subscription is not an API key.",
-      `GEMINI_MODEL defaults to ${geminiModel()}. A 404 means the model name is wrong for this key; a 429 means quota/billing.`,
+      "Keys from AI Studio start with AIza… or AQ. — both are valid. A Gemini app/Pro subscription is not an API key.",
+      `Model chain: ${geminiModels().join(" → ")}. 404 = model not available to this key; 429 = quota (see AI Studio → Usage); 503/timeout = Google overloaded.`,
       "Without a key the agents still answer, from the catalogue only.",
     ],
     liveActivity: ping.configured
-      ? "Sent one fixed health-check prompt with no customer data."
+      ? `${ping.cachedAt ? `Live results from ${ping.cachedAt.slice(11, 16)} UTC, reused for 10 minutes so reloading /test does not spend quota. ` : "Sent one fixed health-check prompt per model, with no customer data. "}${used ? `Last real agent reply ${String(used.at).slice(0, 16)} (${used.agent}/${used.op}).` : "No real agent reply has been logged yet, so production use is NOT verified."}`
       : "Nothing was sent — no key is configured. Chat and WhatsApp answer from the catalogue only.",
     ms,
   };
+}
+
+type VapiName = Parameters<typeof vapiValueProblem>[0];
+type VapiObject = { id?: string; name?: string; provider?: string; number?: string; credentialId?: string; assistantId?: string; gateways?: { ip?: string }[] };
+
+const tail = (id?: string) => (id ? `…${id.slice(-4)}` : "");
+
+/** One Vapi object lookup: format first (nothing is sent for a placeholder), then GET by id with each status explained. */
+async function vapiLookup(name: VapiName, path: string, what: string, inventory: VapiObject[] | null) {
+  const problem = vapiValueProblem(name);
+  const existing = inventory ? (inventory.length ? `This Vapi organisation has ${inventory.length} ${what}(s): ${inventory.map((o) => `${o.name || o.provider || "unnamed"} (${tail(o.id)})`).join(", ")}.` : `This Vapi organisation has no ${what} yet.`) : "";
+  if (problem) return { problem, existing, res: null };
+  const res = await vapiGet<VapiObject>(`${path}/${encodeURIComponent(process.env[name]!.trim())}`);
+  return { problem: null, existing, res };
+}
+
+function vapiLookupStep(label: string, name: VapiName, what: string, lookup: Awaited<ReturnType<typeof vapiLookup>>, onFound: (data: VapiObject) => CheckStep, ifMissing: CheckStep): CheckStep {
+  if (lookup.problem === "not set") return ifMissing;
+  if (lookup.problem) {
+    return {
+      ...s(label, "fail", `${name} ${lookup.problem}. It was not sent to Vapi. ${lookup.existing}`.trim(), "config"),
+      failure: /placeholder/.test(lookup.problem) ? "placeholder" : "config",
+      action: `Copy the real ${what} ID from dashboard.vapi.ai into ${name}. Never use a sample or made-up UUID.`,
+      // The object lives in the client's Vapi organisation: creating or choosing it is the client's decision.
+      clientAction: true,
+    };
+  }
+  const res = lookup.res!;
+  if (res.ok && res.data) return onFound(res.data);
+  const failure = classifyHttp(res);
+  const detail =
+    res.status === 404
+      ? `No ${what} with this ID in the organisation of VAPI_API_KEY (wrong ID, or the key belongs to another Vapi org). ${lookup.existing}`
+      : res.status === 401
+        ? "Vapi rejected VAPI_API_KEY for this lookup."
+        : res.status === 403
+          ? `Vapi refused access to this ${what} (permission).`
+          : `${what} lookup failed: ${res.error}`;
+  return { ...s(label, "fail", detail.trim(), res.status === 401 ? "credential" : "live"), http: res.status, failure };
 }
 
 async function checkVapi(): Promise<IntegrationReport> {
   const start = Date.now();
   const status = vapiStatus();
   const steps: CheckStep[] = [];
-  const required = ["VAPI_API_KEY", "VAPI_ASSISTANT_ID", "VAPI_WEBHOOK_SECRET"];
+  const required: VapiName[] = ["VAPI_API_KEY", "VAPI_ASSISTANT_ID", "VAPI_WEBHOOK_SECRET"];
   const requiredSet = required.filter((n) => process.env[n]?.trim()).length;
+  const keyProblem = vapiValueProblem("VAPI_API_KEY");
+  if (keyProblem && keyProblem !== "not set") {
+    steps.push({ ...s("API key format", "fail", `VAPI_API_KEY ${keyProblem}. Nothing was sent to Vapi.`, "config"), failure: /placeholder/.test(keyProblem) ? "placeholder" : "config", action: "Use dashboard.vapi.ai → API Keys → Private key (a UUID).", clientAction: true });
+  }
   if (status.apiKey) {
-    if (status.assistantId) {
-      const assistant = await getAssistant();
-      if (!assistant.ok) {
-        steps.push(
-          s(
-            "API key accepted / assistant found",
-            "fail",
-            assistant.status === 401 ? "Vapi rejected VAPI_API_KEY. Use the private key from dashboard → API Keys (not the public key)." : `Assistant lookup failed: ${assistant.error}`,
-            "credential"
-          )
-        );
-      } else {
-        steps.push(s("API key accepted / assistant found", "pass", `Assistant "${assistant.data?.name || "unnamed"}" is readable.`, "credential"));
-        const drift = assistantDrift(assistant.data || {}, desiredAssistant(getSiteOrigin()));
+    // Key check on its own, so a wrong assistant id is never reported as a bad key.
+    const [assistants, numbers, credentials] = await Promise.all([
+      vapiGet<VapiObject[]>("/assistant?limit=100"),
+      vapiGet<VapiObject[]>("/phone-number?limit=100"),
+      vapiGet<VapiObject[]>("/credential?limit=100"),
+    ]);
+    steps.push({
+      ...s(
+        "API key accepted",
+        assistants.ok ? "pass" : "fail",
+        assistants.ok
+          ? "Vapi accepted the private key (read-only list request)."
+          : assistants.status === 401
+            ? "Vapi rejected VAPI_API_KEY. It must be the PRIVATE key (dashboard → API Keys); the public key only works in browsers."
+            : `Could not verify the key: ${assistants.error}`,
+        "credential"
+      ),
+      http: assistants.status,
+      failure: assistants.ok ? undefined : classifyHttp(assistants),
+    });
+    if (assistants.ok) {
+      const list = (r: typeof assistants) => (r.ok && Array.isArray(r.data) ? r.data : null);
+      const assistant = await vapiLookup("VAPI_ASSISTANT_ID", "/assistant", "assistant", list(assistants));
+      steps.push(
+        vapiLookupStep(
+          "Assistant",
+          "VAPI_ASSISTANT_ID",
+          "assistant",
+          assistant,
+          (data) => ({ ...s("Assistant", "pass", `Assistant "${data.name || "unnamed"}" (${tail(data.id)}) is readable.`, "live"), http: 200 }),
+          { ...s("Assistant", "fail", `VAPI_ASSISTANT_ID is not set. ${assistant.existing}`, "config"), failure: "client", action: "Create (or pick) the assistant in dashboard.vapi.ai and copy its ID into VAPI_ASSISTANT_ID." }
+        )
+      );
+      if (assistant.res?.ok && assistant.res.data) {
+        const drift = assistantDrift(assistant.res.data as Parameters<typeof assistantDrift>[0], desiredAssistant(getSiteOrigin()));
         steps.push(
           s(
             "Assistant uses Gemini, Marina tools and this webhook",
             drift.length ? "warn" : "pass",
-            drift.length ? `${drift.join(" · ")}. Use Admin → Marina AI → Health → "Sync Vapi assistant" to apply.` : `Model provider google (${assistant.data?.model?.model}), tools and server URL match.`,
+            drift.length ? `${drift.join(" · ")}. Use Admin → Marina AI → Health → "Sync Vapi assistant" to apply.` : "Model provider google, tools and server URL match.",
             "live"
           )
         );
       }
-    } else {
-      const list = await vapiGet<unknown[]>("/assistant?limit=1");
-      steps.push(s("API key accepted", list.ok ? "pass" : "fail", list.ok ? "Vapi accepted the key. Set VAPI_ASSISTANT_ID to check the assistant." : `Vapi rejected the key: ${list.error}`, "credential"));
-    }
-    const phoneId = process.env.VAPI_PHONE_NUMBER_ID?.trim();
-    if (phoneId) {
-      const phone = await vapiGet<{ provider?: string; number?: string; credentialId?: string; assistantId?: string }>(`/phone-number/${encodeURIComponent(phoneId)}`);
+      const phone = await vapiLookup("VAPI_PHONE_NUMBER_ID", "/phone-number", "phone number", list(numbers));
       const sipId = process.env.VAPI_SIP_CREDENTIAL_ID?.trim();
-      const viaExotel = phone.data?.provider === "byo-phone-number" && (!sipId || phone.data?.credentialId === sipId);
       steps.push(
-        s(
-          "Phone number linked to the SIP trunk (Exotel)",
-          !phone.ok ? "fail" : viaExotel ? "pass" : "warn",
-          !phone.ok
-            ? `Phone number lookup failed: ${phone.error}`
-            : viaExotel
-              ? `Number …${String(phone.data?.number || "").slice(-4)} is a BYO number on the SIP trunk${phone.data?.assistantId ? "" : " (no inbound assistant assigned yet)"}.`
-              : `Number provider is "${phone.data?.provider}"${sipId ? ` with credential ${phone.data?.credentialId || "none"}` : ""}. For Exotel it must be "byo-phone-number" on VAPI_SIP_CREDENTIAL_ID.`,
-          "live"
+        vapiLookupStep(
+          "Phone number on the SIP trunk (Exotel)",
+          "VAPI_PHONE_NUMBER_ID",
+          "phone number",
+          phone,
+          (data) => {
+            const viaExotel = data.provider === "byo-phone-number" && (!sipId || data.credentialId === sipId);
+            return {
+              ...s(
+                "Phone number on the SIP trunk (Exotel)",
+                viaExotel ? "pass" : "warn",
+                viaExotel
+                  ? `Number ${tail(data.number)} is a BYO number on the SIP trunk${data.assistantId ? "" : " (no inbound assistant assigned yet)"}.`
+                  : `Number provider is "${data.provider}". For Exotel it must be "byo-phone-number" on VAPI_SIP_CREDENTIAL_ID.`,
+                "live"
+              ),
+              http: 200,
+              failure: viaExotel ? undefined : "config",
+            };
+          },
+          { ...s("Phone number on the SIP trunk (Exotel)", "warn", `VAPI_PHONE_NUMBER_ID not set. ${phone.existing}`, "config"), failure: "activation", action: "Created in Vapi as a BYO number after Exotel enables vSIP and the SIP credential exists." }
         )
       );
-    } else {
-      steps.push(s("Phone number", "warn", "VAPI_PHONE_NUMBER_ID not set — needed for inbound routing and outbound calls.", "config"));
-    }
-    const credId = process.env.VAPI_SIP_CREDENTIAL_ID?.trim();
-    if (credId) {
-      const cred = await vapiGet<{ provider?: string; gateways?: { ip?: string }[] }>(`/credential/${encodeURIComponent(credId)}`);
+      const cred = await vapiLookup("VAPI_SIP_CREDENTIAL_ID", "/credential", "SIP credential", list(credentials));
       steps.push(
-        s(
+        vapiLookupStep(
           "BYO SIP trunk credential",
-          !cred.ok ? "fail" : cred.data?.provider === "byo-sip-trunk" && (cred.data.gateways?.length ?? 0) > 0 ? "pass" : "warn",
-          !cred.ok
-            ? `Credential lookup failed: ${cred.error}`
-            : `Provider ${cred.data?.provider}, ${cred.data?.gateways?.length ?? 0} gateway(s). Inbound SIP URI: <number>@${credId}.sip.vapi.ai.`,
-          "live"
+          "VAPI_SIP_CREDENTIAL_ID",
+          "SIP credential",
+          cred,
+          (data) => {
+            const good = data.provider === "byo-sip-trunk" && (data.gateways?.length ?? 0) > 0;
+            return {
+              ...s("BYO SIP trunk credential", good ? "pass" : "warn", `Provider ${data.provider}, ${data.gateways?.length ?? 0} gateway(s). Inbound SIP URI: <number>@${sipId}.sip.vapi.ai.`, "live"),
+              http: 200,
+              failure: good ? undefined : "config",
+            };
+          },
+          { ...s("BYO SIP trunk credential", "warn", `VAPI_SIP_CREDENTIAL_ID not set. ${cred.existing}`, "config"), failure: "activation", action: "Create a byo-sip-trunk credential pointing at the Exotel gateway once Exotel provides the vSIP trunk." }
         )
       );
-    } else {
-      steps.push(s("BYO SIP trunk credential", "warn", "VAPI_SIP_CREDENTIAL_ID not set — create a byo-sip-trunk credential pointing at the Exotel gateway.", "config"));
     }
   }
-  steps.push(
-    s(
+  const secretProblem = vapiValueProblem("VAPI_WEBHOOK_SECRET");
+  steps.push({
+    ...s(
       "Webhook secret set and enforced",
-      status.webhookReady ? (vapiRequestAuthorized({ get: () => null }) ? "fail" : "pass") : "fail",
-      status.webhookReady ? "Unauthenticated requests to /api/ai/voice/webhook are rejected (checked in-process)." : "VAPI_WEBHOOK_SECRET missing — the webhook rejects all Vapi traffic.",
+      !secretProblem && !vapiRequestAuthorized({ get: () => null }) ? "pass" : "fail",
+      !secretProblem
+        ? "Unauthenticated requests to /api/ai/voice/webhook are rejected (checked in-process)."
+        : `VAPI_WEBHOOK_SECRET ${secretProblem} — the webhook rejects all Vapi traffic until a real secret is set.`,
       "config"
-    )
-  );
+    ),
+    failure: secretProblem ? (/placeholder/.test(secretProblem) ? "placeholder" : "config") : undefined,
+    action: secretProblem ? "Generate one with openssl rand -hex 32, put it in VAPI_WEBHOOK_SECRET, then Sync the assistant so Vapi sends it." : undefined,
+    clientAction: false,
+  });
   steps.push(
     s(
       "Outbound calls",
       status.outboundEnabled ? "pass" : "skip",
-      status.outboundEnabled ? "Enabled: owner-approved callbacks only, with recorded consent." : "Off (VAPI_OUTBOUND_ENABLED is not true). Inbound calls are unaffected.",
+      status.outboundEnabled ? "Enabled: owner-approved callbacks only, with recorded consent." : "Off (VAPI_OUTBOUND_ENABLED is not true, or an ID is missing/invalid). Inbound calls are unaffected.",
       "config"
     )
   );
@@ -181,13 +295,13 @@ async function checkVapi(): Promise<IntegrationReport> {
     steps,
     env: envList(required, ["VAPI_PHONE_NUMBER_ID", "VAPI_SIP_CREDENTIAL_ID", "VAPI_OUTBOUND_ENABLED", "VAPI_MODEL", "VAPI_API_BASE"]),
     troubleshooting: [
-      "In Vapi → Integrations/Providers, connect Google (Gemini) or use Vapi's default Google integration; the assistant's model.provider must be \"google\".",
+      "Auth: Authorization: Bearer <private key> against https://api.vapi.ai. The key and every ID (assistant, phone number, credential) are UUIDs.",
       `Server URL: ${getSiteOrigin()}/api/ai/voice/webhook with header x-vapi-secret = VAPI_WEBHOOK_SECRET (Sync does this).`,
-      "Exotel has no native Vapi import: create a byo-sip-trunk credential (Exotel gateway IP, port 5070, TCP) and a byo-phone-number with your ExoPhone.",
+      "Exotel has no native Vapi import: create a byo-sip-trunk credential (Exotel gateway) and a byo-phone-number with your ExoPhone — both need Exotel vSIP first.",
     ],
     liveActivity: last
       ? `No call was placed by this check. Last real call report received ${String(last.updatedAt).slice(0, 16)} (${last.type}).`
-      : "No call was placed by this check. No real Vapi end-of-call report has been received yet, so a live call is NOT verified.",
+      : "No call was placed by this check (GET requests only). No real Vapi end-of-call report has been received yet, so a live call is NOT verified.",
     ms: Date.now() - start,
   };
 }
@@ -197,7 +311,12 @@ async function checkExotel(): Promise<IntegrationReport> {
   const required = ["EXOTEL_API_KEY", "EXOTEL_API_TOKEN", "EXOTEL_ACCOUNT_SID"];
   const requiredSet = required.filter((n) => process.env[n]?.trim()).length;
   const ping = requiredSet === required.length ? await pingExotel() : { configured: false, checks: [] };
-  const steps: CheckStep[] = ping.checks.map((c) => s(c.label, c.ok === true ? "pass" : c.ok === null ? "warn" : c.live || c.label.startsWith("API") ? "fail" : "warn", c.detail, c.label.startsWith("API") ? "credential" : c.live ? "live" : "config"));
+  const steps: CheckStep[] = ping.checks.map((c) => ({
+    ...s(c.label, c.ok === true ? "pass" : c.ok === null ? "warn" : "fail", c.detail, c.kind),
+    http: c.http,
+    failure: c.failure,
+    action: c.action,
+  }));
   const token = Boolean(process.env.EXOTEL_WEBHOOK_TOKEN?.trim());
   steps.push(
     s(
@@ -214,7 +333,7 @@ async function checkExotel(): Promise<IntegrationReport> {
     purpose: "Agent 2 — Indian business number, SIP trunk to Vapi, missed calls",
     status: rollupStatus({ requiredSet, requiredTotal: required.length, steps, activity: Boolean(last) }),
     steps,
-    env: envList(required, ["EXOTEL_SUBDOMAIN", "EXOTEL_PHONE_NUMBER", "EXOTEL_TRUNK_SID", "EXOTEL_WEBHOOK_TOKEN"]),
+    env: envList(required, ["EXOTEL_SUBDOMAIN", "EXOTEL_REGION", "EXOTEL_PHONE_NUMBER", "EXOTEL_TRUNK_SID", "EXOTEL_WEBHOOK_TOKEN"]),
     troubleshooting: [
       `Cluster: EXOTEL_SUBDOMAIN=${exotelConfig().subdomain} (Mumbai = api.in.exotel.com, Singapore = api.exotel.com).`,
       "vSIP/SIP trunking must be enabled on the account by Exotel (KYC and DLT/number compliance apply in India).",
@@ -222,7 +341,7 @@ async function checkExotel(): Promise<IntegrationReport> {
     ],
     liveActivity: last
       ? `No call was placed. Last Exotel callback ${String(last.createdAt).slice(0, 16)} (${last.status || last.type}).`
-      : "No call was placed. No Exotel callback has been received yet, so live telephony is NOT verified.",
+      : "No call was placed (GET requests only). No Exotel callback has been received yet, so live telephony is NOT verified.",
     ms: Date.now() - start,
   };
 }
@@ -243,13 +362,17 @@ async function checkWhatsApp(): Promise<IntegrationReport> {
   const wrongToken = verifyHandshake({ mode: "subscribe", token: "wrong", challenge: "1", expected: process.env.META_WEBHOOK_VERIFY_TOKEN });
   steps.push(s("Forged webhooks and wrong verify tokens are rejected", !forged.ok && !wrongToken.ok ? "pass" : "fail", `Forged signature → HTTP ${forged.ok ? 200 : forged.status}; wrong verify token → HTTP ${wrongToken.ok ? 200 : wrongToken.status}.`, "config"));
   const flags = readFlags(process.env);
+  const direct = isDirectMode();
+  const flagText = direct
+    ? `direct mode: outbound ${flags.outboundEnabled}, production sending approved ${process.env.WHATSAPP_PRODUCTION_SENDING_APPROVED?.trim() === "true"}, test configuration ${testConfigMatches() ? "matches" : "not set"}`
+    : `coexistence ${flags.coexistenceEnabled}, onboarding approved ${flags.productionOnboardingApproved}, outbound ${flags.outboundEnabled}`;
   steps.push(
     s(
       "Automatic replies",
       shouldSendWhatsApp(process.env) ? "pass" : "skip",
       shouldSendWhatsApp(process.env)
-        ? "On: Gemini replies are sent inside the 24-hour window; templates only with opt-in."
-        : `Off — replies are drafted and withheld (coexistence ${flags.coexistenceEnabled}, onboarding approved ${flags.productionOnboardingApproved}, outbound ${flags.outboundEnabled}).`,
+        ? `On: Gemini replies are sent inside the 24-hour window; templates only with opt-in (${flagText}). Never sent from a non-production server.`
+        : `Off — replies are drafted and withheld (${flagText}).`,
       "config"
     )
   );
@@ -262,7 +385,12 @@ async function checkWhatsApp(): Promise<IntegrationReport> {
     status: rollupStatus({ requiredSet, requiredTotal: requiredNames.length + 1, steps, activity: Boolean(sent) }),
     steps,
     env: [
-      ...envList(["WHATSAPP_ACCESS_TOKEN", ...requiredNames], ["META_WEBHOOK_APP_SECRET", "META_GRAPH_API_VERSION", "WHATSAPP_FOLLOWUP_TEMPLATE", "WHATSAPP_TEMPLATE_LANGUAGE", "WHATSAPP_COEXISTENCE_ENABLED", "WHATSAPP_PRODUCTION_ONBOARDING_APPROVED", "WHATSAPP_OUTBOUND_ENABLED"]),
+      ...envList(
+        ["WHATSAPP_ACCESS_TOKEN", ...requiredNames],
+        direct
+          ? ["WHATSAPP_INTEGRATION_MODE", "META_APP_ID", "META_WEBHOOK_APP_SECRET", "META_GRAPH_API_VERSION", "WHATSAPP_FOLLOWUP_TEMPLATE", "WHATSAPP_TEMPLATE_LANGUAGE", "WHATSAPP_OUTBOUND_ENABLED", "WHATSAPP_PRODUCTION_SENDING_APPROVED", "WHATSAPP_TEST_PHONE_NUMBER_ID", "WHATSAPP_TEST_BUSINESS_ACCOUNT_ID", "WHATSAPP_TEST_RECIPIENTS"]
+          : ["META_WEBHOOK_APP_SECRET", "META_GRAPH_API_VERSION", "WHATSAPP_FOLLOWUP_TEMPLATE", "WHATSAPP_TEMPLATE_LANGUAGE", "WHATSAPP_COEXISTENCE_ENABLED", "WHATSAPP_PRODUCTION_ONBOARDING_APPROVED", "WHATSAPP_OUTBOUND_ENABLED"]
+      ),
     ].map((row) => (row.name === "WHATSAPP_ACCESS_TOKEN" && creds.source === "signup" ? { ...row, set: true } : row)),
     troubleshooting: [
       "Use a System User permanent token with whatsapp_business_messaging + whatsapp_business_management (temporary tokens expire in 24 h).",
@@ -361,8 +489,8 @@ export async function runIntegrationChecks(): Promise<IntegrationReport[]> {
         id,
         name,
         purpose: "",
-        status: "api_error",
-        steps: [s("Check crashed", "fail", err instanceof Error ? err.message.slice(0, 200) : "Unknown error", "live")],
+        status: "config_error",
+        steps: [{ ...s("Check crashed", "fail", err instanceof Error ? err.message.slice(0, 200) : "Unknown error", "live"), failure: "config" }],
         env: [],
         troubleshooting: [],
         liveActivity: "",
@@ -381,7 +509,7 @@ export async function runIntegrationChecks(): Promise<IntegrationReport[]> {
 }
 
 export type CoexistenceReport = {
-  mode: "not_configured" | "test" | "ready_for_onboarding" | "live";
+  mode: "not_configured" | "test" | "ready_for_onboarding" | "live" | "not_applicable";
   connected: boolean;
   rows: { label: string; result: CheckStep["result"]; detail: string }[];
   steps: { label: string; state: string; detail: string }[];
@@ -392,12 +520,24 @@ const COEXISTENCE_FIELDS = ["messages", "history", "smb_app_state_sync", "smb_me
 
 /** WhatsApp Business app coexistence status for /test. Read-only; never shows tokens, secrets or full numbers. */
 export async function checkCoexistence(): Promise<CoexistenceReport> {
+  // C8: direct Cloud API mode — coexistence does not apply; nothing is read from Meta here.
+  if (isDirectMode()) {
+    return {
+      mode: "not_applicable",
+      connected: false,
+      rows: [{ label: "Direct Cloud API mode", result: "skip", detail: "WHATSAPP_INTEGRATION_MODE=direct: Embedded Signup and Coexistence are disabled. See the Meta WhatsApp Cloud API card." }],
+      steps: [],
+      approvals: [],
+    };
+  }
   const { publicStatus, verifySignature, verifyHandshake } = await import("@/lib/whatsapp/coexistence");
   const { appWebhookFields } = await import("@/lib/whatsapp/coexistence-actions");
   const stored = await readCoexistenceState();
   const status = publicStatus(process.env, stored);
   const has = (name: string) => Boolean(process.env[name]?.trim());
-  const meta = process.env.META_APP_SECRET?.trim() ? await appWebhookFields() : null;
+  // A placeholder secret would only produce a pointless failed call to Meta.
+  const appSecret = process.env.META_APP_SECRET?.trim() || "";
+  const meta = appSecret && !looksLikePlaceholder(appSecret) ? await appWebhookFields() : null;
   const missingFields = meta?.ok ? COEXISTENCE_FIELDS.filter((f) => !meta.fields.includes(f)) : COEXISTENCE_FIELDS;
   const secret = process.env.META_WEBHOOK_APP_SECRET?.trim() || process.env.META_APP_SECRET?.trim();
   const forgedRejected = !verifySignature("{}", "sha256=00", secret).ok;
@@ -433,7 +573,7 @@ export async function checkCoexistence(): Promise<CoexistenceReport> {
       result: fieldsVerified ? "pass" : meta?.ok ? "fail" : "warn",
       detail: `Handled in code: history, smb_app_state_sync, smb_message_echoes, message statuses, duplicates. ${
         meta == null
-          ? "Meta subscription not checked (META_APP_SECRET missing)."
+          ? "Meta subscription not checked (META_APP_SECRET missing or placeholder text)."
           : !meta.ok
             ? meta.detail
             : missingFields.length

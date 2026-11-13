@@ -124,13 +124,9 @@ export function HomeAllProducts() {
   }
 
   return (
-    <section ref={ref} className="scroll-mt-24 bg-white px-4 pb-10 pt-4 md:px-5 md:pb-14 md:pt-5">
+    <section ref={ref} className="scroll-mt-24 bg-white px-4 pb-10 pt-3 md:px-5 md:pb-14 md:pt-4">
       <div className="mx-auto max-w-[1320px]">
-        <div className="text-center">
-          <div className="mx-auto mb-3 h-px w-16 bg-[#C9A84C]" />
-        </div>
-
-        <div className="mt-6 flex flex-col items-center gap-3">
+        <div className="flex flex-col items-center gap-3">
           <div className="inline-flex rounded-full border border-[#031D38]/15 bg-[#FAF7F2] p-1">
             {(
               [
@@ -171,7 +167,7 @@ export function HomeAllProducts() {
           </label>
         </div>
 
-        <div className="mt-8 grid grid-cols-2 gap-x-3 gap-y-7 sm:gap-x-5 lg:grid-cols-4">
+        <div className="mt-5 grid grid-cols-2 gap-x-3 gap-y-7 sm:gap-x-5 lg:grid-cols-4">
           {items.map((p) => (
             <CatalogCard key={`${displayMode}-${p.slug}`} product={p} wholesale={displayMode === "b2b"} />
           ))}

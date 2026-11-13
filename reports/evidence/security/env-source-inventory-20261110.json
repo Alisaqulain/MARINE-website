@@ -1,0 +1,2472 @@
+{
+ "MONGODB_URI": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {
+   "runtime": [
+    "lib/env-mongo-uri.ts:19"
+   ],
+   "test": [
+    "scripts/check-mongo-env.mjs:64"
+   ]
+  },
+  "helper": {
+   "script": [
+    "scripts/dev-db.mjs:120",
+    "scripts/dev-scheduler.mjs:25"
+   ]
+  },
+  "listed": {
+   "runtime": [
+    "app/api/auth/register/route.ts:70",
+    "app/api/auth/register-wholesale/route.ts:135",
+    "lib/ai/health.ts:200"
+   ],
+   "registry": [
+    "lib/ai/env-registry.ts:42"
+   ],
+   "test": [
+    "scripts/check-mongo-env.mjs:41"
+   ],
+   "script": [
+    "scripts/isolated-env.mjs:30"
+   ]
+  },
+  "inExample": true
+ },
+ "META_APP_SECRET": {
+  "registered": true,
+  "readRuntime": 13,
+  "direct": {
+   "runtime": [
+    "app/api/meta/whatsapp/signup/exchange/route.ts:70",
+    "app/api/meta/whatsapp/webhook/route.ts:48",
+    "lib/ai/integrations.ts:359",
+    "lib/ai/integrations.ts:519",
+    "lib/ai/integrations.ts:522",
+    "lib/whatsapp/coexistence-actions.ts:49",
+    "lib/whatsapp/coexistence-actions.ts:169"
+   ]
+  },
+  "helper": {
+   "runtime": [
+    "lib/whatsapp/cloud.ts:45",
+    "lib/whatsapp/coexistence.ts:165",
+    "lib/whatsapp/coexistence.ts:932",
+    "lib/whatsapp/coexistence.ts:977",
+    "lib/whatsapp/coexistence.ts:978",
+    "lib/whatsapp/coexistence.ts:1012"
+   ],
+   "script": [
+    "scripts/isolated-env.mjs:82"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:145"
+   ],
+   "runtime": [
+    "lib/ai/health.ts:317",
+    "lib/ai/integrations.ts:353",
+    "lib/ai/integrations.ts:525"
+   ],
+   "test": [
+    "lib/ai/selftest.ts:461",
+    "lib/ai/selftest.ts:496"
+   ],
+   "script": [
+    "scripts/isolated-env.mjs:84"
+   ]
+  },
+  "inExample": true
+ },
+ "META_GRAPH_API_VERSION": {
+  "registered": true,
+  "readRuntime": 4,
+  "direct": {
+   "runtime": [
+    "app/api/meta/whatsapp/signup/exchange/route.ts:92",
+    "lib/whatsapp/coexistence-actions.ts:24"
+   ]
+  },
+  "helper": {
+   "runtime": [
+    "lib/whatsapp/cloud.ts:28",
+    "lib/whatsapp/coexistence.ts:944"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:148"
+   ],
+   "runtime": [
+    "lib/ai/integrations.ts:383"
+   ]
+  },
+  "inExample": true
+ },
+ "AUTH_SECRET": {
+  "registered": true,
+  "readRuntime": 9,
+  "direct": {
+   "runtime": [
+    "app/api/meta/whatsapp/signup/exchange/route.ts:104",
+    "lib/ai/followups.ts:77",
+    "lib/ai/followups.ts:84",
+    "lib/whatsapp/coexistence-actions.ts:28"
+   ]
+  },
+  "helper": {
+   "runtime": [
+    "lib/whatsapp/cloud.ts:17",
+    "lib/whatsapp/cloud.ts:19",
+    "lib/whatsapp/coexistence.ts:165",
+    "lib/whatsapp/coexistence.ts:934",
+    "lib/whatsapp/coexistence.ts:1012"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:59"
+   ],
+   "runtime": [
+    "lib/ai/integrations.ts:525"
+   ]
+  },
+  "inExample": true
+ },
+ "META_WEBHOOK_VERIFY_TOKEN": {
+  "registered": true,
+  "readRuntime": 7,
+  "direct": {
+   "runtime": [
+    "app/api/meta/whatsapp/webhook/route.ts:39",
+    "lib/ai/integrations.ts:361",
+    "lib/ai/integrations.ts:524"
+   ]
+  },
+  "helper": {
+   "runtime": [
+    "lib/whatsapp/cloud.ts:44",
+    "lib/whatsapp/coexistence.ts:933",
+    "lib/whatsapp/coexistence.ts:979",
+    "lib/whatsapp/coexistence.ts:1012"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:147"
+   ],
+   "runtime": [
+    "lib/ai/health.ts:318",
+    "lib/ai/integrations.ts:353",
+    "lib/ai/integrations.ts:525"
+   ],
+   "test": [
+    "lib/ai/selftest.ts:461"
+   ]
+  },
+  "inExample": true
+ },
+ "META_WEBHOOK_APP_SECRET": {
+  "registered": true,
+  "readRuntime": 5,
+  "direct": {
+   "runtime": [
+    "app/api/meta/whatsapp/webhook/route.ts:48",
+    "lib/ai/integrations.ts:359",
+    "lib/ai/integrations.ts:522"
+   ]
+  },
+  "helper": {
+   "runtime": [
+    "lib/whatsapp/cloud.ts:45",
+    "lib/whatsapp/coexistence.ts:978"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:146"
+   ],
+   "runtime": [
+    "lib/ai/integrations.ts:383"
+   ],
+   "script": [
+    "scripts/gen-env-docs.ts:47"
+   ]
+  },
+  "inExample": true
+ },
+ "PAYPAL_WEBHOOK_ID": {
+  "registered": true,
+  "readRuntime": 2,
+  "direct": {
+   "runtime": [
+    "app/api/paypal/webhook/route.ts:9",
+    "lib/paypal.ts:29"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:87"
+   ]
+  },
+  "inExample": true
+ },
+ "RAZORPAY_KEY_ID": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {
+   "runtime": [
+    "app/api/razorpay/order/route.ts:6"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:88"
+   ],
+   "script": [
+    "scripts/gen-env-docs.ts:46"
+   ]
+  },
+  "inExample": true
+ },
+ "RAZORPAY_KEY_SECRET": {
+  "registered": true,
+  "readRuntime": 2,
+  "direct": {
+   "runtime": [
+    "app/api/razorpay/order/route.ts:7",
+    "app/api/razorpay/verify/route.ts:13"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:89"
+   ],
+   "script": [
+    "scripts/gen-env-docs.ts:46"
+   ]
+  },
+  "inExample": true
+ },
+ "NEXT_PUBLIC_SITE_URL": {
+  "registered": true,
+  "readRuntime": 7,
+  "direct": {
+   "runtime": [
+    "app/layout.tsx:6",
+    "app/product/[slug]/layout.tsx:10",
+    "lib/ai/health.ts:520",
+    "lib/auth-url.ts:20",
+    "lib/auth-url.ts:50",
+    "lib/auth-url.ts:51",
+    "lib/media-url.ts:19"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:62"
+   ]
+  },
+  "inExample": true
+ },
+ "AUTH_URL": {
+  "registered": true,
+  "readRuntime": 6,
+  "direct": {
+   "runtime": [
+    "app/layout.tsx:6",
+    "app/product/[slug]/layout.tsx:11",
+    "lib/ai/health.ts:520",
+    "lib/auth-url.ts:21",
+    "lib/auth-url.ts:48",
+    "lib/media-url.ts:20"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:60"
+   ],
+   "script": [
+    "scripts/isolated-env.mjs:32"
+   ]
+  },
+  "inExample": true
+ },
+ "GOOGLE_CLIENT_ID": {
+  "registered": true,
+  "readRuntime": 2,
+  "direct": {
+   "runtime": [
+    "auth.ts:43",
+    "auth.ts:51"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:63"
+   ]
+  },
+  "inExample": true
+ },
+ "GOOGLE_CLIENT_SECRET": {
+  "registered": true,
+  "readRuntime": 2,
+  "direct": {
+   "runtime": [
+    "auth.ts:43",
+    "auth.ts:52"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:64"
+   ]
+  },
+  "inExample": true
+ },
+ "ADMIN_PASSWORD": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {
+   "runtime": [
+    "auth.ts:112"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:66"
+   ],
+   "test": [
+    "lib/ai/selftest.ts:475"
+   ],
+   "script": [
+    "scripts/isolated-env.mjs:31"
+   ]
+  },
+  "inExample": true
+ },
+ "NODE_ENV": {
+  "registered": false,
+  "readRuntime": 12,
+  "direct": {
+   "runtime": [
+    "components/GoogleAnalytics.tsx:6",
+    "lib/ai/health.ts:525",
+    "lib/ai/health.ts:526",
+    "lib/auth-url.ts:24",
+    "lib/auth-url.ts:50",
+    "lib/google/analytics.ts:134",
+    "lib/mail.ts:73",
+    "lib/mongodb-pool.ts:31",
+    "lib/mongodb.ts:224",
+    "lib/paypal.ts:20",
+    "lib/shipglobal.ts:391"
+   ],
+   "test": [
+    "scripts/check-mongo-env.mjs:73"
+   ]
+  },
+  "helper": {
+   "runtime": [
+    "lib/env-mongo-uri.ts:42"
+   ]
+  },
+  "listed": {
+   "test": [
+    "scripts/check-phase2.ts:26"
+   ]
+  },
+  "inExample": false
+ },
+ "NEXT_PUBLIC_GA4_IN_DEVELOPMENT": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {
+   "runtime": [
+    "components/GoogleAnalytics.tsx:7"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:169"
+   ],
+   "script": [
+    "scripts/gen-env-docs.ts:44"
+   ]
+  },
+  "inExample": true
+ },
+ "NEXT_PUBLIC_GA4_MEASUREMENT_ID": {
+  "registered": true,
+  "readRuntime": 3,
+  "direct": {
+   "runtime": [
+    "components/GoogleAnalytics.tsx:8",
+    "lib/ai/integrations.ts:423",
+    "lib/ai/integrations.ts:424"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:170"
+   ],
+   "runtime": [
+    "lib/ai/integrations.ts:434"
+   ]
+  },
+  "inExample": true
+ },
+ "AI_AGENTS_DISABLED": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {},
+  "helper": {
+   "runtime": [
+    "lib/ai/agents.ts:19"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:110"
+   ],
+   "script": [
+    "scripts/gen-env-docs.ts:47"
+   ]
+  },
+  "inExample": true
+ },
+ "AI_OWNER_ALERT_SCORE": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {
+   "runtime": [
+    "lib/ai/crm.ts:266"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:77"
+   ],
+   "script": [
+    "scripts/gen-env-docs.ts:48",
+    "scripts/isolated-env.mjs:33"
+   ]
+  },
+  "inExample": true
+ },
+ "AI_OWNER_ALERT_VALUE_USD": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {
+   "runtime": [
+    "lib/ai/crm.ts:268"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:78"
+   ],
+   "script": [
+    "scripts/gen-env-docs.ts:48",
+    "scripts/isolated-env.mjs:33"
+   ]
+  },
+  "inExample": true
+ },
+ "VOICE_PROVIDER": {
+  "registered": true,
+  "readRuntime": 3,
+  "direct": {
+   "runtime": [
+    "lib/ai/crm.ts:455",
+    "lib/ai/crm.ts:463",
+    "lib/ai/crm.ts:467"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:125"
+   ],
+   "script": [
+    "scripts/gen-env-docs.ts:46"
+   ]
+  },
+  "inExample": true
+ },
+ "VOICE_WEBHOOK_SECRET": {
+  "registered": true,
+  "readRuntime": 2,
+  "direct": {
+   "runtime": [
+    "lib/ai/crm.ts:455",
+    "lib/ai/voice.ts:27"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:126"
+   ],
+   "script": [
+    "scripts/gen-env-docs.ts:46"
+   ]
+  },
+  "inExample": true
+ },
+ "VOICE_LANGUAGES": {
+  "registered": true,
+  "readRuntime": 2,
+  "direct": {
+   "runtime": [
+    "lib/ai/crm.ts:457",
+    "lib/ai/voice.ts:69"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:124"
+   ],
+   "script": [
+    "scripts/isolated-env.mjs:33"
+   ]
+  },
+  "inExample": true
+ },
+ "CRON_SECRET": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {
+   "runtime": [
+    "lib/ai/cron.ts:6"
+   ]
+  },
+  "helper": {
+   "script": [
+    "scripts/dev-scheduler.mjs:29",
+    "scripts/dev-scheduler.mjs:37"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:113"
+   ],
+   "runtime": [
+    "lib/ai/health.ts:236",
+    "lib/ai/health.ts:264"
+   ],
+   "test": [
+    "lib/ai/selftest.ts:462"
+   ]
+  },
+  "inExample": true
+ },
+ "MONGODB_URI_STANDARD": {
+  "registered": true,
+  "readRuntime": 2,
+  "direct": {
+   "runtime": [
+    "lib/env-mongo-uri.ts:17",
+    "lib/mongodb.ts:184"
+   ],
+   "test": [
+    "scripts/check-mongo-env.mjs:64",
+    "scripts/check-mongo-env.mjs:87"
+   ]
+  },
+  "helper": {
+   "script": [
+    "scripts/dev-db.mjs:120",
+    "scripts/dev-db.mjs:174"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:43"
+   ],
+   "script": [
+    "scripts/dev-db.mjs:112",
+    "scripts/gen-env-docs.ts:42"
+   ]
+  },
+  "inExample": true
+ },
+ "MONGODB_DEV_ALLOWED_HOSTS": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {},
+  "helper": {
+   "runtime": [
+    "lib/env-mongo-uri.ts:44"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:44"
+   ],
+   "script": [
+    "scripts/gen-env-docs.ts:43"
+   ]
+  },
+  "inExample": true
+ },
+ "MARINA_ISOLATED_TEST": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {},
+  "helper": {
+   "runtime": [
+    "lib/whatsapp/coexistence.ts:20"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:45"
+   ]
+  },
+  "inExample": true
+ },
+ "MONGODB_DB_NAME": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {
+   "runtime": [
+    "lib/mongodb.ts:25"
+   ],
+   "test": [
+    "scripts/check-mongo-env.mjs:140"
+   ]
+  },
+  "helper": {
+   "script": [
+    "scripts/dev-db.mjs:138",
+    "scripts/dev-db.mjs:155",
+    "scripts/dev-db.mjs:171",
+    "scripts/dev-db.mjs:175",
+    "scripts/dev-db.mjs:177"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:46"
+   ],
+   "runtime": [
+    "lib/ai/health.ts:200"
+   ],
+   "script": [
+    "scripts/isolated-env.mjs:30"
+   ]
+  },
+  "inExample": true
+ },
+ "MONGODB_PREFER_IPV4": {
+  "registered": true,
+  "readRuntime": 2,
+  "direct": {
+   "runtime": [
+    "lib/atlas-connect.ts:108",
+    "lib/mongodb.ts:21"
+   ],
+   "test": [
+    "scripts/check-mongo-env.mjs:110"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:47"
+   ],
+   "script": [
+    "scripts/isolated-env.mjs:30"
+   ]
+  },
+  "inExample": true
+ },
+ "MONGODB_NODE_PROCESSES": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {
+   "runtime": [
+    "lib/mongodb-pool.ts:25"
+   ],
+   "test": [
+    "scripts/check-mongo-env.mjs:118"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:48"
+   ],
+   "script": [
+    "scripts/isolated-env.mjs:30"
+   ]
+  },
+  "inExample": true
+ },
+ "MONGODB_EXTERNAL_CLIENTS": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {
+   "runtime": [
+    "lib/mongodb-pool.ts:21"
+   ],
+   "test": [
+    "scripts/check-mongo-env.mjs:119"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:49"
+   ]
+  },
+  "inExample": true
+ },
+ "MONGODB_MAX_POOL_SIZE": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {
+   "runtime": [
+    "lib/mongodb-pool.ts:13"
+   ],
+   "test": [
+    "scripts/check-mongo-env.mjs:117"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:50"
+   ],
+   "script": [
+    "scripts/gen-env-docs.ts:42"
+   ]
+  },
+  "inExample": true
+ },
+ "MONGODB_CONNECTION_BUDGET": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {
+   "runtime": [
+    "lib/mongodb-pool.ts:18"
+   ],
+   "test": [
+    "scripts/check-mongo-env.mjs:120"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:51"
+   ],
+   "script": [
+    "scripts/gen-env-docs.ts:42"
+   ]
+  },
+  "inExample": true
+ },
+ "MONGODB_DIRECT": {
+  "registered": true,
+  "readRuntime": 4,
+  "direct": {
+   "runtime": [
+    "lib/atlas-connect.ts:62",
+    "lib/mongodb.ts:165",
+    "lib/mongodb.ts:226",
+    "lib/mongodb.ts:301"
+   ],
+   "test": [
+    "scripts/check-mongo-env.mjs:89",
+    "scripts/check-mongo-env.mjs:93",
+    "scripts/check-mongo-env.mjs:95"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:52"
+   ],
+   "script": [
+    "scripts/gen-env-docs.ts:42"
+   ]
+  },
+  "inExample": true
+ },
+ "MONGODB_SRV_ONLY": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {
+   "runtime": [
+    "lib/atlas-connect.ts:60"
+   ],
+   "test": [
+    "scripts/check-mongo-env.mjs:90"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:53"
+   ],
+   "script": [
+    "scripts/gen-env-docs.ts:42"
+   ]
+  },
+  "inExample": true
+ },
+ "MONGODB_SKIP_SRV_FALLBACK": {
+  "registered": true,
+  "readRuntime": 2,
+  "direct": {
+   "runtime": [
+    "lib/atlas-connect.ts:16",
+    "lib/atlas-connect.ts:17"
+   ],
+   "test": [
+    "scripts/check-mongo-env.mjs:106",
+    "scripts/check-mongo-env.mjs:107"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:54"
+   ],
+   "script": [
+    "scripts/gen-env-docs.ts:43"
+   ]
+  },
+  "inExample": true
+ },
+ "MONGODB_SERVER_API": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {
+   "runtime": [
+    "lib/mongodb.ts:87"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:55"
+   ],
+   "script": [
+    "scripts/gen-env-docs.ts:43"
+   ]
+  },
+  "inExample": true
+ },
+ "MONGODB_AUTO_SELECT_FAMILY": {
+  "registered": true,
+  "readRuntime": 2,
+  "direct": {
+   "runtime": [
+    "lib/atlas-connect.ts:86",
+    "lib/atlas-connect.ts:88"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:56"
+   ],
+   "script": [
+    "scripts/gen-env-docs.ts:44"
+   ]
+  },
+  "inExample": true
+ },
+ "MONGODB_FORCE_IPV4": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {
+   "runtime": [
+    "lib/atlas-connect.ts:107"
+   ],
+   "test": [
+    "scripts/check-mongo-env.mjs:111"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:57"
+   ],
+   "script": [
+    "scripts/gen-env-docs.ts:44"
+   ]
+  },
+  "inExample": true
+ },
+ "MONGODB_REPLICA_SET": {
+  "registered": true,
+  "readRuntime": 0,
+  "direct": {
+   "script": [
+    "scripts/test-mongo.mjs:37"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:58"
+   ],
+   "script": [
+    "scripts/gen-env-docs.ts:44"
+   ]
+  },
+  "inExample": true
+ },
+ "NEXTAUTH_URL": {
+  "registered": true,
+  "readRuntime": 3,
+  "direct": {
+   "runtime": [
+    "lib/auth-url.ts:21",
+    "lib/auth-url.ts:49",
+    "lib/media-url.ts:21"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:61"
+   ],
+   "script": [
+    "scripts/isolated-env.mjs:32"
+   ]
+  },
+  "inExample": true
+ },
+ "ADMIN_EMAILS": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {
+   "runtime": [
+    "lib/roles.ts:7"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:65"
+   ],
+   "script": [
+    "scripts/isolated-env.mjs:31"
+   ]
+  },
+  "inExample": true
+ },
+ "NEXT_PUBLIC_SHOP_UTC_OFFSET": {
+  "registered": true,
+  "readRuntime": 2,
+  "direct": {
+   "runtime": [
+    "lib/sale-time.ts:6",
+    "lib/sale-time.ts:7"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:67"
+   ],
+   "script": [
+    "scripts/gen-env-docs.ts:48",
+    "scripts/isolated-env.mjs:32"
+   ]
+  },
+  "inExample": true
+ },
+ "CONTACT_EMAILS": {
+  "registered": true,
+  "readRuntime": 0,
+  "direct": {},
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:68"
+   ]
+  },
+  "inExample": true
+ },
+ "SMTP_HOST": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {
+   "runtime": [
+    "lib/mail.ts:27"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:71"
+   ],
+   "runtime": [
+    "lib/ai/health.ts:278"
+   ]
+  },
+  "inExample": true
+ },
+ "SMTP_PORT": {
+  "registered": true,
+  "readRuntime": 2,
+  "direct": {
+   "runtime": [
+    "lib/mail.ts:28",
+    "lib/mail.ts:29"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:72"
+   ],
+   "runtime": [
+    "lib/ai/health.ts:279"
+   ]
+  },
+  "inExample": true
+ },
+ "SMTP_USER": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {
+   "runtime": [
+    "lib/mail.ts:19"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:73"
+   ],
+   "runtime": [
+    "lib/ai/health.ts:280"
+   ]
+  },
+  "inExample": true
+ },
+ "SMTP_PASS": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {
+   "runtime": [
+    "lib/mail.ts:20"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:74"
+   ],
+   "runtime": [
+    "lib/ai/health.ts:281",
+    "lib/ai/health.ts:295",
+    "lib/ai/health.ts:304"
+   ]
+  },
+  "inExample": true
+ },
+ "SMTP_FROM": {
+  "registered": true,
+  "readRuntime": 0,
+  "direct": {},
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:75"
+   ],
+   "script": [
+    "scripts/gen-env-docs.ts:48"
+   ]
+  },
+  "inExample": true
+ },
+ "OWNER_ALERT_EMAILS": {
+  "registered": true,
+  "readRuntime": 2,
+  "direct": {
+   "runtime": [
+    "lib/mail.ts:61",
+    "lib/mail.ts:73"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:76"
+   ],
+   "runtime": [
+    "lib/ai/health.ts:282"
+   ],
+   "script": [
+    "scripts/gen-env-docs.ts:48"
+   ]
+  },
+  "inExample": true
+ },
+ "RESEND_API_KEY": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {
+   "runtime": [
+    "lib/orders.ts:285"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:79"
+   ],
+   "script": [
+    "scripts/gen-env-docs.ts:46"
+   ]
+  },
+  "inExample": true
+ },
+ "ORDER_EMAIL_FROM": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {
+   "runtime": [
+    "lib/orders.ts:294"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:80"
+   ],
+   "script": [
+    "scripts/gen-env-docs.ts:46"
+   ]
+  },
+  "inExample": true
+ },
+ "PAYPAL_CLIENT_ID": {
+  "registered": true,
+  "readRuntime": 2,
+  "direct": {
+   "runtime": [
+    "lib/paypal.ts:9",
+    "lib/paypal.ts:59"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:83"
+   ]
+  },
+  "inExample": true
+ },
+ "PAYPAL_CLIENT_SECRET": {
+  "registered": true,
+  "readRuntime": 2,
+  "direct": {
+   "runtime": [
+    "lib/paypal.ts:9",
+    "lib/paypal.ts:60"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:84"
+   ]
+  },
+  "inExample": true
+ },
+ "PAYPAL_MODE": {
+  "registered": true,
+  "readRuntime": 3,
+  "direct": {
+   "runtime": [
+    "lib/ai/health.ts:527",
+    "lib/paypal.ts:4",
+    "lib/paypal.ts:13"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:85"
+   ]
+  },
+  "inExample": true
+ },
+ "PAYPAL_ALLOW_LIVE_OUTSIDE_PRODUCTION": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {
+   "runtime": [
+    "lib/paypal.ts:21"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:86"
+   ],
+   "script": [
+    "scripts/gen-env-docs.ts:43"
+   ]
+  },
+  "inExample": true
+ },
+ "SHIPGLOBAL_EMAIL": {
+  "registered": true,
+  "readRuntime": 3,
+  "direct": {
+   "runtime": [
+    "lib/shipglobal.ts:25",
+    "lib/shipglobal.ts:31",
+    "lib/shipglobal.ts:191"
+   ]
+  },
+  "helper": {
+   "test": [
+    "scripts/check-shipglobal.ts:44"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:90"
+   ]
+  },
+  "inExample": true
+ },
+ "SHIPGLOBAL_PASSWORD": {
+  "registered": true,
+  "readRuntime": 3,
+  "direct": {
+   "runtime": [
+    "lib/shipglobal.ts:25",
+    "lib/shipglobal.ts:31",
+    "lib/shipglobal.ts:192"
+   ]
+  },
+  "helper": {
+   "test": [
+    "scripts/check-shipglobal.ts:45"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:91"
+   ]
+  },
+  "inExample": true
+ },
+ "SHIPGLOBAL_SERVICE": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {
+   "runtime": [
+    "lib/shipglobal.ts:35"
+   ]
+  },
+  "helper": {
+   "test": [
+    "scripts/check-shipglobal.ts:50"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:92"
+   ]
+  },
+  "inExample": true
+ },
+ "SHIPGLOBAL_API_BASE": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {
+   "runtime": [
+    "lib/shipglobal.ts:11"
+   ]
+  },
+  "helper": {
+   "test": [
+    "scripts/check-shipglobal.ts:46"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:93"
+   ]
+  },
+  "inExample": true
+ },
+ "SHIPGLOBAL_HSN": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {
+   "runtime": [
+    "lib/shipglobal.ts:259"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:94"
+   ],
+   "script": [
+    "scripts/gen-env-docs.ts:45"
+   ]
+  },
+  "inExample": true
+ },
+ "SHIPGLOBAL_CSB5": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {
+   "runtime": [
+    "lib/shipglobal.ts:318"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:95"
+   ],
+   "script": [
+    "scripts/gen-env-docs.ts:45"
+   ]
+  },
+  "inExample": true
+ },
+ "SHIPGLOBAL_IOSS": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {
+   "runtime": [
+    "lib/shipglobal.ts:345"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:96"
+   ],
+   "script": [
+    "scripts/gen-env-docs.ts:45"
+   ]
+  },
+  "inExample": true
+ },
+ "SHIPGLOBAL_SELLER_FIRST": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {
+   "runtime": [
+    "lib/shipglobal.ts:320"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:97"
+   ],
+   "script": [
+    "scripts/gen-env-docs.ts:45"
+   ]
+  },
+  "inExample": true
+ },
+ "SHIPGLOBAL_ALLOW_OUTSIDE_PRODUCTION": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {
+   "runtime": [
+    "lib/shipglobal.ts:391"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:98"
+   ],
+   "script": [
+    "scripts/gen-env-docs.ts:44"
+   ]
+  },
+  "inExample": true
+ },
+ "SHIPGLOBAL_SELLER_LAST": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {
+   "runtime": [
+    "lib/shipglobal.ts:321"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:99"
+   ],
+   "script": [
+    "scripts/gen-env-docs.ts:45"
+   ]
+  },
+  "inExample": true
+ },
+ "KVM2_UPLOAD_URL": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {
+   "runtime": [
+    "lib/kvm-upload.ts:3"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:100"
+   ]
+  },
+  "inExample": true
+ },
+ "KVM2_UPLOAD_TOKEN": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {
+   "runtime": [
+    "lib/kvm-upload.ts:17"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:101"
+   ]
+  },
+  "inExample": true
+ },
+ "KVM2_UPLOAD_SKIP": {
+  "registered": true,
+  "readRuntime": 2,
+  "direct": {
+   "runtime": [
+    "lib/kvm-upload.ts:23",
+    "lib/kvm-upload.ts:23"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:102"
+   ],
+   "script": [
+    "scripts/gen-env-docs.ts:45"
+   ]
+  },
+  "inExample": true
+ },
+ "GEMINI_API_KEY": {
+  "registered": true,
+  "readRuntime": 3,
+  "direct": {},
+  "helper": {
+   "runtime": [
+    "lib/ai/gemini.ts:36",
+    "lib/ai/gemini.ts:121",
+    "lib/ai/gemini.ts:232"
+   ],
+   "script": [
+    "scripts/isolated-env.mjs:87",
+    "scripts/isolated-env.mjs:88"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:105"
+   ],
+   "runtime": [
+    "lib/ai/integrations.ts:113"
+   ],
+   "test": [
+    "lib/ai/selftest.ts:459",
+    "lib/ai/selftest.ts:473",
+    "lib/ai/selftest.ts:494"
+   ]
+  },
+  "inExample": true
+ },
+ "GEMINI_MODEL": {
+  "registered": true,
+  "readRuntime": 2,
+  "direct": {},
+  "helper": {
+   "runtime": [
+    "lib/ai/gemini.ts:19",
+    "lib/ai/gemini.ts:26"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:106"
+   ],
+   "runtime": [
+    "lib/ai/integrations.ts:79",
+    "lib/ai/integrations.ts:113"
+   ],
+   "script": [
+    "scripts/isolated-env.mjs:33"
+   ]
+  },
+  "inExample": true
+ },
+ "GEMINI_FALLBACK_MODEL": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {},
+  "helper": {
+   "runtime": [
+    "lib/ai/gemini.ts:27"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:107"
+   ],
+   "runtime": [
+    "lib/ai/integrations.ts:79",
+    "lib/ai/integrations.ts:113"
+   ],
+   "script": [
+    "scripts/isolated-env.mjs:33"
+   ]
+  },
+  "inExample": true
+ },
+ "GEMINI_TEST_API_KEY": {
+  "registered": true,
+  "readRuntime": 0,
+  "direct": {},
+  "helper": {
+   "script": [
+    "scripts/isolated-env.mjs:87"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:108"
+   ]
+  },
+  "inExample": true
+ },
+ "GEMINI_TEST_PROJECT_CONFIRMED": {
+  "registered": true,
+  "readRuntime": 0,
+  "direct": {},
+  "helper": {
+   "script": [
+    "scripts/isolated-env.mjs:86"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:109"
+   ]
+  },
+  "inExample": true
+ },
+ "VAPI_API_KEY": {
+  "registered": true,
+  "readRuntime": 5,
+  "direct": {},
+  "helper": {
+   "runtime": [
+    "lib/ai/vapi.ts:264",
+    "lib/ai/vapi.ts:268",
+    "lib/ai/vapi.ts:287",
+    "lib/ai/vapi.ts:309",
+    "lib/ai/vapi.ts:339"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:116"
+   ],
+   "runtime": [
+    "lib/ai/integrations.ts:169",
+    "lib/ai/integrations.ts:171",
+    "lib/ai/vapi.ts:25",
+    "lib/ai/vapi.ts:34",
+    "lib/ai/vapi.ts:277",
+    "lib/ai/vapi.ts:297"
+   ],
+   "test": [
+    "lib/ai/provider-selftest.ts:157",
+    "lib/ai/provider-selftest.ts:181",
+    "lib/ai/selftest.ts:459",
+    "lib/ai/selftest.ts:476",
+    "lib/ai/selftest.ts:495"
+   ]
+  },
+  "inExample": true
+ },
+ "VAPI_ASSISTANT_ID": {
+  "registered": true,
+  "readRuntime": 3,
+  "direct": {},
+  "helper": {
+   "runtime": [
+    "lib/ai/vapi.ts:272",
+    "lib/ai/vapi.ts:281",
+    "lib/ai/vapi.ts:332"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:117"
+   ],
+   "runtime": [
+    "lib/ai/integrations.ts:169",
+    "lib/ai/integrations.ts:198",
+    "lib/ai/integrations.ts:202",
+    "lib/ai/vapi.ts:25",
+    "lib/ai/vapi.ts:35",
+    "lib/ai/vapi.ts:277"
+   ],
+   "test": [
+    "lib/ai/provider-selftest.ts:154",
+    "lib/ai/selftest.ts:459",
+    "lib/ai/selftest.ts:496"
+   ]
+  },
+  "inExample": true
+ },
+ "VAPI_WEBHOOK_SECRET": {
+  "registered": true,
+  "readRuntime": 4,
+  "direct": {},
+  "helper": {
+   "runtime": [
+    "lib/ai/vapi.ts:55",
+    "lib/ai/vapi.ts:178",
+    "lib/ai/vapi.ts:287",
+    "lib/ai/vapi.ts:309"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:118"
+   ],
+   "runtime": [
+    "lib/ai/integrations.ts:169",
+    "lib/ai/integrations.ts:266",
+    "lib/ai/vapi.ts:25",
+    "lib/ai/vapi.ts:28",
+    "lib/ai/vapi.ts:42",
+    "lib/ai/vapi.ts:57",
+    "lib/ai/vapi.ts:277",
+    "lib/ai/vapi.ts:297"
+   ],
+   "test": [
+    "lib/ai/provider-selftest.ts:158",
+    "lib/ai/provider-selftest.ts:160",
+    "lib/ai/selftest.ts:459"
+   ]
+  },
+  "inExample": true
+ },
+ "VAPI_PHONE_NUMBER_ID": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {},
+  "helper": {
+   "runtime": [
+    "lib/ai/vapi.ts:333"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:119"
+   ],
+   "runtime": [
+    "lib/ai/integrations.ts:220",
+    "lib/ai/integrations.ts:225",
+    "lib/ai/integrations.ts:295",
+    "lib/ai/vapi.ts:25",
+    "lib/ai/vapi.ts:36"
+   ],
+   "test": [
+    "lib/ai/provider-selftest.ts:155",
+    "lib/ai/selftest.ts:459",
+    "lib/ai/selftest.ts:497"
+   ]
+  },
+  "inExample": true
+ },
+ "VAPI_SIP_CREDENTIAL_ID": {
+  "registered": true,
+  "readRuntime": 2,
+  "direct": {
+   "runtime": [
+    "lib/ai/integrations.ts:221"
+   ]
+  },
+  "helper": {
+   "runtime": [
+    "lib/ai/exotel.ts:201"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:120"
+   ],
+   "runtime": [
+    "lib/ai/integrations.ts:246",
+    "lib/ai/integrations.ts:250",
+    "lib/ai/integrations.ts:295",
+    "lib/ai/vapi.ts:25",
+    "lib/ai/vapi.ts:41"
+   ],
+   "test": [
+    "lib/ai/provider-selftest.ts:156",
+    "lib/ai/selftest.ts:459"
+   ]
+  },
+  "inExample": true
+ },
+ "VAPI_OUTBOUND_ENABLED": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {},
+  "helper": {
+   "runtime": [
+    "lib/ai/vapi.ts:44"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:121"
+   ],
+   "runtime": [
+    "lib/ai/integrations.ts:295"
+   ]
+  },
+  "inExample": true
+ },
+ "VAPI_MODEL": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {},
+  "helper": {
+   "runtime": [
+    "lib/ai/vapi.ts:188"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:122"
+   ],
+   "runtime": [
+    "lib/ai/integrations.ts:295"
+   ],
+   "script": [
+    "scripts/gen-env-docs.ts:46"
+   ]
+  },
+  "inExample": true
+ },
+ "VAPI_API_BASE": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {},
+  "helper": {
+   "runtime": [
+    "lib/ai/vapi.ts:17"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:123"
+   ],
+   "runtime": [
+    "lib/ai/integrations.ts:295"
+   ]
+  },
+  "inExample": true
+ },
+ "EXOTEL_API_KEY": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {},
+  "helper": {
+   "runtime": [
+    "lib/ai/exotel.ts:15"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:129"
+   ],
+   "runtime": [
+    "lib/ai/integrations.ts:310"
+   ],
+   "test": [
+    "lib/ai/selftest.ts:460"
+   ]
+  },
+  "inExample": true
+ },
+ "EXOTEL_API_TOKEN": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {},
+  "helper": {
+   "runtime": [
+    "lib/ai/exotel.ts:16"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:130"
+   ],
+   "runtime": [
+    "lib/ai/integrations.ts:310"
+   ],
+   "test": [
+    "lib/ai/selftest.ts:460"
+   ]
+  },
+  "inExample": true
+ },
+ "EXOTEL_ACCOUNT_SID": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {},
+  "helper": {
+   "runtime": [
+    "lib/ai/exotel.ts:17"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:131"
+   ],
+   "runtime": [
+    "lib/ai/integrations.ts:310"
+   ],
+   "test": [
+    "lib/ai/selftest.ts:460"
+   ]
+  },
+  "inExample": true
+ },
+ "EXOTEL_SUBDOMAIN": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {},
+  "helper": {
+   "runtime": [
+    "lib/ai/exotel.ts:13"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:132"
+   ],
+   "runtime": [
+    "lib/ai/integrations.ts:335"
+   ]
+  },
+  "inExample": true
+ },
+ "EXOTEL_REGION": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {},
+  "helper": {
+   "runtime": [
+    "lib/ai/exotel.ts:104"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:133"
+   ],
+   "runtime": [
+    "lib/ai/integrations.ts:335"
+   ]
+  },
+  "inExample": true
+ },
+ "EXOTEL_PHONE_NUMBER": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {},
+  "helper": {
+   "runtime": [
+    "lib/ai/exotel.ts:19"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:134"
+   ],
+   "runtime": [
+    "lib/ai/integrations.ts:335"
+   ],
+   "test": [
+    "lib/ai/selftest.ts:460"
+   ]
+  },
+  "inExample": true
+ },
+ "EXOTEL_TRUNK_SID": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {},
+  "helper": {
+   "runtime": [
+    "lib/ai/exotel.ts:20"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:135"
+   ],
+   "runtime": [
+    "lib/ai/integrations.ts:335"
+   ],
+   "test": [
+    "lib/ai/selftest.ts:460"
+   ]
+  },
+  "inExample": true
+ },
+ "EXOTEL_WEBHOOK_TOKEN": {
+  "registered": true,
+  "readRuntime": 2,
+  "direct": {
+   "runtime": [
+    "lib/ai/integrations.ts:319"
+   ]
+  },
+  "helper": {
+   "runtime": [
+    "lib/ai/exotel.ts:261"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:136"
+   ],
+   "runtime": [
+    "lib/ai/integrations.ts:335"
+   ],
+   "test": [
+    "lib/ai/selftest.ts:460"
+   ]
+  },
+  "inExample": true
+ },
+ "WHATSAPP_ACCESS_TOKEN": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {},
+  "helper": {
+   "runtime": [
+    "lib/whatsapp/cloud.ts:13"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:139"
+   ],
+   "runtime": [
+    "lib/ai/integrations.ts:383",
+    "lib/ai/integrations.ts:384"
+   ],
+   "test": [
+    "lib/ai/selftest.ts:461"
+   ]
+  },
+  "inExample": true
+ },
+ "WHATSAPP_PHONE_NUMBER_ID": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {},
+  "helper": {
+   "runtime": [
+    "lib/whatsapp/cloud.ts:14"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:140"
+   ],
+   "runtime": [
+    "lib/ai/integrations.ts:353"
+   ],
+   "test": [
+    "lib/ai/selftest.ts:461"
+   ]
+  },
+  "inExample": true
+ },
+ "WHATSAPP_BUSINESS_ACCOUNT_ID": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {},
+  "helper": {
+   "runtime": [
+    "lib/whatsapp/cloud.ts:15"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:141"
+   ],
+   "runtime": [
+    "lib/ai/integrations.ts:353"
+   ],
+   "test": [
+    "lib/ai/selftest.ts:461"
+   ]
+  },
+  "inExample": true
+ },
+ "WHATSAPP_FOLLOWUP_TEMPLATE": {
+  "registered": true,
+  "readRuntime": 3,
+  "direct": {
+   "runtime": [
+    "lib/ai/followups.ts:162",
+    "lib/ai/followups.ts:202"
+   ]
+  },
+  "helper": {
+   "runtime": [
+    "lib/whatsapp/cloud.ts:110"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:142"
+   ],
+   "runtime": [
+    "lib/ai/integrations.ts:383"
+   ]
+  },
+  "inExample": true
+ },
+ "WHATSAPP_TEMPLATE_LANGUAGE": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {
+   "runtime": [
+    "lib/ai/followups.ts:167"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:143"
+   ],
+   "runtime": [
+    "lib/ai/integrations.ts:383"
+   ]
+  },
+  "inExample": true
+ },
+ "META_APP_ID": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {},
+  "helper": {
+   "runtime": [
+    "lib/whatsapp/coexistence.ts:22"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:144"
+   ],
+   "runtime": [
+    "lib/ai/health.ts:315",
+    "lib/ai/health.ts:325",
+    "lib/ai/integrations.ts:525",
+    "lib/ai/integrations.ts:538"
+   ]
+  },
+  "inExample": true
+ },
+ "META_CONFIG_ID": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {},
+  "helper": {
+   "runtime": [
+    "lib/whatsapp/coexistence.ts:23"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:149"
+   ],
+   "runtime": [
+    "lib/ai/health.ts:316",
+    "lib/ai/health.ts:325",
+    "lib/ai/integrations.ts:525"
+   ]
+  },
+  "inExample": true
+ },
+ "WHATSAPP_COEXISTENCE_ENABLED": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {},
+  "helper": {
+   "runtime": [
+    "lib/whatsapp/coexistence.ts:120"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:150"
+   ],
+   "runtime": [
+    "lib/ai/health.ts:319",
+    "lib/ai/integrations.ts:383"
+   ],
+   "test": [
+    "lib/ai/selftest.ts:378"
+   ]
+  },
+  "inExample": true
+ },
+ "WHATSAPP_COEXISTENCE_TEST_NUMBER": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {},
+  "helper": {
+   "runtime": [
+    "lib/whatsapp/coexistence.ts:156"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:151"
+   ],
+   "runtime": [
+    "lib/ai/health.ts:320",
+    "lib/ai/integrations.ts:525",
+    "lib/ai/integrations.ts:533"
+   ]
+  },
+  "inExample": true
+ },
+ "WHATSAPP_PRODUCTION_ONBOARDING_APPROVED": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {},
+  "helper": {
+   "runtime": [
+    "lib/whatsapp/coexistence.ts:121"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:152"
+   ],
+   "runtime": [
+    "lib/ai/integrations.ts:383"
+   ],
+   "test": [
+    "lib/ai/selftest.ts:378"
+   ]
+  },
+  "inExample": true
+ },
+ "WHATSAPP_OUTBOUND_ENABLED": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {},
+  "helper": {
+   "runtime": [
+    "lib/whatsapp/coexistence.ts:122"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:153"
+   ],
+   "runtime": [
+    "lib/ai/integrations.ts:383"
+   ],
+   "test": [
+    "lib/ai/selftest.ts:378"
+   ]
+  },
+  "inExample": true
+ },
+ "GOOGLE_SERVICE_ACCOUNT_JSON": {
+  "registered": true,
+  "readRuntime": 3,
+  "direct": {
+   "runtime": [
+    "lib/ai/integrations.ts:397",
+    "lib/ai/integrations.ts:407"
+   ]
+  },
+  "helper": {
+   "runtime": [
+    "lib/google/auth.ts:17"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:156"
+   ],
+   "runtime": [
+    "lib/ai/integrations.ts:399"
+   ],
+   "test": [
+    "lib/ai/selftest.ts:462",
+    "lib/ai/selftest.ts:499"
+   ]
+  },
+  "inExample": true
+ },
+ "GOOGLE_SERVICE_ACCOUNT_EMAIL": {
+  "registered": true,
+  "readRuntime": 2,
+  "direct": {
+   "runtime": [
+    "lib/ai/integrations.ts:397"
+   ]
+  },
+  "helper": {
+   "runtime": [
+    "lib/google/auth.ts:28"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:164"
+   ],
+   "runtime": [
+    "lib/ai/integrations.ts:398"
+   ],
+   "script": [
+    "scripts/gen-env-docs.ts:47"
+   ]
+  },
+  "inExample": true
+ },
+ "GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY": {
+  "registered": true,
+  "readRuntime": 1,
+  "direct": {},
+  "helper": {
+   "runtime": [
+    "lib/google/auth.ts:29"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:165"
+   ],
+   "runtime": [
+    "lib/ai/integrations.ts:398"
+   ],
+   "script": [
+    "scripts/gen-env-docs.ts:47"
+   ]
+  },
+  "inExample": true
+ },
+ "GA4_PROPERTY_ID": {
+  "registered": true,
+  "readRuntime": 2,
+  "direct": {},
+  "helper": {
+   "runtime": [
+    "lib/google/analytics.ts:10",
+    "lib/google/analytics.ts:75"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:166"
+   ],
+   "runtime": [
+    "lib/ai/integrations.ts:404"
+   ],
+   "test": [
+    "lib/ai/selftest.ts:462",
+    "lib/ai/selftest.ts:474"
+   ]
+  },
+  "inExample": true
+ },
+ "GA4_MEASUREMENT_ID": {
+  "registered": true,
+  "readRuntime": 2,
+  "direct": {},
+  "helper": {
+   "runtime": [
+    "lib/google/analytics.ts:96",
+    "lib/google/analytics.ts:100"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:167"
+   ],
+   "runtime": [
+    "lib/ai/integrations.ts:434"
+   ],
+   "test": [
+    "lib/ai/selftest.ts:462"
+   ]
+  },
+  "inExample": true
+ },
+ "GA4_API_SECRET": {
+  "registered": true,
+  "readRuntime": 5,
+  "direct": {},
+  "helper": {
+   "runtime": [
+    "lib/google/analytics.ts:96",
+    "lib/google/analytics.ts:100",
+    "lib/google/analytics.ts:135",
+    "lib/google/analytics.ts:138",
+    "lib/google/analytics.ts:150"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:168"
+   ],
+   "runtime": [
+    "lib/ai/integrations.ts:434"
+   ],
+   "test": [
+    "lib/ai/selftest.ts:462"
+   ]
+  },
+  "inExample": true
+ },
+ "SEARCH_CONSOLE_SITE_URL": {
+  "registered": true,
+  "readRuntime": 2,
+  "direct": {
+   "runtime": [
+    "lib/ai/integrations.ts:452"
+   ]
+  },
+  "helper": {
+   "runtime": [
+    "lib/google/search-console.ts:10"
+   ]
+  },
+  "listed": {
+   "registry": [
+    "lib/ai/env-registry.ts:171"
+   ],
+   "runtime": [
+    "lib/ai/integrations.ts:447"
+   ],
+   "test": [
+    "lib/ai/selftest.ts:462"
+   ]
+  },
+  "inExample": true
+ },
+ "BASE_URL": {
+  "registered": false,
+  "readRuntime": 0,
+  "direct": {
+   "test": [
+    "scripts/check-routes.mjs:7"
+   ]
+  },
+  "helper": {},
+  "listed": {},
+  "inExample": false
+ },
+ "VERIFY_TOKEN": {
+  "registered": false,
+  "readRuntime": 0,
+  "direct": {
+   "test": [
+    "scripts/check-routes.mjs:113",
+    "scripts/check-routes.mjs:115"
+   ]
+  },
+  "helper": {},
+  "listed": {},
+  "inExample": false
+ },
+ "APP_SECRET": {
+  "registered": false,
+  "readRuntime": 0,
+  "direct": {
+   "test": [
+    "scripts/check-routes.mjs:120",
+    "scripts/check-routes.mjs:123"
+   ]
+  },
+  "helper": {},
+  "listed": {},
+  "inExample": false
+ },
+ "VAPI_SECRET": {
+  "registered": false,
+  "readRuntime": 0,
+  "direct": {
+   "test": [
+    "scripts/check-routes.mjs:129",
+    "scripts/check-routes.mjs:131"
+   ]
+  },
+  "helper": {},
+  "listed": {},
+  "inExample": false
+ },
+ "APP_PW": {
+  "registered": false,
+  "readRuntime": 0,
+  "direct": {
+   "script": [
+    "scripts/dev-db.mjs:107"
+   ]
+  },
+  "helper": {},
+  "listed": {
+   "script": [
+    "scripts/dev-db.mjs:103"
+   ]
+  },
+  "inExample": false
+ }
+}

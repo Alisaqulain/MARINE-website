@@ -1,0 +1,2279 @@
+--- before/.env.example
++++ after/.env.example
+@@ -185,7 +185,7 @@
+ EXOTEL_WEBHOOK_TOKEN=
+ 
+ # ── WhatsApp Cloud API ──
+-# Permanent System User token with whatsapp_business_messaging + whatsapp_business_management. Optional if Embedded Signup stored a token. [Required for this feature, secret]
++# Permanent System User token with whatsapp_business_messaging + whatsapp_business_management. Direct mode (WHATSAPP_INTEGRATION_MODE=direct): required, environment only. Coexistence mode: optional if Embedded Signup stored a token. [Required for this feature, secret]
+ WHATSAPP_ACCESS_TOKEN=
+ # Numeric phone-number ID (not the phone number). Filled automatically after a coexistence signup. [Required for this feature]
+ WHATSAPP_PHONE_NUMBER_ID=
+@@ -195,8 +195,8 @@
+ WHATSAPP_FOLLOWUP_TEMPLATE=
+ # Language code of that template, e.g. en or en_US. [Optional]
+ WHATSAPP_TEMPLATE_LANGUAGE=en
+-# 1588276335845243 (supplied). [Required for this feature]
+-META_APP_ID=1588276335845243
++# Your Meta app id. No built-in default: unset means not configured. [Required for this feature]
++META_APP_ID=
+ # Server only. Verifies webhook signatures and exchanges signup codes. [Required for this feature, secret]
+ META_APP_SECRET=
+ # Optional; defaults to META_APP_SECRET. [Optional, secret]
+@@ -205,10 +205,20 @@
+ META_WEBHOOK_VERIFY_TOKEN=
+ # Default v26.0. [Optional]
+ META_GRAPH_API_VERSION=v26.0
++# direct = business-owned WABA with a System User token (Embedded Signup and Coexistence disabled). Unset = coexistence (previous behaviour). [Optional]
++WHATSAPP_INTEGRATION_MODE=
++# Direct mode: true only after written approval to send from the configured number (with WHATSAPP_OUTBOUND_ENABLED=true). Sends never leave a non-production server. [Optional]
++WHATSAPP_PRODUCTION_SENDING_APPROVED=false
++# Direct-mode test configuration: must equal WHATSAPP_PHONE_NUMBER_ID exactly. Meta-provided TEST number only. [Optional]
++# WHATSAPP_TEST_PHONE_NUMBER_ID=
++# Direct-mode test configuration: must equal WHATSAPP_BUSINESS_ACCOUNT_ID exactly. [Optional]
++# WHATSAPP_TEST_BUSINESS_ACCOUNT_ID=
++# Comma-separated tester numbers (digits with country code) allowed in test mode. The business number is never accepted. [Optional]
++# WHATSAPP_TEST_RECIPIENTS=
+ 
+ # ── WhatsApp coexistence ──
+-# 1760993601871515 (supplied): Embedded Signup v4 configuration. [Required for this feature]
+-META_CONFIG_ID=1760993601871515
++# Embedded Signup v4 configuration id (coexistence mode only). No built-in default. [Required for this feature]
++META_CONFIG_ID=
+ # true to open Embedded Signup (test mode needs WHATSAPP_COEXISTENCE_TEST_NUMBER). [Optional]
+ WHATSAPP_COEXISTENCE_ENABLED=false
+ # The only number that may be onboarded before production approval (10 digits = India). [Optional]
+--- before/.env.isolated-test.example
++++ after/.env.isolated-test.example
+@@ -27,3 +27,15 @@
+ META_CONFIG_ID=
+ # Approved personal test number (digits with country code); the business number is refused by the code
+ WHATSAPP_COEXISTENCE_TEST_NUMBER=
++
++# ── WhatsApp Direct Cloud API (C10) — Meta-provided TEST WABA and TEST number of the test app only ──
++# The launcher forces WHATSAPP_INTEGRATION_MODE=direct and WHATSAPP_OUTBOUND_ENABLED=false.
++# It refuses to start unless WHATSAPP_PHONE_NUMBER_ID equals WHATSAPP_TEST_PHONE_NUMBER_ID and
++# WHATSAPP_BUSINESS_ACCOUNT_ID equals WHATSAPP_TEST_BUSINESS_ACCOUNT_ID exactly, and it refuses known production ids.
++WHATSAPP_ACCESS_TOKEN=
++WHATSAPP_PHONE_NUMBER_ID=
++WHATSAPP_BUSINESS_ACCOUNT_ID=
++WHATSAPP_TEST_PHONE_NUMBER_ID=
++WHATSAPP_TEST_BUSINESS_ACCOUNT_ID=
++# Tester phones (digits with country code, comma-separated). Only used by a separately approved send test.
++WHATSAPP_TEST_RECIPIENTS=
+--- before/app/api/meta/whatsapp/coexistence/route.ts
++++ after/app/api/meta/whatsapp/coexistence/route.ts
+@@ -2,6 +2,7 @@
+ import { rateLimit } from "@/lib/ai/crm";
+ import { originMatches, signupActorAllowed } from "@/lib/whatsapp/coexistence";
+ import { requestSync, subscribeApp, verifyOnboardedNumber } from "@/lib/whatsapp/coexistence-actions";
++import { directModeRouteBlock } from "@/lib/whatsapp/mode";
+ import { NextResponse } from "next/server";
+ 
+ export const dynamic = "force-dynamic";
+@@ -16,6 +17,9 @@
+  * which the admin screen sends only after showing exactly what will happen.
+  */
+ export async function POST(req: Request) {
++  // C7: closed in direct Cloud API mode — before authentication, parsing or any Meta call.
++  const closed = directModeRouteBlock();
++  if (closed) return NextResponse.json(closed.body, { status: closed.status });
+   const auth = await requireAdminSession();
+   if (auth.error) return auth.error;
+   if (!signupActorAllowed(auth.session?.user?.role)) {
+--- before/app/api/meta/whatsapp/signup/approve/route.ts
++++ after/app/api/meta/whatsapp/signup/approve/route.ts
+@@ -1,10 +1,14 @@
+ import { requireAdminSession } from "@/lib/admin-auth";
+ import { uiApprovalDecision } from "@/lib/whatsapp/coexistence";
++import { directModeRouteBlock } from "@/lib/whatsapp/mode";
+ import { NextResponse } from "next/server";
+ 
+ export const dynamic = "force-dynamic";
+ 
+ export async function POST() {
++  // C7: closed in direct Cloud API mode.
++  const closed = directModeRouteBlock();
++  if (closed) return NextResponse.json(closed.body, { status: closed.status });
+   const auth = await requireAdminSession();
+   if (auth.error) return auth.error;
+   const decision = uiApprovalDecision();
+--- before/app/api/meta/whatsapp/signup/exchange/route.ts
++++ after/app/api/meta/whatsapp/signup/exchange/route.ts
+@@ -14,11 +14,15 @@
+ } from "@/lib/whatsapp/coexistence";
+ import { readCoexistenceState, startOnboarding, writeCoexistenceState } from "@/lib/whatsapp/store";
+ import { verifyOnboardedNumber } from "@/lib/whatsapp/coexistence-actions";
++import { directModeRouteBlock } from "@/lib/whatsapp/mode";
+ import { NextResponse } from "next/server";
+ 
+ export const dynamic = "force-dynamic";
+ 
+ export async function POST(req: Request) {
++  // C7: closed in direct Cloud API mode — before authentication, parsing or any Meta call.
++  const closed = directModeRouteBlock();
++  if (closed) return NextResponse.json(closed.body, { status: closed.status });
+   const auth = await requireAdminSession();
+   if (auth.error) return auth.error;
+   if (!signupActorAllowed(auth.session?.user?.role)) {
+--- before/app/api/meta/whatsapp/status/route.ts
++++ after/app/api/meta/whatsapp/status/route.ts
+@@ -1,13 +1,16 @@
+-import { requireAdminSession } from "@/lib/admin-auth";
+-import { publicStatus } from "@/lib/whatsapp/coexistence";
+-import { readCoexistenceState } from "@/lib/whatsapp/store";
+-import { NextResponse } from "next/server";
+-
+-export const dynamic = "force-dynamic";
+-
+-export async function GET() {
+-  const auth = await requireAdminSession();
+-  if (auth.error) return auth.error;
+-  const stored = await readCoexistenceState();
+-  return NextResponse.json(publicStatus(process.env, stored));
+-}
++import { requireAdminSession } from "@/lib/admin-auth";
++import { publicStatus } from "@/lib/whatsapp/coexistence";
++import { directStatus, isDirectMode } from "@/lib/whatsapp/mode";
++import { readCoexistenceState } from "@/lib/whatsapp/store";
++import { NextResponse } from "next/server";
++
++export const dynamic = "force-dynamic";
++
++export async function GET() {
++  const auth = await requireAdminSession();
++  if (auth.error) return auth.error;
++  const stored = await readCoexistenceState();
++  // C8: direct mode reports masked IDs and set/missing flags only (only the webhook handshake time is read from the store).
++  if (isDirectMode()) return NextResponse.json(directStatus(process.env, stored?.webhookHandshakeAt));
++  return NextResponse.json({ integrationMode: "coexistence", ...publicStatus(process.env, stored) });
++}
+--- before/app/api/meta/whatsapp/webhook/route.ts
++++ after/app/api/meta/whatsapp/webhook/route.ts
+@@ -1,30 +1,24 @@
+ import { applyCoexistenceUpdates, applyStatusUpdates, draftInbound } from "@/lib/whatsapp/inbound";
+-import { statusUpdatesFromWebhook } from "@/lib/whatsapp/cloud";
+-import {
+-  coexistenceUpdates,
+-  normaliseWebhook,
+-  planEvents,
+-  verifyHandshake,
+-  verifySignature,
+-  webhookSummary,
+-  type Seen,
+-} from "@/lib/whatsapp/coexistence";
+-import { markWebhookHandshake, recordWebhookKey } from "@/lib/whatsapp/store";
++import { verifyHandshake, verifySignature } from "@/lib/whatsapp/coexistence";
++import { MAX_WEBHOOK_BYTES, filterDirectWebhook, isDirectMode } from "@/lib/whatsapp/mode";
++import { processWebhookBody } from "@/lib/whatsapp/webhook-process";
++import { claimWebhookEvent, completeWebhookEvent, failWebhookEvent, markWebhookHandshake } from "@/lib/whatsapp/store";
+ import { NextResponse } from "next/server";
+ 
+ export const dynamic = "force-dynamic";
+ 
+-function seenStore(): Seen {
+-  const g = globalThis as typeof globalThis & { __marinaWaSeen?: Set<string> };
+-  if (!g.__marinaWaSeen) g.__marinaWaSeen = new Set();
+-  const seen = g.__marinaWaSeen;
++/** Keys the DATABASE has marked "done" (C5). Only an optimisation: the database claim is the source of truth. */
++function doneCache() {
++  const g = globalThis as typeof globalThis & { __marinaWaDone?: Set<string> };
++  if (!g.__marinaWaDone) g.__marinaWaDone = new Set();
++  const done = g.__marinaWaDone;
+   return {
+-    has: (key) => seen.has(key),
+-    add: (key) => {
+-      seen.add(key);
+-      if (seen.size > 5000) {
+-        const first = seen.values().next().value;
+-        if (first) seen.delete(first);
++    has: (key: string) => done.has(key),
++    add: (key: string) => {
++      done.add(key);
++      if (done.size > 5000) {
++        const first = done.values().next().value;
++        if (first) done.delete(first);
+       }
+     },
+   };
+@@ -44,37 +38,49 @@
+ }
+ 
+ export async function POST(req: Request) {
+-  const raw = await req.text();
++  // C4: size limit before any signature work.
++  if (Number(req.headers.get("content-length") || 0) > MAX_WEBHOOK_BYTES) {
++    return NextResponse.json({ error: "Webhook body is too large." }, { status: 413 });
++  }
++  const raw = Buffer.from(await req.arrayBuffer());
++  if (raw.length > MAX_WEBHOOK_BYTES) return NextResponse.json({ error: "Webhook body is too large." }, { status: 413 });
++
++  // Signature over the exact received bytes (C4). Nothing below runs for an unsigned or altered body.
+   const secret = process.env.META_WEBHOOK_APP_SECRET?.trim() || process.env.META_APP_SECRET?.trim();
+   const signature = verifySignature(raw, req.headers.get("x-hub-signature-256"), secret);
+   if (!signature.ok) return NextResponse.json({ error: signature.error }, { status: signature.status });
+ 
+   let body: unknown;
+   try {
+-    body = JSON.parse(raw);
++    body = JSON.parse(raw.toString("utf8"));
+   } catch {
+     return NextResponse.json({ error: "Webhook body was not JSON." }, { status: 400 });
+   }
+ 
+-  const plans = planEvents(normaliseWebhook(body), seenStore());
+-  let draftsWithheld = 0;
+-  let sent = 0;
+-  const newKeys = new Set<string>();
+-  for (const plan of plans) {
+-    const saved = await recordWebhookKey(plan.key, { field: plan.field, action: plan.action, reason: plan.reason });
+-    if (saved.duplicate || plan.reason === "duplicate") continue;
+-    newKeys.add(plan.key);
+-    if (plan.action !== "draft") continue;
+-    const result = await draftInbound(plan);
+-    if (result.sent) sent += 1;
+-    else if (result.drafted) draftsWithheld += 1;
++  // C4: direct mode — only `messages` changes for the configured WABA and phone-number ID go further.
++  const direct = isDirectMode();
++  let ignored = { ignoredForeign: 0, ignoredOther: 0 };
++  if (direct) {
++    const filtered = filterDirectWebhook(body);
++    if (!filtered.ok) return NextResponse.json({ error: filtered.error }, { status: filtered.status });
++    body = filtered.body;
++    ignored = { ignoredForeign: filtered.ignoredForeign, ignoredOther: filtered.ignoredOther };
+   }
+-  // Coexistence: history sync, contact sync and messages sent from the WhatsApp Business app (stored, never answered).
+-  const coexistence = await applyCoexistenceUpdates(coexistenceUpdates(body), newKeys).catch((err) => {
+-    console.error("[whatsapp] coexistence update failed", err instanceof Error ? err.message : "failed");
+-    return { historyMessages: 0, contacts: 0, echoes: 0 };
+-  });
+-  const statuses = await applyStatusUpdates(statusUpdatesFromWebhook(body)).catch(() => 0);
+-  const summary = webhookSummary(plans);
+-  return NextResponse.json({ ...summary, draftsWithheld, sent, statuses, coexistence });
++
++  // C5: database-backed claims; HTTP 500 (Meta redelivers) whenever database processing does not complete.
++  const outcome = await processWebhookBody(
++    body,
++    {
++      claim: claimWebhookEvent,
++      complete: completeWebhookEvent,
++      fail: failWebhookEvent,
++      draft: draftInbound,
++      applyCoexistence: applyCoexistenceUpdates,
++      applyStatuses: applyStatusUpdates,
++      doneCache: doneCache(),
++    },
++    { direct }
++  );
++  if (outcome.status !== 200) console.error("[whatsapp] webhook not completed", outcome.failed.length ? "failed" : "in_progress");
++  return NextResponse.json(outcome.status === 200 ? { ...outcome.json, ...ignored } : outcome.json, { status: outcome.status });
+ }
+--- before/app/test/page.tsx
++++ after/app/test/page.tsx
+@@ -257,7 +257,12 @@
+       <h2 className="mt-10 font-serif text-2xl text-navy-900">WhatsApp Business app coexistence</h2>
+       <section className="mt-4 rounded-2xl border border-[#e6dfd2] bg-white p-5">
+         <p className="text-sm text-navy-700">
+-          Mode: <span className="font-semibold">{health.coexistence.mode.replace(/_/g, " ")}</span> · {health.coexistence.connected ? "Meta-confirmed (connected)" : "not active — Meta has not confirmed an onboarding"}
++          Mode: <span className="font-semibold">{health.coexistence.mode.replace(/_/g, " ")}</span> ·{" "}
++          {health.coexistence.mode === "not_applicable"
++            ? "WhatsApp runs in direct Cloud API mode; Embedded Signup and Coexistence are disabled"
++            : health.coexistence.connected
++              ? "Meta-confirmed (connected)"
++              : "not active — Meta has not confirmed an onboarding"}
+         </p>
+         <ul className="mt-3 space-y-2 text-sm">
+           {health.coexistence.rows.map((row) => (
+--- before/components/AdminWhatsAppPanel.tsx
++++ after/components/AdminWhatsAppPanel.tsx
+@@ -3,7 +3,27 @@
+ import { useCallback, useEffect, useState } from "react";
+ import Script from "next/script";
+ 
++/** C8: `/api/meta/whatsapp/status` in direct Cloud API mode (masked IDs and set/missing flags only). */
++type DirectStatus = {
++  integrationMode: "direct";
++  wabaIdMasked: string | null;
++  phoneNumberIdMasked: string | null;
++  tokenConfigured: boolean;
++  appIdConfigured: boolean;
++  webhookSecretConfigured: boolean;
++  verifyTokenConfigured: boolean;
++  missing: string[];
++  graphVersion: string;
++  outbound: { enabled: boolean; productionApproved: boolean; testConfigMatches: boolean; testRecipients: number; possible: boolean; nonProductionBlocked: boolean };
++  webhookHandshake: string;
++  webhookHandshakeAt: string | null;
++  liveNumberBlocked: true;
++  embeddedSignup: "disabled";
++  callbackPath: string;
++};
++
+ type Status = {
++  integrationMode?: "coexistence";
+   appId?: string;
+   configId?: string;
+   graphVersion?: string;
+@@ -59,20 +79,59 @@
+ 
+ const row = "grid gap-1 border-b border-navy-100 py-2 text-sm sm:grid-cols-[12rem_1fr]";
+ 
++function DirectPanel({ status }: { status: DirectStatus }) {
++  const yes = (v: boolean, a = "set", b = "missing") => (v ? a : b);
++  return (
++    <div className="space-y-4">
++      <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-navy-900">
++        <span className="font-semibold">Mode: Direct Cloud API (business-owned WABA).</span> Embedded Signup and Coexistence are disabled. The client&apos;s live
++        WhatsApp number is blocked as a recipient and is never registered, migrated or messaged from this site.
++      </div>
++      <div className="rounded-xl bg-white p-5 shadow-sm">
++        <h2 className="font-serif text-lg text-navy-900">WhatsApp Direct Cloud API</h2>
++        <p className="mt-1 text-sm text-navy-600">Values come from the server environment only and are never shown. The live Graph check runs on the /test page.</p>
++        <dl className="mt-4">
++          <div className={row}><dt>WABA ID</dt><dd>{status.wabaIdMasked || "missing (WHATSAPP_BUSINESS_ACCOUNT_ID)"}</dd></div>
++          <div className={row}><dt>Phone-number ID</dt><dd>{status.phoneNumberIdMasked || "missing (WHATSAPP_PHONE_NUMBER_ID)"}</dd></div>
++          <div className={row}><dt>Access token</dt><dd>{yes(status.tokenConfigured, "saved on the server", "missing (WHATSAPP_ACCESS_TOKEN)")}</dd></div>
++          <div className={row}><dt>Meta app ID</dt><dd>{yes(status.appIdConfigured)}</dd></div>
++          <div className={row}><dt>Webhook secret</dt><dd>{yes(status.webhookSecretConfigured, "saved on the server")}</dd></div>
++          <div className={row}><dt>Verify token</dt><dd>{yes(status.verifyTokenConfigured, "saved on the server")}</dd></div>
++          <div className={row}><dt>Graph API</dt><dd>{status.graphVersion}</dd></div>
++          <div className={row}><dt>Webhook</dt><dd>{status.callbackPath} · handshake {status.webhookHandshake}{status.webhookHandshakeAt ? ` (${status.webhookHandshakeAt.slice(0, 16)})` : ""} · only the configured WABA and phone-number ID are accepted</dd></div>
++          <div className={row}><dt>Outbound flag</dt><dd>{status.outbound.enabled ? "on" : "off"}</dd></div>
++          <div className={row}><dt>Production sending approval</dt><dd>{status.outbound.productionApproved ? "given" : "not given"}</dd></div>
++          <div className={row}><dt>Test configuration</dt><dd>{status.outbound.testConfigMatches ? `test number and test WABA match · ${status.outbound.testRecipients} test recipient(s)` : "not configured"}</dd></div>
++          <div className={row}><dt>Automatic replies</dt><dd>{status.outbound.possible ? "possible" : "off — replies are drafted and withheld"}{status.outbound.nonProductionBlocked ? " · this is not a production server, so nothing is sent" : ""}</dd></div>
++          <div className={row}><dt>Embedded Signup</dt><dd>disabled in direct mode</dd></div>
++        </dl>
++        {status.missing.length ? <p className="mt-3 text-sm text-red-700">Missing: {status.missing.join(", ")}.</p> : null}
++      </div>
++    </div>
++  );
++}
++
+ export function AdminWhatsAppPanel() {
+   const [status, setStatus] = useState<Status | null>(null);
++  const [direct, setDirect] = useState<DirectStatus | null>(null);
+   const [error, setError] = useState("");
+   const [notice, setNotice] = useState("");
+   const [sdkReady, setSdkReady] = useState(false);
+ 
+   const load = useCallback(async () => {
+     const res = await fetch("/api/meta/whatsapp/status");
+-    const json = (await res.json().catch(() => ({}))) as Status;
++    const json = (await res.json().catch(() => ({}))) as Status | DirectStatus;
+     if (!res.ok) {
+-      setError(json.error || "WhatsApp status is unavailable.");
++      setError((json as Status).error || "WhatsApp status is unavailable.");
+       return;
+     }
+-    setStatus(json);
++    if (json.integrationMode === "direct") {
++      setDirect(json as DirectStatus);
++      setStatus(null);
++      return;
++    }
++    setDirect(null);
++    setStatus(json as Status);
+   }, []);
+ 
+   useEffect(() => {
+@@ -165,6 +224,16 @@
+     }, status.launch);
+   }
+ 
++  // C8: direct mode — no Facebook SDK, no Embedded Signup or Coexistence controls. (After all hooks.)
++  if (direct) {
++    return (
++      <>
++        {error ? <p className="text-sm text-red-700">{error}</p> : null}
++        <DirectPanel status={direct} />
++      </>
++    );
++  }
++
+   return (
+     <div className="space-y-4">
+       {status?.signupAllowed ? (
+--- before/docs/phase2/ENVIRONMENT_SETUP.md
++++ after/docs/phase2/ENVIRONMENT_SETUP.md
+@@ -144,22 +144,27 @@
+ 
+ | Variable | Required | Agents | Scope | Where to get it | How |
+ | --- | --- | --- | --- | --- | --- |
+-| `WHATSAPP_ACCESS_TOKEN` 🔒 | Required for this feature | whatsapp | both | business.facebook.com → Business settings → System users → Generate token (app 1588276335845243) | Permanent System User token with whatsapp_business_messaging + whatsapp_business_management. Optional if Embedded Signup stored a token. |
++| `WHATSAPP_ACCESS_TOKEN` 🔒 | Required for this feature | whatsapp | both | business.facebook.com → Business settings → System users → Generate token (for your Meta app) | Permanent System User token with whatsapp_business_messaging + whatsapp_business_management. Direct mode (WHATSAPP_INTEGRATION_MODE=direct): required, environment only. Coexistence mode: optional if Embedded Signup stored a token. |
+ | `WHATSAPP_PHONE_NUMBER_ID` | Required for this feature | whatsapp | both | developers.facebook.com → your app → WhatsApp → API Setup (Phone number ID) | Numeric phone-number ID (not the phone number). Filled automatically after a coexistence signup. |
+ | `WHATSAPP_BUSINESS_ACCOUNT_ID` | Required for this feature | whatsapp | both | WhatsApp → API Setup (WhatsApp Business Account ID) | Numeric WABA ID. |
+ | `WHATSAPP_FOLLOWUP_TEMPLATE` | Optional | whatsapp, chat | both | business.facebook.com → WhatsApp Manager → Message templates | Name of an APPROVED template for consented follow-ups outside the 24-hour window. |
+ | `WHATSAPP_TEMPLATE_LANGUAGE` | Optional | whatsapp | both | Template details | Language code of that template, e.g. en or en_US. |
+-| `META_APP_ID` | Required for this feature | whatsapp | both | developers.facebook.com → your app → App settings → Basic | 1588276335845243 (supplied). |
++| `META_APP_ID` | Required for this feature | whatsapp | both | developers.facebook.com → your app → App settings → Basic | Your Meta app id. No built-in default: unset means not configured. |
+ | `META_APP_SECRET` 🔒 | Required for this feature | whatsapp | both | App settings → Basic → App secret (Show) | Server only. Verifies webhook signatures and exchanges signup codes. |
+ | `META_WEBHOOK_APP_SECRET` 🔒 | Optional | whatsapp | both | Same as META_APP_SECRET | Optional; defaults to META_APP_SECRET. |
+ | `META_WEBHOOK_VERIFY_TOKEN` 🔒 | Required for this feature | whatsapp | both | Generate locally, then paste in App → WhatsApp → Configuration → Webhook | Any random string; Meta echoes it during webhook verification. |
+ | `META_GRAPH_API_VERSION` | Optional | whatsapp | both | developers.facebook.com/docs/graph-api/changelog | Default v26.0. |
++| `WHATSAPP_INTEGRATION_MODE` | Optional | whatsapp | both | .env | direct = business-owned WABA with a System User token (Embedded Signup and Coexistence disabled). Unset = coexistence (previous behaviour). |
++| `WHATSAPP_PRODUCTION_SENDING_APPROVED` | Optional | whatsapp | production | .env | Direct mode: true only after written approval to send from the configured number (with WHATSAPP_OUTBOUND_ENABLED=true). Sends never leave a non-production server. |
++| `WHATSAPP_TEST_PHONE_NUMBER_ID` | Optional | whatsapp | development | Test app → WhatsApp → API Setup (test number's Phone number ID) | Direct-mode test configuration: must equal WHATSAPP_PHONE_NUMBER_ID exactly. Meta-provided TEST number only. |
++| `WHATSAPP_TEST_BUSINESS_ACCOUNT_ID` | Optional | whatsapp | development | Test app → WhatsApp → API Setup (test WhatsApp Business Account ID) | Direct-mode test configuration: must equal WHATSAPP_BUSINESS_ACCOUNT_ID exactly. |
++| `WHATSAPP_TEST_RECIPIENTS` | Optional | whatsapp | development | .env.isolated-test.local | Comma-separated tester numbers (digits with country code) allowed in test mode. The business number is never accepted. |
+ 
+ ## WhatsApp coexistence
+ 
+ | Variable | Required | Agents | Scope | Where to get it | How |
+ | --- | --- | --- | --- | --- | --- |
+-| `META_CONFIG_ID` | Required for this feature | whatsapp | both | App → Facebook Login for Business → Configurations | 1760993601871515 (supplied): Embedded Signup v4 configuration. |
++| `META_CONFIG_ID` | Required for this feature | whatsapp | both | App → Facebook Login for Business → Configurations | Embedded Signup v4 configuration id (coexistence mode only). No built-in default. |
+ | `WHATSAPP_COEXISTENCE_ENABLED` | Optional | whatsapp | both | .env | true to open Embedded Signup (test mode needs WHATSAPP_COEXISTENCE_TEST_NUMBER). |
+ | `WHATSAPP_COEXISTENCE_TEST_NUMBER` | Optional | whatsapp | development | .env | The only number that may be onboarded before production approval (10 digits = India). |
+ | `WHATSAPP_PRODUCTION_ONBOARDING_APPROVED` | Optional | whatsapp | production | .env | true only after written approval to onboard the client's live number. |
+--- before/docs/phase2/WHATSAPP_COEXISTENCE_SETUP.md
++++ after/docs/phase2/WHATSAPP_COEXISTENCE_SETUP.md
+@@ -1,5 +1,7 @@
+ # WhatsApp Business app coexistence
+ 
++> **11 November 2026:** this document applies to **coexistence mode only** (`WHATSAPP_INTEGRATION_MODE` unset or `coexistence`). With `WHATSAPP_INTEGRATION_MODE=direct`, Embedded Signup and Coexistence are disabled; see `WHATSAPP_DIRECT_CLOUD_API_SETUP.md`. `META_APP_ID` and `META_CONFIG_ID` no longer have built-in defaults and must be set explicitly.
++
+ ## Status on 3 November 2026
+ 
+ - **Not active.** No real Embedded Signup has run; `/test` → WhatsApp Business app coexistence shows *Partially configured / not connected*.
+--- before/lib/ai/env-registry.ts
++++ after/lib/ai/env-registry.ts
+@@ -136,17 +136,22 @@
+   { name: "EXOTEL_WEBHOOK_TOKEN", category: "Exotel (telephony)", provider: "You", where: "Generate locally: openssl rand -hex 24", how: "Put in the ExoPhone StatusCallback URL: /api/ai/voice/webhook?provider=exotel&token=…", required: "required-for-feature", agents: ["voice"], scope: "both", secret: true, validate: minLen(20) },
+ 
+   // ── WhatsApp Cloud API & coexistence ──
+-  { name: "WHATSAPP_ACCESS_TOKEN", category: "WhatsApp Cloud API", provider: "Meta", where: "business.facebook.com → Business settings → System users → Generate token (app 1588276335845243)", how: "Permanent System User token with whatsapp_business_messaging + whatsapp_business_management. Optional if Embedded Signup stored a token.", required: "required-for-feature", agents: ["whatsapp"], scope: "both", secret: true, validate: (v) => (v.startsWith("EAA") ? null : "Meta tokens start with EAA") },
++  { name: "WHATSAPP_ACCESS_TOKEN", category: "WhatsApp Cloud API", provider: "Meta", where: "business.facebook.com → Business settings → System users → Generate token (for your Meta app)", how: "Permanent System User token with whatsapp_business_messaging + whatsapp_business_management. Direct mode (WHATSAPP_INTEGRATION_MODE=direct): required, environment only. Coexistence mode: optional if Embedded Signup stored a token.", required: "required-for-feature", agents: ["whatsapp"], scope: "both", secret: true, validate: (v) => (v.startsWith("EAA") ? null : "Meta tokens start with EAA") },
+   { name: "WHATSAPP_PHONE_NUMBER_ID", category: "WhatsApp Cloud API", provider: "Meta", where: "developers.facebook.com → your app → WhatsApp → API Setup (Phone number ID)", how: "Numeric phone-number ID (not the phone number). Filled automatically after a coexistence signup.", required: "required-for-feature", agents: ["whatsapp"], scope: "both", secret: false, validate: digits(6, 20, "Phone number ID") },
+   { name: "WHATSAPP_BUSINESS_ACCOUNT_ID", category: "WhatsApp Cloud API", provider: "Meta", where: "WhatsApp → API Setup (WhatsApp Business Account ID)", how: "Numeric WABA ID.", required: "required-for-feature", agents: ["whatsapp"], scope: "both", secret: false, validate: digits(6, 20, "WABA ID") },
+   { name: "WHATSAPP_FOLLOWUP_TEMPLATE", category: "WhatsApp Cloud API", provider: "Meta", where: "business.facebook.com → WhatsApp Manager → Message templates", how: "Name of an APPROVED template for consented follow-ups outside the 24-hour window.", required: "optional", agents: ["whatsapp", "chat"], scope: "both", secret: false, validate: (v) => (/^[a-z0-9_]{1,512}$/.test(v) ? null : "template names are lowercase letters, digits and _") },
+   { name: "WHATSAPP_TEMPLATE_LANGUAGE", category: "WhatsApp Cloud API", provider: "Meta", where: "Template details", how: "Language code of that template, e.g. en or en_US.", required: "optional", agents: ["whatsapp"], scope: "both", secret: false, validate: (v) => (/^[a-z]{2}(_[A-Z]{2})?$/.test(v) ? null : "e.g. en or en_US") },
+-  { name: "META_APP_ID", category: "WhatsApp Cloud API", provider: "Meta", where: "developers.facebook.com → your app → App settings → Basic", how: "1588276335845243 (supplied).", required: "required-for-feature", agents: ["whatsapp"], scope: "both", secret: false, validate: digits(10, 20, "App ID") },
++  { name: "META_APP_ID", category: "WhatsApp Cloud API", provider: "Meta", where: "developers.facebook.com → your app → App settings → Basic", how: "Your Meta app id. No built-in default: unset means not configured.", required: "required-for-feature", agents: ["whatsapp"], scope: "both", secret: false, validate: digits(10, 20, "App ID") },
+   { name: "META_APP_SECRET", category: "WhatsApp Cloud API", provider: "Meta", where: "App settings → Basic → App secret (Show)", how: "Server only. Verifies webhook signatures and exchanges signup codes.", required: "required-for-feature", agents: ["whatsapp"], scope: "both", secret: true, validate: (v) => (/^[0-9a-f]{32}$/.test(v) ? null : "Meta app secrets are 32 hex characters") },
+   { name: "META_WEBHOOK_APP_SECRET", category: "WhatsApp Cloud API", provider: "Meta", where: "Same as META_APP_SECRET", how: "Optional; defaults to META_APP_SECRET.", required: "optional", agents: ["whatsapp"], scope: "both", secret: true, validate: (v) => (/^[0-9a-f]{32}$/.test(v) ? null : "Meta app secrets are 32 hex characters") },
+   { name: "META_WEBHOOK_VERIFY_TOKEN", category: "WhatsApp Cloud API", provider: "You", where: "Generate locally, then paste in App → WhatsApp → Configuration → Webhook", how: "Any random string; Meta echoes it during webhook verification.", required: "required-for-feature", agents: ["whatsapp"], scope: "both", secret: true, validate: minLen(16) },
+   { name: "META_GRAPH_API_VERSION", category: "WhatsApp Cloud API", provider: "Meta", where: "developers.facebook.com/docs/graph-api/changelog", how: "Default v26.0.", required: "optional", agents: ["whatsapp"], scope: "both", secret: false, validate: (v) => (/^v\d+\.\d+$/.test(v) ? null : "should look like v26.0") },
+-  { name: "META_CONFIG_ID", category: "WhatsApp coexistence", provider: "Meta", where: "App → Facebook Login for Business → Configurations", how: "1760993601871515 (supplied): Embedded Signup v4 configuration.", required: "required-for-feature", agents: ["whatsapp"], scope: "both", secret: false, validate: digits(10, 20, "Configuration ID") },
++  { name: "WHATSAPP_INTEGRATION_MODE", category: "WhatsApp Cloud API", provider: "You", where: ".env", how: "direct = business-owned WABA with a System User token (Embedded Signup and Coexistence disabled). Unset = coexistence (previous behaviour).", required: "optional", agents: ["whatsapp"], scope: "both", secret: false, validate: oneOf(["direct", "coexistence"]) },
++  { name: "WHATSAPP_PRODUCTION_SENDING_APPROVED", category: "WhatsApp Cloud API", provider: "You (written approval)", where: ".env", how: "Direct mode: true only after written approval to send from the configured number (with WHATSAPP_OUTBOUND_ENABLED=true). Sends never leave a non-production server.", required: "optional", agents: ["whatsapp"], scope: "production", secret: false, validate: bool },
++  { name: "WHATSAPP_TEST_PHONE_NUMBER_ID", category: "WhatsApp Cloud API", provider: "Meta (test app)", where: "Test app → WhatsApp → API Setup (test number's Phone number ID)", how: "Direct-mode test configuration: must equal WHATSAPP_PHONE_NUMBER_ID exactly. Meta-provided TEST number only.", required: "optional", agents: ["whatsapp"], scope: "development", secret: false, validate: digits(6, 20, "Phone number ID") },
++  { name: "WHATSAPP_TEST_BUSINESS_ACCOUNT_ID", category: "WhatsApp Cloud API", provider: "Meta (test app)", where: "Test app → WhatsApp → API Setup (test WhatsApp Business Account ID)", how: "Direct-mode test configuration: must equal WHATSAPP_BUSINESS_ACCOUNT_ID exactly.", required: "optional", agents: ["whatsapp"], scope: "development", secret: false, validate: digits(6, 20, "WABA ID") },
++  { name: "WHATSAPP_TEST_RECIPIENTS", category: "WhatsApp Cloud API", provider: "You", where: ".env.isolated-test.local", how: "Comma-separated tester numbers (digits with country code) allowed in test mode. The business number is never accepted.", required: "optional", agents: ["whatsapp"], scope: "development", secret: false, validate: (v) => (v.split(",").every((n) => /^\+?[\d\s-]{8,18}$/.test(n.trim())) ? null : "comma-separated phone numbers with country code") },
++  { name: "META_CONFIG_ID", category: "WhatsApp coexistence", provider: "Meta", where: "App → Facebook Login for Business → Configurations", how: "Embedded Signup v4 configuration id (coexistence mode only). No built-in default.", required: "required-for-feature", agents: ["whatsapp"], scope: "both", secret: false, validate: digits(10, 20, "Configuration ID") },
+   { name: "WHATSAPP_COEXISTENCE_ENABLED", category: "WhatsApp coexistence", provider: "You", where: ".env", how: "true to open Embedded Signup (test mode needs WHATSAPP_COEXISTENCE_TEST_NUMBER).", required: "optional", agents: ["whatsapp"], scope: "both", secret: false, validate: bool },
+   { name: "WHATSAPP_COEXISTENCE_TEST_NUMBER", category: "WhatsApp coexistence", provider: "You", where: ".env", how: "The only number that may be onboarded before production approval (10 digits = India).", required: "optional", agents: ["whatsapp"], scope: "development", secret: false, validate: phone },
+   { name: "WHATSAPP_PRODUCTION_ONBOARDING_APPROVED", category: "WhatsApp coexistence", provider: "You (written approval)", where: ".env", how: "true only after written approval to onboard the client's live number.", required: "optional", agents: ["whatsapp"], scope: "production", secret: false, validate: bool },
+--- before/lib/ai/followups.ts
++++ after/lib/ai/followups.ts
+@@ -4,6 +4,7 @@
+ import { sendCustomerMail } from "@/lib/mail";
+ import { readCoexistenceState } from "@/lib/whatsapp/store";
+ import { postMessage, resolveCredentials, sendGate, templatePayload } from "@/lib/whatsapp/cloud";
++import { isDirectMode } from "@/lib/whatsapp/mode";
+ 
+ /**
+  * Permission-based follow-ups shared by all agents: consent, opt-outs, and a queue processed by the jobs cron.
+@@ -161,7 +162,8 @@
+ 
+   const template = process.env.WHATSAPP_FOLLOWUP_TEMPLATE?.trim();
+   if (!template) return { status: "skipped", error: "WHATSAPP_FOLLOWUP_TEMPLATE is not set" };
+-  const creds = resolveCredentials(await readCoexistenceState());
++  // C2: direct mode reads no Coexistence state; resolveCredentials/sendGate apply the direct-mode rules.
++  const creds = resolveCredentials(isDirectMode() ? null : await readCoexistenceState());
+   const gate = sendGate({ to: row.to, suppressed: false, template: true, windowOpen: false, consent: true, creds });
+   if (!gate.allowed) return { status: "skipped", error: gate.reason };
+   const res = await postMessage(creds, templatePayload(row.to, template, process.env.WHATSAPP_TEMPLATE_LANGUAGE?.trim() || "en", []));
+--- before/lib/ai/health.ts
++++ after/lib/ai/health.ts
+@@ -28,6 +28,7 @@
+ import { POST as chatRoute } from "@/app/api/ai/chat/route";
+ import { POST as voiceRoute } from "@/app/api/ai/voice/webhook/route";
+ import { GET as whatsappVerifyRoute } from "@/app/api/meta/whatsapp/webhook/route";
++import { isDirectMode } from "@/lib/whatsapp/mode";
+ import { POST as jobsRoute } from "@/app/api/ai/jobs/route";
+ import { POST as eventRoute } from "@/app/api/ai/event/route";
+ 
+@@ -323,6 +324,23 @@
+   );
+   const steps: CheckStep[] = report.rows.map((row) => s(row.label, row.result, row.detail, row.label.startsWith("Coexistence verified") || row.label === "Coexistence events" ? "live" : "config"));
+   const anySet = env.some((e) => e.set && e.name !== "META_APP_ID" && e.name !== "META_CONFIG_ID");
++  // C8: direct Cloud API mode — coexistence is not applicable (reported as not configured, nothing missing).
++  if (report.mode === "not_applicable") {
++    return platformCard({
++      id: "coexistence",
++      name: "WhatsApp Business app coexistence",
++      purpose: "Not applicable: WhatsApp runs in direct Cloud API mode (Embedded Signup and Coexistence disabled)",
++      status: "not_configured",
++      env,
++      missing: [],
++      invalid: [],
++      authVerified: null,
++      operationOk: null,
++      error: null,
++      steps: report.rows.map((row) => s(row.label, row.result, row.detail, "config")),
++      liveActivity: "Not applicable in direct Cloud API mode.",
++    });
++  }
+   const status: IntegrationStatus = !anySet || report.mode === "not_configured" ? (anySet ? "partial" : "not_configured") : report.connected ? (report.mode === "live" ? "operational" : "connected") : "partial";
+   return platformCard({
+     id: "coexistence",
+@@ -466,7 +484,10 @@
+       c("Knowledge base", kb.ok, "critical", kb.detail),
+       c("CRM", crm.ok, "critical", crm.detail),
+       geminiCheck("required"),
+-      c("Business app coexistence", up("coexistence"), "required", state("coexistence")),
++      // C8: not required for Agent 4 in direct Cloud API mode.
++      isDirectMode()
++        ? c("Business app coexistence", true, "info", "Not applicable: direct Cloud API mode.")
++        : c("Business app coexistence", up("coexistence"), "required", state("coexistence")),
+       c("Follow-up job (cron)", up("cron"), "required", state("cron")),
+     ]),
+   ];
+--- before/lib/ai/integrations.ts
++++ after/lib/ai/integrations.ts
+@@ -7,6 +7,7 @@
+ import { pingWhatsAppCloud, resolveCredentials } from "@/lib/whatsapp/cloud";
+ import { readFlags, shouldSendWhatsApp, verifyHandshake, verifySignature } from "@/lib/whatsapp/coexistence";
+ import { readCoexistenceState } from "@/lib/whatsapp/store";
++import { isDirectMode, testConfigMatches } from "@/lib/whatsapp/mode";
+ import { measurementProtocolConfigured, pingGa4, validateMeasurementProtocol } from "@/lib/google/analytics";
+ import { pingSearchConsole } from "@/lib/google/search-console";
+ import { serviceAccount } from "@/lib/google/auth";
+@@ -361,13 +362,17 @@
+   const wrongToken = verifyHandshake({ mode: "subscribe", token: "wrong", challenge: "1", expected: process.env.META_WEBHOOK_VERIFY_TOKEN });
+   steps.push(s("Forged webhooks and wrong verify tokens are rejected", !forged.ok && !wrongToken.ok ? "pass" : "fail", `Forged signature → HTTP ${forged.ok ? 200 : forged.status}; wrong verify token → HTTP ${wrongToken.ok ? 200 : wrongToken.status}.`, "config"));
+   const flags = readFlags(process.env);
++  const direct = isDirectMode();
++  const flagText = direct
++    ? `direct mode: outbound ${flags.outboundEnabled}, production sending approved ${process.env.WHATSAPP_PRODUCTION_SENDING_APPROVED?.trim() === "true"}, test configuration ${testConfigMatches() ? "matches" : "not set"}`
++    : `coexistence ${flags.coexistenceEnabled}, onboarding approved ${flags.productionOnboardingApproved}, outbound ${flags.outboundEnabled}`;
+   steps.push(
+     s(
+       "Automatic replies",
+       shouldSendWhatsApp(process.env) ? "pass" : "skip",
+       shouldSendWhatsApp(process.env)
+-        ? "On: Gemini replies are sent inside the 24-hour window; templates only with opt-in."
+-        : `Off — replies are drafted and withheld (coexistence ${flags.coexistenceEnabled}, onboarding approved ${flags.productionOnboardingApproved}, outbound ${flags.outboundEnabled}).`,
++        ? `On: Gemini replies are sent inside the 24-hour window; templates only with opt-in (${flagText}). Never sent from a non-production server.`
++        : `Off — replies are drafted and withheld (${flagText}).`,
+       "config"
+     )
+   );
+@@ -380,7 +385,12 @@
+     status: rollupStatus({ requiredSet, requiredTotal: requiredNames.length + 1, steps, activity: Boolean(sent) }),
+     steps,
+     env: [
+-      ...envList(["WHATSAPP_ACCESS_TOKEN", ...requiredNames], ["META_WEBHOOK_APP_SECRET", "META_GRAPH_API_VERSION", "WHATSAPP_FOLLOWUP_TEMPLATE", "WHATSAPP_TEMPLATE_LANGUAGE", "WHATSAPP_COEXISTENCE_ENABLED", "WHATSAPP_PRODUCTION_ONBOARDING_APPROVED", "WHATSAPP_OUTBOUND_ENABLED"]),
++      ...envList(
++        ["WHATSAPP_ACCESS_TOKEN", ...requiredNames],
++        direct
++          ? ["WHATSAPP_INTEGRATION_MODE", "META_APP_ID", "META_WEBHOOK_APP_SECRET", "META_GRAPH_API_VERSION", "WHATSAPP_FOLLOWUP_TEMPLATE", "WHATSAPP_TEMPLATE_LANGUAGE", "WHATSAPP_OUTBOUND_ENABLED", "WHATSAPP_PRODUCTION_SENDING_APPROVED", "WHATSAPP_TEST_PHONE_NUMBER_ID", "WHATSAPP_TEST_BUSINESS_ACCOUNT_ID", "WHATSAPP_TEST_RECIPIENTS"]
++          : ["META_WEBHOOK_APP_SECRET", "META_GRAPH_API_VERSION", "WHATSAPP_FOLLOWUP_TEMPLATE", "WHATSAPP_TEMPLATE_LANGUAGE", "WHATSAPP_COEXISTENCE_ENABLED", "WHATSAPP_PRODUCTION_ONBOARDING_APPROVED", "WHATSAPP_OUTBOUND_ENABLED"]
++      ),
+     ].map((row) => (row.name === "WHATSAPP_ACCESS_TOKEN" && creds.source === "signup" ? { ...row, set: true } : row)),
+     troubleshooting: [
+       "Use a System User permanent token with whatsapp_business_messaging + whatsapp_business_management (temporary tokens expire in 24 h).",
+@@ -499,7 +509,7 @@
+ }
+ 
+ export type CoexistenceReport = {
+-  mode: "not_configured" | "test" | "ready_for_onboarding" | "live";
++  mode: "not_configured" | "test" | "ready_for_onboarding" | "live" | "not_applicable";
+   connected: boolean;
+   rows: { label: string; result: CheckStep["result"]; detail: string }[];
+   steps: { label: string; state: string; detail: string }[];
+@@ -510,6 +520,16 @@
+ 
+ /** WhatsApp Business app coexistence status for /test. Read-only; never shows tokens, secrets or full numbers. */
+ export async function checkCoexistence(): Promise<CoexistenceReport> {
++  // C8: direct Cloud API mode — coexistence does not apply; nothing is read from Meta here.
++  if (isDirectMode()) {
++    return {
++      mode: "not_applicable",
++      connected: false,
++      rows: [{ label: "Direct Cloud API mode", result: "skip", detail: "WHATSAPP_INTEGRATION_MODE=direct: Embedded Signup and Coexistence are disabled. See the Meta WhatsApp Cloud API card." }],
++      steps: [],
++      approvals: [],
++    };
++  }
+   const { publicStatus, verifySignature, verifyHandshake } = await import("@/lib/whatsapp/coexistence");
+   const { appWebhookFields } = await import("@/lib/whatsapp/coexistence-actions");
+   const stored = await readCoexistenceState();
+--- before/lib/ai/selftest.ts
++++ after/lib/ai/selftest.ts
+@@ -377,6 +377,10 @@
+   const creds = { token: "t", phoneNumberId: "1", wabaId: "2", source: "env" as const };
+   const flagNames = ["WHATSAPP_COEXISTENCE_ENABLED", "WHATSAPP_PRODUCTION_ONBOARDING_APPROVED", "WHATSAPP_OUTBOUND_ENABLED"];
+   const saved = flagNames.map((n) => process.env[n]);
++  // These are the coexistence-mode send rules: pin the mode so an ambient WHATSAPP_INTEGRATION_MODE (the isolated
++  // launcher forces "direct") cannot change what is tested. Direct-mode rules: scripts/check-whatsapp-direct.ts.
++  const savedMode = process.env.WHATSAPP_INTEGRATION_MODE;
++  process.env.WHATSAPP_INTEGRATION_MODE = "coexistence";
+   flagNames.forEach((n) => (process.env[n] = "false"));
+   check("Sending blocked while approval flags are off", !sendGate({ to: "919800000000", suppressed: false, template: false, windowOpen: true, consent: false, creds }).allowed);
+   flagNames.forEach((n) => (process.env[n] = "true"));
+@@ -386,6 +390,8 @@
+   check("Opted-out number is never messaged", !sendGate({ to: "919800000000", suppressed: true, template: true, windowOpen: true, consent: true, creds }).allowed);
+   check("Business's own live number is never messaged", !sendGate({ to: "917457099540", suppressed: false, template: false, windowOpen: true, consent: true, creds }).allowed);
+   flagNames.forEach((n, i) => (saved[i] === undefined ? delete process.env[n] : (process.env[n] = saved[i])));
++  if (savedMode === undefined) delete process.env.WHATSAPP_INTEGRATION_MODE;
++  else process.env.WHATSAPP_INTEGRATION_MODE = savedMode;
+   check("Template payload shape", JSON.stringify(templatePayload("+91 98000 00000", "followup", "en", ["Ravi"])).includes('"to":"919800000000"'));
+   const secret = "app-secret-123";
+   const raw = JSON.stringify(waBody);
+--- before/lib/whatsapp/cloud.ts
++++ after/lib/whatsapp/cloud.ts
+@@ -5,11 +5,20 @@
+  */
+ import { BLOCKED_LIVE_NUMBER, decryptToken, graphVersion, outboundAllowed, type StoredCoexistence } from "./coexistence.ts";
+ import { env, looksLikePlaceholder, requestJson } from "../ai/http.ts";
++import { directConfig, directOutboundDecision, isDirectMode, sendEnvironmentDecision } from "./mode.ts";
+ 
+ export type WaCredentials = { token: string; phoneNumberId: string; wabaId: string; source: "env" | "signup" | "none" };
+ 
+-/** WHATSAPP_* env first, then the encrypted token stored by Embedded Signup. */
++/**
++ * Coexistence mode: WHATSAPP_* env first, then the encrypted token stored by Embedded Signup.
++ * Direct mode (C3): environment only. The stored Embedded Signup token and stored IDs are never used; if any of
++ * token / phone-number ID / WABA ID is missing, no token is returned (source "none"), so nothing can be read or sent.
++ */
+ export function resolveCredentials(stored: StoredCoexistence | null): WaCredentials {
++  if (isDirectMode(process.env)) {
++    const cfg = directConfig(process.env);
++    return { token: cfg.complete ? cfg.token : "", phoneNumberId: cfg.phoneNumberId, wabaId: cfg.wabaId, source: cfg.complete ? "env" : "none" };
++  }
+   const token = env("WHATSAPP_ACCESS_TOKEN");
+   const phoneNumberId = env("WHATSAPP_PHONE_NUMBER_ID") || stored?.phoneNumberId || "";
+   const wabaId = env("WHATSAPP_BUSINESS_ACCOUNT_ID") || stored?.wabaId || "";
+@@ -129,7 +138,11 @@
+ /** Every rule a message must pass before it is sent. */
+ export function sendGate(input: { to: string; suppressed: boolean; template: boolean; windowOpen: boolean; consent: boolean; creds: WaCredentials; businessNumber?: string }): SendGate {
+   const to = input.to.replace(/\D/g, "");
+-  if (!outboundAllowed(process.env, input.businessNumber)) {
++  if (isDirectMode(process.env)) {
++    // C1: direct mode — outbound flag + written production sending approval, or the approved test number/recipients.
++    const decision = directOutboundDecision(process.env, to);
++    if (!decision.ok) return { allowed: false, reason: decision.reason };
++  } else if (!outboundAllowed(process.env, input.businessNumber)) {
+     return { allowed: false, reason: "WhatsApp sending is off: it needs WHATSAPP_COEXISTENCE_ENABLED and WHATSAPP_OUTBOUND_ENABLED, plus written production approval or replies from the verified test number." };
+   }
+   if (!input.creds.token || !input.creds.phoneNumberId) return { allowed: false, reason: "WhatsApp Cloud API credentials are missing." };
+@@ -141,7 +154,16 @@
+   return { allowed: true, reason: "ok" };
+ }
+ 
++/**
++ * The single function that sends a WhatsApp message (both callers — inbound replies and follow-ups — use it).
++ * C6: outside production it refuses, fail-closed, BEFORE any network request; the live business number is refused
++ * as a recipient here too, independent of sendGate.
++ */
+ export async function postMessage(creds: WaCredentials, payload: Record<string, unknown>) {
++  const where = sendEnvironmentDecision(process.env, creds.phoneNumberId);
++  if (!where.ok) return { ok: false as const, error: where.reason };
++  if (String(payload.to ?? "").replace(/\D/g, "") === BLOCKED_LIVE_NUMBER) return { ok: false as const, error: "The business's own number cannot be messaged." };
++  if (!creds.token || !creds.phoneNumberId) return { ok: false as const, error: "WhatsApp Cloud API credentials are missing." };
+   const res = await requestJson<{ messages?: { id?: string }[] }>(graphUrl(`/${encodeURIComponent(creds.phoneNumberId)}/messages`), {
+     method: "POST",
+     headers: { Authorization: `Bearer ${creds.token}`, "Content-Type": "application/json" },
+--- before/lib/whatsapp/coexistence.ts
++++ after/lib/whatsapp/coexistence.ts
+@@ -1,26 +1,29 @@
+ import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, scryptSync, timingSafeEqual } from "crypto";
+ import { looksLikePlaceholder } from "../ai/http.ts";
++import { BLOCKED_LIVE_NUMBER, KNOWN_PRODUCTION_APP_ID, KNOWN_PRODUCTION_CONFIG_ID, directOutboundPossible, isDirectMode } from "./mode.ts";
+ 
+-/** Digits for the live Marina Muse WhatsApp Business app number. Graph calls that include it are refused. */
+-export const BLOCKED_LIVE_NUMBER = "917457099540";
++/** Digits for the live Marina Muse WhatsApp Business app number. Graph calls that include it are refused. (Defined in mode.ts.) */
++export { BLOCKED_LIVE_NUMBER };
+ 
+ /** Embedded Signup implementation guide names v26.0 as the latest Graph API version to pass to FB.init. */
+ export const DEFAULT_GRAPH_API_VERSION = "v26.0";
+ 
+-export const SUPPLIED_APP_ID = "1588276335845243";
+-export const SUPPLIED_CONFIG_ID = "1760993601871515";
++/**
++ * The production app and configuration IDs. C9: they are NOT a fallback any more; exported only so checks and the
++ * isolated launcher can confirm they are never returned or used as test identifiers.
++ */
++export const SUPPLIED_APP_ID = KNOWN_PRODUCTION_APP_ID;
++export const SUPPLIED_CONFIG_ID = KNOWN_PRODUCTION_CONFIG_ID;
+ 
+ /**
+- * Meta app and Embedded Signup configuration ids. Outside the isolated test environment, unset values fall back
+- * to the supplied ids (unchanged behaviour). In the isolated test environment (MARINA_ISOLATED_TEST=1, set only
+- * by scripts/isolated-env.mjs) there is NO fallback: only an explicitly configured test app may be used, so a
+- * test can never reach the client's app.
++ * Meta app and Embedded Signup configuration ids, from the environment only (C9). Unset means "not configured" in
++ * every environment: there is no fallback to hard-coded production ids. `isolated` reports MARINA_ISOLATED_TEST=1.
+  */
+ export function metaAppIds(env: NodeJS.ProcessEnv = process.env) {
+   const isolated = env.MARINA_ISOLATED_TEST === "1";
+   return {
+-    appId: env.META_APP_ID?.trim() || (isolated ? "" : SUPPLIED_APP_ID),
+-    configId: env.META_CONFIG_ID?.trim() || (isolated ? "" : SUPPLIED_CONFIG_ID),
++    appId: env.META_APP_ID?.trim() || "",
++    configId: env.META_CONFIG_ID?.trim() || "",
+     isolated,
+   };
+ }
+@@ -588,7 +591,8 @@
+   return { ok: true as const, challenge: input.challenge };
+ }
+ 
+-export function verifySignature(raw: string, header: string | null, secret: string | undefined) {
++/** `raw` is the exact request body; the webhook route passes the received bytes (C4) so the HMAC is byte-exact. */
++export function verifySignature(raw: string | Uint8Array, header: string | null, secret: string | undefined) {
+   const key = secret?.trim() || "";
+   // A placeholder secret is public knowledge: treat it as not configured so nobody can sign with it.
+   if (!key || looksLikePlaceholder(key)) return { ok: false as const, status: 503, error: "Webhook secret is not configured." };
+@@ -892,6 +896,8 @@
+ export const HUMAN_TAKEOVER_HOURS = 24;
+ 
+ export function shouldSendWhatsApp(env: NodeJS.ProcessEnv) {
++  // C1: direct mode does not depend on any coexistence flag.
++  if (isDirectMode(env)) return directOutboundPossible(env);
+   const flags = readFlags(env);
+   return flags.coexistenceEnabled && flags.productionOnboardingApproved && flags.outboundEnabled;
+ }
+@@ -899,8 +905,11 @@
+ /**
+  * Automatic replies from the coexistence number. Production: all three approval flags.
+  * Test: coexistence + outbound flags, and the business number must be the verified test number.
++ * C1: in direct mode this is the flag-level answer only; the per-recipient decision is `directOutboundDecision`
++ * (applied in `sendGate`).
+  */
+ export function outboundAllowed(env: NodeJS.ProcessEnv, businessNumber?: string | null) {
++  if (isDirectMode(env)) return directOutboundPossible(env);
+   const flags = readFlags(env);
+   if (!flags.coexistenceEnabled || !flags.outboundEnabled) return false;
+   if (flags.productionOnboardingApproved) return true;
+@@ -958,7 +967,9 @@
+       ? "requested, waiting for history webhooks"
+       : "not requested";
+   const blockers = [
+-    "Confirm in the Meta dashboard that configuration 1760993601871515 is a Facebook Login for Business config for WhatsApp Embedded Signup with the two approved permissions.",
++    configId
++      ? `Confirm in the Meta dashboard that configuration ${configId} is a Facebook Login for Business config for WhatsApp Embedded Signup with the two approved permissions.`
++      : "META_CONFIG_ID is not set (there is no built-in fallback): set it to the Facebook Login for Business configuration for WhatsApp Embedded Signup.",
+     "Your business must be a Tech Provider or Solution Partner, and the test phone must run WhatsApp Business app 2.24.17 or newer.",
+     "Subscribe the app's WhatsApp Business Account webhook fields: messages, history, smb_app_state_sync, smb_message_echoes, account_update (App Dashboard → WhatsApp → Configuration).",
+     "The callback URL must be public HTTPS (/api/meta/whatsapp/webhook) with META_WEBHOOK_VERIFY_TOKEN; localhost cannot receive Meta webhooks.",
+--- before/lib/whatsapp/inbound.ts
++++ after/lib/whatsapp/inbound.ts
+@@ -4,20 +4,33 @@
+ import { isSuppressed, recordConsent } from "@/lib/ai/followups";
+ import { HUMAN_TAKEOVER_HOURS, type CoexistenceUpdates, type WaPlan } from "@/lib/whatsapp/coexistence";
+ import { isOptOut, postMessage, resolveCredentials, sendGate, textPayload, type WaStatusUpdate } from "@/lib/whatsapp/cloud";
+-import { readCoexistenceState, updateOnboardingFields } from "@/lib/whatsapp/store";
++import { readCoexistenceState, updateOnboardingFields, messagesCollection } from "@/lib/whatsapp/store";
++import { isDirectMode } from "@/lib/whatsapp/mode";
++import { isDuplicateKeyError, recordInboundOnce, reserveReply } from "@/lib/whatsapp/event-claims";
+ 
+ const OPT_IN = /^\s*(start|subscribe|yes,? (?:send|keep) me updates)\s*[.!]?\s*$/i;
+ 
+-async function deliver(to: string, body: string, sessionId: string, options: { system?: boolean } = {}) {
++/**
++ * Sends (or withholds) the single reply to inbound message `inReplyTo`.
++ * C5: the reply is RESERVED (unique per inReplyTo) before any gate or send, so a webhook retry can never send twice;
++ * a retry that finds the reservation does nothing. Database errors propagate (the webhook answers 500).
++ * C2: in direct mode no Coexistence state is read; the mode-aware sendGate decides.
++ */
++async function deliver(to: string, body: string, sessionId: string, inReplyTo: string, options: { system?: boolean } = {}) {
+   const db = await getDb();
+-  const state = await readCoexistenceState();
+-  const creds = resolveCredentials(state);
++  const messages = await messagesCollection();
+   const at = new Date().toISOString();
++  const reservation = await reserveReply(messages, inReplyTo, { direction: "out", to, sessionId, text: body, at });
++  if (!reservation.reserved) return { sent: false as const, drafted: false as const, reason: "already handled" };
++  const finish = (fields: Record<string, unknown>) => messages.updateOne({ inReplyTo }, { $set: fields });
++
++  const state = isDirectMode() ? null : await readCoexistenceState();
++  const creds = resolveCredentials(state);
+   // The owner replied from the WhatsApp Business app recently: keep the AI quiet (opt-out confirmations still go out).
+   const session = options.system ? null : await db.collection("ai_sessions").findOne({ id: sessionId }, { projection: { humanTakeoverUntil: 1 } });
+   if (typeof session?.humanTakeoverUntil === "string" && session.humanTakeoverUntil > at) {
+     const reason = "The business is replying from the WhatsApp Business app, so the AI reply was held.";
+-    await db.collection("ai_wa_messages").insertOne({ direction: "out", to, sessionId, text: body, status: "withheld", reason, at });
++    await finish({ status: "withheld", reason });
+     return { sent: false as const, drafted: true as const, reason };
+   }
+   const gate = sendGate({
+@@ -27,47 +40,44 @@
+     windowOpen: true,
+     consent: false,
+     creds,
+-    businessNumber: state?.displayNumber,
++    ...(state ? { businessNumber: state.displayNumber } : {}),
+   });
+   if (!gate.allowed) {
+-    await db.collection("ai_wa_messages").insertOne({ direction: "out", to, sessionId, text: body, status: "withheld", reason: gate.reason, at });
++    await finish({ status: "withheld", reason: gate.reason });
+     return { sent: false as const, drafted: true as const, reason: gate.reason };
+   }
+   const res = await postMessage(creds, textPayload(to, body));
+-  await db.collection("ai_wa_messages").insertOne({
+-    direction: "out",
+-    to,
+-    sessionId,
+-    text: body,
+-    wamid: res.ok ? res.wamid : "",
+-    status: res.ok ? "sent" : "failed",
+-    ...(res.ok ? {} : { reason: res.error }),
+-    at,
+-  });
++  // If this write fails after a successful send, the reservation stays "pending" and a retry still sends nothing.
++  await finish({ wamid: res.ok ? res.wamid : "", status: res.ok ? "sent" : "failed", ...(res.ok ? {} : { reason: res.error }) });
+   return res.ok ? { sent: true as const, drafted: false as const } : { sent: false as const, drafted: true as const, reason: res.error };
+ }
+ 
+ /**
+  * Agent 4: one WhatsApp conversation per sender. Gemini writes the reply from catalogue facts (shared with chat);
+  * it is sent only when every send rule passes, otherwise it is kept as a withheld draft for the admin.
++ * C5: the inbound record is written at most once per wamid; a retry skips the AI when a reply is already reserved;
++ * any error propagates so the webhook answers 500 and the event is retried (it is not marked done).
+  */
+ export async function draftInbound(plan: WaPlan) {
+   if (plan.action !== "draft" || !plan.text || !plan.messageId) return { sent: false as const, drafted: false as const };
+   const from = (plan.from || "").replace(/\D/g, "");
+   if (!from) return { sent: false as const, drafted: false as const };
+   const sessionId = `wa_${from}`.slice(0, 80);
++  const wamid = plan.messageId;
+   try {
+     const db = await getDb();
+-    await db.collection("ai_wa_messages").insertOne({ direction: "in", from, sessionId, wamid: plan.messageId, text: plan.text, at: new Date().toISOString() });
++    const messages = await messagesCollection();
++    await recordInboundOnce(messages, { from, sessionId, wamid, text: plan.text, at: new Date().toISOString() });
++    if (await messages.findOne({ inReplyTo: wamid })) return { sent: false as const, drafted: false as const };
+ 
+     if (isOptOut(plan.text)) {
+       await recordConsent({ channel: "whatsapp", address: from, granted: false, source: "whatsapp_stop", sessionId });
+-      return deliver(from, "You're unsubscribed and won't receive follow-up messages from Marina Muse. Reply START any time to opt back in.", sessionId, { system: true });
++      return deliver(from, "You're unsubscribed and won't receive follow-up messages from Marina Muse. Reply START any time to opt back in.", sessionId, wamid, { system: true });
+     }
+     if (OPT_IN.test(plan.text)) {
+       await db.collection("ai_suppression").deleteOne({ phone: from });
+       await recordConsent({ channel: "whatsapp", address: from, granted: true, source: "whatsapp_start", sessionId });
+-      return deliver(from, "Thank you — you'll receive order and enquiry updates from Marina Muse on WhatsApp. Reply STOP any time to opt out.", sessionId, { system: true });
++      return deliver(from, "Thank you — you'll receive order and enquiry updates from Marina Muse on WhatsApp. Reply STOP any time to opt out.", sessionId, wamid, { system: true });
+     }
+ 
+     // Agent switched off (AI_AGENTS_DISABLED): the message is kept for the team, no AI reply is drafted.
+@@ -81,10 +91,11 @@
+       knownContact: { phone: `+${from}`, ...(plan.profileName ? { name: plan.profileName } : {}) },
+     });
+     if ("error" in result || !result.reply) return { sent: false as const, drafted: false as const };
+-    return deliver(from, result.reply, sessionId);
++    return deliver(from, result.reply, sessionId, wamid);
+   } catch (err) {
+-    console.error("[whatsapp] inbound failed", err instanceof Error ? err.message : "failed");
+-    return { sent: false as const, drafted: false as const };
++    // Fixed label only (no message text, numbers or error details); the error goes up so the event is retried.
++    console.error("[whatsapp] inbound failed");
++    throw err;
+   }
+ }
+ 
+@@ -106,19 +117,28 @@
+     for (const m of chunk.messages.slice(0, 1000)) {
+       if (await db.collection("ai_wa_messages").findOne({ wamid: m.id }, { projection: { _id: 1 } })) continue;
+       const sessionId = `wa_${m.customer}`.slice(0, 80);
+-      await db.collection("ai_wa_messages").insertOne({
+-        direction: m.fromBusiness ? "out" : "in",
+-        source: "history",
+-        ...(m.fromBusiness ? { to: m.customer } : { from: m.customer }),
+-        sessionId,
+-        wamid: m.id,
+-        type: m.type,
+-        text: m.text,
+-        status: "history",
+-        at: m.timestamp,
+-      });
++      try {
++        await db.collection("ai_wa_messages").insertOne({
++          direction: m.fromBusiness ? "out" : "in",
++          source: "history",
++          ...(m.fromBusiness ? { to: m.customer } : { from: m.customer }),
++          sessionId,
++          wamid: m.id,
++          type: m.type,
++          text: m.text,
++          status: "history",
++          at: m.timestamp,
++        });
++      } catch (err) {
++        // C5: the same message was recorded concurrently (unique inbound index) — already present.
++        if (isDuplicateKeyError(err)) continue;
++        throw err;
++      }
+       if (m.text) {
+-        await db.collection("ai_messages").insertOne({ sessionId, role: m.fromBusiness ? "business" : "customer", text: m.text, source: "history", at: m.timestamp });
++        // C5: keyed by wamid so a redelivery after a partial failure does not add the line twice.
++        await db
++          .collection("ai_messages")
++          .updateOne({ sessionId, wamid: m.id, source: "history" }, { $setOnInsert: { sessionId, wamid: m.id, role: m.fromBusiness ? "business" : "customer", text: m.text, source: "history", at: m.timestamp } }, { upsert: true });
+       }
+       counts.historyMessages += 1;
+     }
+@@ -149,19 +169,21 @@
+       await db.collection("ai_wa_messages").updateOne({ wamid: echo.revokeOf }, { $set: { status: "revoked", text: null } });
+     } else if (echo.editOf) {
+       await db.collection("ai_wa_messages").updateOne({ wamid: echo.editOf }, { $set: { text: echo.text, editedAt: echo.timestamp } });
++    } else if (!echo.id) {
++      // No wamid to key on (not expected from Meta): recorded as before, without the retry guarantee.
++      await db.collection("ai_wa_messages").insertOne({ direction: "out", source: "business_app", to: echo.customer, sessionId, wamid: "", type: echo.type, text: echo.text, status: "sent", at: echo.timestamp });
+     } else {
+-      await db.collection("ai_wa_messages").insertOne({
+-        direction: "out",
+-        source: "business_app",
+-        to: echo.customer,
+-        sessionId,
+-        wamid: echo.id,
+-        type: echo.type,
+-        text: echo.text,
+-        status: "sent",
+-        at: echo.timestamp,
+-      });
+-      if (echo.text) await db.collection("ai_messages").insertOne({ sessionId, role: "business", text: echo.text, source: "business_app", at: echo.timestamp });
++      // C5: upserts keyed by the echo's wamid, so a redelivery after a partial failure writes nothing twice.
++      await db.collection("ai_wa_messages").updateOne(
++        { wamid: echo.id, source: "business_app" },
++        { $setOnInsert: { direction: "out", source: "business_app", to: echo.customer, sessionId, wamid: echo.id, type: echo.type, text: echo.text, status: "sent", at: echo.timestamp } },
++        { upsert: true }
++      );
++      if (echo.text) {
++        await db
++          .collection("ai_messages")
++          .updateOne({ sessionId, wamid: echo.id, source: "business_app" }, { $setOnInsert: { sessionId, wamid: echo.id, role: "business", text: echo.text, source: "business_app", at: echo.timestamp } }, { upsert: true });
++      }
+     }
+     // A person is handling this chat from the phone: the AI must not reply on top of them.
+     await db.collection("ai_sessions").updateOne(
+--- before/lib/whatsapp/store.ts
++++ after/lib/whatsapp/store.ts
+@@ -1,9 +1,91 @@
+ import { getDb } from "@/lib/mongodb";
+ import type { StoredCoexistence } from "@/lib/whatsapp/coexistence";
++import { INDEXES, claimEvent, completeEvent, failEvent, type ClaimCollection } from "@/lib/whatsapp/event-claims";
+ 
+ const STATE = "wa_coexistence_state";
+ const EVENTS = "wa_webhook_events";
+ 
++// ── C5: database-backed event claims ──
++
++/**
++ * The unique index on wa_webhook_events.key is REQUIRED for safe claims: if it cannot be confirmed, claiming throws
++ * (the webhook answers 500 and Meta redelivers) instead of processing without duplicate protection. A failed
++ * attempt is retried on the next request (the promise is reset), e.g. after the database recovers.
++ */
++let eventIndex: Promise<void> | null = null;
++function requireEventIndex() {
++  if (!eventIndex) {
++    eventIndex = getDb()
++      .then((db) => db.collection(INDEXES.events.collection).createIndex(INDEXES.events.spec, INDEXES.events.options))
++      .then(() => undefined)
++      .catch((err) => {
++        eventIndex = null;
++        throw err;
++      });
++  }
++  return eventIndex;
++}
++
++/**
++ * Partial unique indexes on ai_wa_messages (one inbound record per wamid, one reply per inbound wamid).
++ * Best-effort: creation can fail if existing data already holds duplicates (not inspected — no authorized database
++ * access). The state is kept for /test and the report; on failure, protection falls back to the event claim
++ * (one processor per event at a time) plus upserts. Retried after 10 minutes.
++ */
++export const messageIndexState: { ok: boolean | null; at: string | null; error: string | null } = { ok: null, at: null, error: null };
++let messageIndexes: Promise<void> | null = null;
++export function ensureMessageIndexes() {
++  if (!messageIndexes) {
++    messageIndexes = getDb()
++      .then(async (db) => {
++        const col = db.collection(INDEXES.inboundOnce.collection);
++        await col.createIndex(INDEXES.inboundOnce.spec, INDEXES.inboundOnce.options);
++        await col.createIndex(INDEXES.replyOnce.spec, INDEXES.replyOnce.options);
++        Object.assign(messageIndexState, { ok: true, at: new Date().toISOString(), error: null });
++      })
++      .catch((err) => {
++        const serverRefused = Boolean(err && typeof err === "object" && "codeName" in err);
++        Object.assign(messageIndexState, { ok: false, at: new Date().toISOString(), error: serverRefused ? String((err as { codeName: unknown }).codeName) : "database_unavailable" });
++        console.error("[whatsapp] message idempotency index unavailable");
++        // Database unreachable: retry on the next request. The server refused the index (e.g. existing duplicates): retry in 10 min.
++        if (!serverRefused) messageIndexes = null;
++        else setTimeout(() => (messageIndexes = null), 600_000).unref?.();
++      });
++  }
++  return messageIndexes;
++}
++
++async function eventsCollection() {
++  await requireEventIndex();
++  const db = await getDb();
++  return db.collection(EVENTS) as unknown as ClaimCollection;
++}
++
++export async function claimWebhookEvent(key: string, meta: { field: string; action: string; reason: string }) {
++  return claimEvent(await eventsCollection(), key, meta);
++}
++
++export async function completeWebhookEvent(key: string, token: string) {
++  return completeEvent(await eventsCollection(), key, token);
++}
++
++export async function failWebhookEvent(key: string, token: string, label: string) {
++  try {
++    return await failEvent(await eventsCollection(), key, token, label);
++  } catch {
++    return false;
++  }
++}
++
++/** Collection used for inbound records and reply reservations (indexes ensured first, best-effort). */
++export async function messagesCollection() {
++  await ensureMessageIndexes();
++  const db = await getDb();
++  return db.collection("ai_wa_messages") as unknown as ClaimCollection;
++}
++
++// ── pre-C5 helper, kept for compatibility (no longer used by the webhook route) ──
++
+ let indexReady: Promise<void> | null = null;
+ 
+ function ensureIndex() {
+--- before/package.json
++++ after/package.json
+@@ -13,6 +13,7 @@
+     "dev:db": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/dev-db.mjs",
+     "dev:scheduler": "node scripts/dev-scheduler.mjs",
+     "check:whatsapp": "node scripts/check-whatsapp-coexistence.ts",
++    "check:whatsapp-direct": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-whatsapp-direct.ts",
+     "check:phase2": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-phase2.ts",
+     "docs:env": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/gen-env-docs.ts",
+     "check:routes": "node scripts/check-routes.mjs"
+--- before/scripts/check-whatsapp-coexistence.ts
++++ after/scripts/check-whatsapp-coexistence.ts
+@@ -51,7 +51,8 @@
+ const isoExplicit = metaAppIds({ MARINA_ISOLATED_TEST: "1", META_APP_ID: "111", META_CONFIG_ID: "222" });
+ check("isolated test mode: an explicitly configured test app is used", isoExplicit.appId === "111" && isoExplicit.configId === "222", JSON.stringify(isoExplicit));
+ const normalIds = metaAppIds({});
+-check("normal mode: unchanged fallback to the supplied ids", normalIds.appId === SUPPLIED_APP_ID && normalIds.configId === SUPPLIED_CONFIG_ID && normalIds.isolated === false, "supplied");
++// C9 (approved 4b, 11 Nov 2026): the expectation changed from "falls back to the supplied ids" to "no fallback".
++check("normal mode: no fallback to the hard-coded production ids (C9)", normalIds.appId === "" && normalIds.configId === "" && normalIds.appId !== SUPPLIED_APP_ID && normalIds.configId !== SUPPLIED_CONFIG_ID && normalIds.isolated === false, JSON.stringify(normalIds));
+ check("isolated public status exposes no app id", publicStatus({ ...envOff, MARINA_ISOLATED_TEST: "1" }, null).appId === "", "empty");
+ const status = publicStatus(envOff, null);
+ check("production signup stays disabled", status.signupAllowed === false && status.liveNumberTouched === false, "disabled");
+--- before/scripts/gen-env-docs.ts
++++ after/scripts/gen-env-docs.ts
+@@ -27,9 +27,9 @@
+   VAPI_API_BASE: "https://api.vapi.ai",
+   VOICE_LANGUAGES: "en",
+   EXOTEL_SUBDOMAIN: "api.in.exotel.com",
+-  META_APP_ID: "1588276335845243",
+-  META_CONFIG_ID: "1760993601871515",
++  // C9: no production Meta app / configuration id defaults — they must be set explicitly.
+   META_GRAPH_API_VERSION: "v26.0",
++  WHATSAPP_PRODUCTION_SENDING_APPROVED: "false",
+   WHATSAPP_TEMPLATE_LANGUAGE: "en",
+   WHATSAPP_COEXISTENCE_ENABLED: "false",
+   WHATSAPP_PRODUCTION_ONBOARDING_APPROVED: "false",
+@@ -46,6 +46,7 @@
+   "RAZORPAY_KEY_ID", "RAZORPAY_KEY_SECRET", "RESEND_API_KEY", "ORDER_EMAIL_FROM", "VAPI_MODEL", "VOICE_PROVIDER", "VOICE_WEBHOOK_SECRET",
+   "GOOGLE_SERVICE_ACCOUNT_EMAIL", "GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY", "META_WEBHOOK_APP_SECRET", "AI_AGENTS_DISABLED",
+   "AI_OWNER_ALERT_SCORE", "AI_OWNER_ALERT_VALUE_USD", "OWNER_ALERT_EMAILS", "NEXT_PUBLIC_SHOP_UTC_OFFSET", "SMTP_FROM", "MARINA_ISOLATED_TEST",
++  "WHATSAPP_TEST_PHONE_NUMBER_ID", "WHATSAPP_TEST_BUSINESS_ACCOUNT_ID", "WHATSAPP_TEST_RECIPIENTS",
+ ]);
+ 
+ const categories = [...new Set(ENV_REGISTRY.map((v) => v.category))];
+--- before/scripts/isolated-env.mjs
++++ after/scripts/isolated-env.mjs
+@@ -50,6 +50,42 @@
+   return /Users|Authenticated Users|Everyone/i.test(check.replace(file, "")) ? "NOT owner-only" : "owner-only";
+ }
+ 
++// ── C10: WhatsApp Direct Cloud API test credentials ──
++// Known production identifiers (not secrets). Production WABA / phone-number ids are NOT known to this script
++// (production env files are never read), so they cannot be listed here; exact test-id matching is the main guard.
++const PRODUCTION_IDS = ["1588276335845243", "1760993601871515"];
++const LIVE_NUMBER = "917457099540";
++const WA_DIRECT = ["WHATSAPP_ACCESS_TOKEN", "WHATSAPP_PHONE_NUMBER_ID", "WHATSAPP_BUSINESS_ACCOUNT_ID", "WHATSAPP_TEST_PHONE_NUMBER_ID", "WHATSAPP_TEST_BUSINESS_ACCOUNT_ID"];
++
++/**
++ * Pure check of the WhatsApp values supplied in .env.isolated-test.local. Returns fatal problems (names only, never
++ * values). No WhatsApp direct value supplied → no problem (direct mode simply stays unconfigured).
++ */
++export function validateWhatsAppTestCreds(creds) {
++  const v = (k) => String(creds[k] ?? "").trim();
++  const problems = [];
++  const supplied = WA_DIRECT.filter((k) => v(k));
++  if (supplied.length) {
++    for (const k of WA_DIRECT) if (!v(k)) problems.push(`${k} is required when WhatsApp direct test credentials are supplied`);
++    for (const k of WA_DIRECT.slice(1)) if (v(k) && !/^\d{6,20}$/.test(v(k))) problems.push(`${k} must be a numeric Meta id`);
++    if (v("WHATSAPP_PHONE_NUMBER_ID") && v("WHATSAPP_PHONE_NUMBER_ID") !== v("WHATSAPP_TEST_PHONE_NUMBER_ID")) problems.push("WHATSAPP_PHONE_NUMBER_ID does not exactly match the approved WHATSAPP_TEST_PHONE_NUMBER_ID");
++    if (v("WHATSAPP_BUSINESS_ACCOUNT_ID") && v("WHATSAPP_BUSINESS_ACCOUNT_ID") !== v("WHATSAPP_TEST_BUSINESS_ACCOUNT_ID")) problems.push("WHATSAPP_BUSINESS_ACCOUNT_ID does not exactly match the approved WHATSAPP_TEST_BUSINESS_ACCOUNT_ID");
++  }
++  for (const k of [...WA_DIRECT.slice(1), "META_APP_ID", "META_CONFIG_ID"]) {
++    const id = v(k);
++    if (!id) continue;
++    if (PRODUCTION_IDS.includes(id)) problems.push(`${k} is a known production identifier; only the separate Meta test app may be used`);
++    if (id.includes(LIVE_NUMBER)) problems.push(`${k} contains the live business number`);
++  }
++  const recipients = v("WHATSAPP_TEST_RECIPIENTS");
++  if (recipients) {
++    const list = recipients.split(",").map((n) => n.replace(/\D/g, ""));
++    if (list.some((n) => !/^\d{8,15}$/.test(n))) problems.push("WHATSAPP_TEST_RECIPIENTS must be comma-separated phone numbers with country code");
++    if (list.includes(LIVE_NUMBER)) problems.push("WHATSAPP_TEST_RECIPIENTS contains the live business number");
++  }
++  return problems;
++}
++
+ function parse(text) {
+   const out = {};
+   for (const l of text.split(/\r?\n/)) {
+@@ -68,15 +104,17 @@
+   }
+   // fresh client credentials
+   const problems = [];
++  const fatal = []; // C10: credential problems stop the launcher (exit 2) instead of being ignored
+   let creds = {};
+   if (fs.existsSync(CRED_FILE)) {
+     creds = parse(fs.readFileSync(CRED_FILE, "utf8"));
+     for (const [k, v] of Object.entries(creds)) {
+-      if (!ALLOWED.has(k)) { problems.push(`${k} is not an isolated-test variable; ignored`); continue; }
++      if (!ALLOWED.has(k)) { problems.push(`${k} is not an isolated-test variable; ignored`); fatal.push(`unexpected credential name ${k}`); continue; }
+       if (!v) continue;
+-      if (/mongodb(\+srv)?:\/\//i.test(v)) { problems.push(`${k} contains a database URI; ignored`); continue; }
++      if (/mongodb(\+srv)?:\/\//i.test(v)) { problems.push(`${k} contains a database URI; ignored`); fatal.push(`${k} contains a database URI`); continue; }
+       env[k] = v; source[k] = "isolated-file";
+     }
++    for (const p of validateWhatsAppTestCreds(creds)) { problems.push(p); fatal.push(p); }
+   }
+   // generated once per test session (never existed before; never printed). Kept in a git-ignored
+   // session file so a test server and its test client share the same synthetic secrets; a new
+@@ -104,6 +142,8 @@
+     WHATSAPP_PRODUCTION_ONBOARDING_APPROVED: "false", WHATSAPP_COEXISTENCE_ENABLED: "false", KVM2_UPLOAD_SKIP: "1",
+     PAYPAL_ALLOW_LIVE_OUTSIDE_PRODUCTION: "", SHIPGLOBAL_ALLOW_OUTSIDE_PRODUCTION: "", MONGODB_DEV_ALLOWED_HOSTS: "",
+     OWNER_ALERT_EMAILS: "", NEXT_PUBLIC_GA4_IN_DEVELOPMENT: "", MARINA_ISOLATED_TEST: "1",
++    // C10: direct Cloud API mode, no sending and no production sending approval in the isolated environment.
++    WHATSAPP_INTEGRATION_MODE: "direct", WHATSAPP_PRODUCTION_SENDING_APPROVED: "false",
+   };
+   for (const [k, v] of Object.entries(forced)) { env[k] = v; source[k] = `forced (${v === "" ? "empty" : v})`; }
+   const acl = { session: restrictToOwner(SESSION_FILE), credentials: restrictToOwner(CRED_FILE) };
+@@ -113,7 +153,7 @@
+     acl,
+     credFile: fs.existsSync(CRED_FILE) ? path.basename(CRED_FILE) : "(absent)",
+     suppliedNames: Object.keys(creds).filter((k) => ALLOWED.has(k) && creds[k]),
+-    problems, source,
++    problems, fatal, source,
+     generatedFingerprints: Object.fromEntries(Object.entries(gen).map(([k, v]) => [k, fp(v)])),
+   };
+   return { env, report };
+@@ -134,6 +174,11 @@
+     for (const [s, ks] of Object.entries(by)) console.log(`\n[${s}] ${ks.length}\n  ${ks.join(", ")}`);
+     process.exit(report.problems.length ? 1 : 0);
+   }
++  if (report.fatal.length) {
++    // C10: never run anything with unexpected, mismatched or production credentials.
++    for (const p of report.fatal) console.error(`[isolated-env] REFUSED: ${p}`);
++    process.exit(2);
++  }
+   const [cmd, ...args] = process.argv.slice(sep + 1);
+   console.error(`[isolated-env] running "${[cmd, ...args].join(" ")}" with ${Object.values(report.source).filter((s) => s === "blank").length} integration variables blanked; fresh credentials: ${report.suppliedNames.join(", ") || "none"}`);
+   const child = spawn(cmd, args, { env, stdio: "inherit", shell: process.platform === "win32" });
+--- before/lib/whatsapp/mode.ts (new file)
++++ after/lib/whatsapp/mode.ts
+@@ -0,0 +1,200 @@
++/**
++ * WhatsApp integration mode and the Direct Cloud API rules (Change Plan C1, C3, C4, C6, C7, C8, C10).
++ *
++ * `WHATSAPP_INTEGRATION_MODE=direct` selects the business-owned direct Cloud API; anything else (unset included)
++ * keeps the existing Embedded Signup / Coexistence behaviour unchanged. Pure functions only: no I/O, no network,
++ * relative imports only, so the offline checks (`npm run check:whatsapp-direct`) can run them under plain Node.
++ */
++
++/** Digits for the live Marina Muse WhatsApp Business app number. Never a recipient, never a configured or test identifier. */
++export const BLOCKED_LIVE_NUMBER = "917457099540";
++
++/**
++ * Production Meta app and Embedded Signup configuration IDs (not secrets). They are NEVER used as a fallback (C9);
++ * they are kept only so the isolated test launcher and the checks can refuse them as test identifiers.
++ */
++export const KNOWN_PRODUCTION_APP_ID = "1588276335845243";
++export const KNOWN_PRODUCTION_CONFIG_ID = "1760993601871515";
++
++export type IntegrationMode = "direct" | "coexistence";
++type Env = NodeJS.ProcessEnv | Record<string, string | undefined>;
++
++const val = (env: Env, name: string) => (env[name] ?? "").trim();
++const on = (env: Env, name: string) => val(env, name).toLowerCase() === "true";
++const digitsOnly = (v: string | undefined | null) => (v || "").replace(/\D/g, "");
++
++export function integrationMode(env: Env = process.env): IntegrationMode {
++  return val(env, "WHATSAPP_INTEGRATION_MODE").toLowerCase() === "direct" ? "direct" : "coexistence";
++}
++
++export function isDirectMode(env: Env = process.env) {
++  return integrationMode(env) === "direct";
++}
++
++/** Direct-mode credentials: environment only (C3). Values are returned to server code only and never logged. */
++export function directConfig(env: Env = process.env) {
++  const token = val(env, "WHATSAPP_ACCESS_TOKEN");
++  const phoneNumberId = val(env, "WHATSAPP_PHONE_NUMBER_ID");
++  const wabaId = val(env, "WHATSAPP_BUSINESS_ACCOUNT_ID");
++  const missing = [
++    ...(token ? [] : ["WHATSAPP_ACCESS_TOKEN"]),
++    ...(phoneNumberId ? [] : ["WHATSAPP_PHONE_NUMBER_ID"]),
++    ...(wabaId ? [] : ["WHATSAPP_BUSINESS_ACCOUNT_ID"]),
++  ];
++  return { token, phoneNumberId, wabaId, missing, complete: missing.length === 0 };
++}
++
++/**
++ * Test configuration: the configured phone-number ID and WABA ID must equal, exactly, the approved Meta TEST
++ * phone-number ID and test WABA ID (C10 / approval 4c). Both test IDs must be set.
++ */
++export function testConfigMatches(env: Env = process.env) {
++  const testPhone = val(env, "WHATSAPP_TEST_PHONE_NUMBER_ID");
++  const testWaba = val(env, "WHATSAPP_TEST_BUSINESS_ACCOUNT_ID");
++  return Boolean(testPhone && testWaba && testPhone === val(env, "WHATSAPP_PHONE_NUMBER_ID") && testWaba === val(env, "WHATSAPP_BUSINESS_ACCOUNT_ID"));
++}
++
++/** WHATSAPP_TEST_RECIPIENTS: comma-separated tester numbers (digits). The live business number is never accepted. */
++export function testRecipients(env: Env = process.env) {
++  return val(env, "WHATSAPP_TEST_RECIPIENTS")
++    .split(",")
++    .map((n) => digitsOnly(n))
++    .filter((n) => /^\d{8,15}$/.test(n) && n !== BLOCKED_LIVE_NUMBER);
++}
++
++export type Decision = { ok: boolean; reason: string };
++
++/**
++ * C1: direct-mode send permission, independent of every coexistence flag.
++ * WHATSAPP_OUTBOUND_ENABLED=true AND either written production approval (WHATSAPP_PRODUCTION_SENDING_APPROVED=true)
++ * or test mode (configured IDs equal the approved test IDs, and the recipient is on WHATSAPP_TEST_RECIPIENTS).
++ * The remaining rules (window, consent, suppression, live number) stay in sendGate.
++ */
++export function directOutboundDecision(env: Env, to: string): Decision {
++  if (!on(env, "WHATSAPP_OUTBOUND_ENABLED")) return { ok: false, reason: "WhatsApp sending is off (WHATSAPP_OUTBOUND_ENABLED is not true)." };
++  if (on(env, "WHATSAPP_PRODUCTION_SENDING_APPROVED")) return { ok: true, reason: "production sending approved" };
++  if (!testConfigMatches(env)) {
++    return { ok: false, reason: "WhatsApp sending needs WHATSAPP_PRODUCTION_SENDING_APPROVED=true, or the approved test phone-number ID and test WABA ID configured." };
++  }
++  const recipient = digitsOnly(to);
++  if (!testRecipients(env).includes(recipient)) return { ok: false, reason: "Test mode: the recipient is not on WHATSAPP_TEST_RECIPIENTS." };
++  return { ok: true, reason: "test mode (approved test number and recipient)" };
++}
++
++/** Flag-level view for status screens (no recipient): could anything be sent at all in direct mode? */
++export function directOutboundPossible(env: Env = process.env) {
++  return on(env, "WHATSAPP_OUTBOUND_ENABLED") && (on(env, "WHATSAPP_PRODUCTION_SENDING_APPROVED") || (testConfigMatches(env) && testRecipients(env).length > 0));
++}
++
++/**
++ * C6: real sends outside production are refused, fail-closed, before any network request.
++ * The only non-production exception is the isolated test launcher (MARINA_ISOLATED_TEST=1) in direct mode, sending
++ * from the approved test phone-number ID with matching test WABA ID. (Stricter than the Change Plan draft: no general
++ * WHATSAPP_ALLOW_OUTSIDE_PRODUCTION override exists, per the client's mandatory requirement.)
++ */
++export function sendEnvironmentDecision(env: Env, phoneNumberId: string): Decision {
++  if (val(env, "NODE_ENV") === "production") return { ok: true, reason: "production" };
++  const isolatedTest =
++    val(env, "MARINA_ISOLATED_TEST") === "1" &&
++    isDirectMode(env) &&
++    testConfigMatches(env) &&
++    Boolean(phoneNumberId) &&
++    phoneNumberId === val(env, "WHATSAPP_TEST_PHONE_NUMBER_ID");
++  return isolatedTest
++    ? { ok: true, reason: "isolated test environment, approved test number" }
++    : { ok: false, reason: "WhatsApp messages are never sent outside production (only the isolated test launcher with the approved test number may)." };
++}
++
++/** C7: Embedded Signup and Coexistence routes are closed in direct mode (410, before any parsing or Meta call). */
++export const DIRECT_MODE_ROUTE_ERROR = "Embedded Signup and Coexistence are disabled: WhatsApp runs in direct Cloud API mode.";
++
++export function directModeRouteBlock(env: Env = process.env): { status: 410; body: { ok: false; calledMeta: false; error: string } } | null {
++  return isDirectMode(env) ? { status: 410, body: { ok: false, calledMeta: false, error: DIRECT_MODE_ROUTE_ERROR } } : null;
++}
++
++/** C4: webhook bodies larger than this are refused (413) before any signature work. */
++export const MAX_WEBHOOK_BYTES = 1_000_000;
++
++type Change = { field?: string; value?: { metadata?: { phone_number_id?: unknown } } & Record<string, unknown> } & Record<string, unknown>;
++type Entry = { id?: unknown; changes?: Change[] } & Record<string, unknown>;
++
++export type DirectFilterResult =
++  | { ok: true; body: { object: string; entry: Entry[] }; accepted: number; ignoredForeign: number; ignoredOther: number }
++  | { ok: false; status: 503; error: string };
++
++/**
++ * C4: in direct mode only `messages` changes for the configured WABA (entry.id) AND the configured phone-number ID
++ * (value.metadata.phone_number_id) reach processing. Missing or mismatched identifiers are dropped here, so they never
++ * reach message processing, status updates or storage. Not configured → 503 (fail closed; Meta retries later).
++ */
++export function filterDirectWebhook(body: unknown, env: Env = process.env): DirectFilterResult {
++  const wabaId = val(env, "WHATSAPP_BUSINESS_ACCOUNT_ID");
++  const phoneNumberId = val(env, "WHATSAPP_PHONE_NUMBER_ID");
++  if (!wabaId || !phoneNumberId) return { ok: false, status: 503, error: "WhatsApp is not configured." };
++  const root = body as { object?: unknown; entry?: unknown };
++  const out = { object: String(root?.object ?? ""), entry: [] as Entry[] };
++  let accepted = 0;
++  let ignoredForeign = 0;
++  let ignoredOther = 0;
++  if (root?.object !== "whatsapp_business_account" || !Array.isArray(root.entry)) {
++    return { ok: true, body: out, accepted, ignoredForeign, ignoredOther };
++  }
++  for (const entry of root.entry as Entry[]) {
++    const changes = Array.isArray(entry?.changes) ? entry.changes : [];
++    if (String(entry?.id ?? "") !== wabaId) {
++      ignoredForeign += Math.max(1, changes.length);
++      continue;
++    }
++    const kept: Change[] = [];
++    for (const change of changes) {
++      if (change?.field !== "messages") {
++        ignoredOther += 1;
++        continue;
++      }
++      if (String(change.value?.metadata?.phone_number_id ?? "") !== phoneNumberId) {
++        ignoredForeign += 1;
++        continue;
++      }
++      kept.push(change);
++      accepted += 1;
++    }
++    if (kept.length) out.entry.push({ ...entry, changes: kept });
++  }
++  return { ok: true, body: out, accepted, ignoredForeign, ignoredOther };
++}
++
++function mask(value: string) {
++  return /^\d{6,20}$/.test(value) ? `${value.slice(0, 4)}…${value.slice(-4)}` : value ? "set (not numeric)" : null;
++}
++
++/** C8: admin status in direct mode. Masked IDs and set/missing flags only; never a token, secret or full number. */
++export function directStatus(env: Env, handshakeAt?: string) {
++  const cfg = directConfig(env);
++  const secret = val(env, "META_WEBHOOK_APP_SECRET") || val(env, "META_APP_SECRET");
++  return {
++    integrationMode: "direct" as const,
++    wabaIdMasked: mask(cfg.wabaId),
++    phoneNumberIdMasked: mask(cfg.phoneNumberId),
++    tokenConfigured: Boolean(cfg.token),
++    appIdConfigured: Boolean(val(env, "META_APP_ID")),
++    webhookSecretConfigured: Boolean(secret),
++    verifyTokenConfigured: Boolean(val(env, "META_WEBHOOK_VERIFY_TOKEN")),
++    missing: cfg.missing,
++    graphVersion: val(env, "META_GRAPH_API_VERSION") || "v26.0",
++    outbound: {
++      enabled: on(env, "WHATSAPP_OUTBOUND_ENABLED"),
++      productionApproved: on(env, "WHATSAPP_PRODUCTION_SENDING_APPROVED"),
++      testConfigMatches: testConfigMatches(env),
++      testRecipients: testRecipients(env).length,
++      possible: directOutboundPossible(env),
++      nonProductionBlocked: val(env, "NODE_ENV") !== "production",
++    },
++    webhookHandshake: handshakeAt ? "token matched" : "not seen",
++    webhookHandshakeAt: handshakeAt || null,
++    liveNumberBlocked: true as const,
++    embeddedSignup: "disabled" as const,
++    callbackPath: "/api/meta/whatsapp/webhook",
++  };
++}
++
++export type DirectStatus = ReturnType<typeof directStatus>;
+--- before/lib/whatsapp/event-claims.ts (new file)
++++ after/lib/whatsapp/event-claims.ts
+@@ -0,0 +1,129 @@
++/**
++ * C5: persistent, database-backed idempotency for WhatsApp webhook events and their side effects.
++ *
++ * Event identity: the key from `normaliseWebhook` (inbound message: `msg:<wamid>`; Coexistence fields have their own keys).
++ * Persistence: collection `wa_webhook_events`, unique index on `key` (pre-existing). Each document carries
++ *   status "processing" | "done" | "failed", claimToken, claimedAt, attempts, doneAt/failedAt.
++ *   Documents written before C5 have no status; they were fully handled by the old code and count as "done".
++ * Concurrency: the unique index makes `insertOne` the atomic first claim. Re-claiming a failed event, or a
++ *   "processing" claim older than CLAIM_LEASE_MS (crash / restart), is a single atomic `findOneAndUpdate`
++ *   conditioned on that state, so only one caller can win it. Completion is fenced by claimToken.
++ * Side effects: the inbound record is written at most once per wamid, and the AI reply at most once per inbound
++ *   wamid (reservation before sending). Both rely on partial unique indexes on `ai_wa_messages` (see INDEXES)
++ *   plus upserts; a duplicate-key error (11000) means "already recorded".
++ *
++ * Pure: the collection is passed in. The app passes MongoDB collections (lib/whatsapp/store.ts); the offline checks
++ * pass a simulated collection. No transactions are used (the local test database is a standalone server).
++ */
++
++/** A claim older than this is treated as abandoned (process crashed or restarted mid-way) and may be re-claimed. */
++export const CLAIM_LEASE_MS = 120_000;
++
++/** Minimal collection surface used here (MongoDB driver v7 `Collection` satisfies it). */
++export type ClaimCollection = {
++  insertOne(doc: Record<string, unknown>): Promise<unknown>;
++  findOne(filter: Record<string, unknown>): Promise<Record<string, unknown> | null>;
++  findOneAndUpdate(filter: Record<string, unknown>, update: Record<string, unknown>, options?: Record<string, unknown>): Promise<Record<string, unknown> | null>;
++  updateOne(filter: Record<string, unknown>, update: Record<string, unknown>, options?: Record<string, unknown>): Promise<{ matchedCount: number; upsertedCount?: number | null }>;
++};
++
++/** Index definitions (names fixed so their presence can be checked). */
++export const INDEXES = {
++  events: { collection: "wa_webhook_events", spec: { key: 1 }, options: { unique: true } },
++  inboundOnce: {
++    collection: "ai_wa_messages",
++    spec: { wamid: 1, direction: 1 },
++    options: { name: "wa_inbound_wamid_once", unique: true, partialFilterExpression: { direction: { $eq: "in" }, wamid: { $type: "string" } } },
++  },
++  replyOnce: {
++    collection: "ai_wa_messages",
++    spec: { inReplyTo: 1 },
++    options: { name: "wa_reply_once", unique: true, partialFilterExpression: { inReplyTo: { $type: "string" } } },
++  },
++} as const;
++
++export function isDuplicateKeyError(err: unknown) {
++  return Boolean(err && typeof err === "object" && "code" in err && (err as { code: unknown }).code === 11000);
++}
++
++export type Claim =
++  | { state: "claimed"; token: string; retry: boolean }
++  | { state: "duplicate" }
++  | { state: "in_progress" };
++
++function newToken() {
++  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
++}
++
++/**
++ * Claims an event for processing. Throws on any database error other than a duplicate key, so the webhook answers
++ * 500 and Meta redelivers. Never returns "claimed" to two callers for the same key at the same time (except after
++ * the lease of an abandoned claim expires; see the report's limitations).
++ */
++export async function claimEvent(
++  col: ClaimCollection,
++  key: string,
++  meta: { field: string; action: string; reason: string },
++  now = Date.now(),
++  token = newToken()
++): Promise<Claim> {
++  const at = new Date(now).toISOString();
++  try {
++    await col.insertOne({ key, field: meta.field, action: meta.action, reason: meta.reason.slice(0, 200), status: "processing", claimToken: token, claimedAt: at, attempts: 1, at });
++    return { state: "claimed", token, retry: false };
++  } catch (err) {
++    if (!isDuplicateKeyError(err)) throw err;
++  }
++  const staleBefore = new Date(now - CLAIM_LEASE_MS).toISOString();
++  const reclaimed = await col.findOneAndUpdate(
++    { key, $or: [{ status: "failed" }, { status: "processing", claimedAt: { $lt: staleBefore } }] },
++    { $set: { status: "processing", claimToken: token, claimedAt: at }, $inc: { attempts: 1 } },
++    { returnDocument: "after" }
++  );
++  if (reclaimed) return { state: "claimed", token, retry: true };
++  const doc = await col.findOne({ key });
++  if (!doc) throw new Error("event claim not found");
++  if (doc.status === "processing") return { state: "in_progress" };
++  return { state: "duplicate" }; // "done", or a pre-C5 document without a status (fully handled by the old code)
++}
++
++/** Marks the event done, only if this caller still holds the claim. Throws on database errors. */
++export async function completeEvent(col: ClaimCollection, key: string, token: string, now = Date.now()) {
++  const res = await col.updateOne({ key, claimToken: token, status: "processing" }, { $set: { status: "done", doneAt: new Date(now).toISOString() } });
++  return { completed: res.matchedCount === 1 };
++}
++
++/** Marks the event failed so a redelivery re-claims it at once. Best-effort: if this write fails, the lease expiry still frees it. */
++export async function failEvent(col: ClaimCollection, key: string, token: string, label: string, now = Date.now()) {
++  try {
++    await col.updateOne({ key, claimToken: token }, { $set: { status: "failed", failedAt: new Date(now).toISOString(), lastError: label.slice(0, 120) } });
++    return true;
++  } catch {
++    return false;
++  }
++}
++
++/** Inbound message record, at most once per wamid. Returns "inserted" or "existing". Throws on other database errors. */
++export async function recordInboundOnce(col: ClaimCollection, doc: Record<string, unknown> & { wamid: string }) {
++  try {
++    const res = await col.updateOne({ wamid: doc.wamid, direction: "in" }, { $setOnInsert: { ...doc, direction: "in" } }, { upsert: true });
++    return res.upsertedCount ? ("inserted" as const) : ("existing" as const);
++  } catch (err) {
++    if (isDuplicateKeyError(err)) return "existing" as const;
++    throw err;
++  }
++}
++
++/**
++ * Reserves the single reply to an inbound wamid BEFORE anything is sent. Only the caller that creates the
++ * reservation may send; a retry finds it and sends nothing (at-most-once sending).
++ */
++export async function reserveReply(col: ClaimCollection, inReplyTo: string, doc: Record<string, unknown>) {
++  try {
++    const res = await col.updateOne({ inReplyTo }, { $setOnInsert: { ...doc, inReplyTo, status: "pending" } }, { upsert: true });
++    return { reserved: Boolean(res.upsertedCount) };
++  } catch (err) {
++    if (isDuplicateKeyError(err)) return { reserved: false };
++    throw err;
++  }
++}
+--- before/lib/whatsapp/webhook-process.ts (new file)
++++ after/lib/whatsapp/webhook-process.ts
+@@ -0,0 +1,100 @@
++/**
++ * C5: processing of a verified (and, in direct mode, ID-filtered) WhatsApp webhook body.
++ *
++ * Order per delivery:
++ *  1. Parse events; drop duplicates inside the same delivery.
++ *  2. Claim every new event in the database (`claimEvent`); "done" events are duplicates (200), events another
++ *     request is still processing are "in progress" (answer 500 so Meta redelivers later).
++ *  3. Do all database work for the claimed events (inbound record + AI draft/reply, Coexistence updates, statuses).
++ *  4. Only then mark each claimed event "done". The in-memory cache learns a key only after it is "done" in the
++ *     database, so it is an optimisation, never the source of truth.
++ *  5. Any error in 2–4 → claimed-but-unfinished events are marked "failed" (best-effort) and the answer is HTTP 500
++ *     with a fixed message (no error text, stack or identifiers), so Meta redelivers.
++ *
++ * Pure: database and AI work are injected (`WebhookDeps`), so the offline checks can simulate failures.
++ */
++import { coexistenceUpdates, normaliseWebhook, planEvents, type CoexistenceUpdates, type WaPlan } from "./coexistence.ts";
++import { statusUpdatesFromWebhook, type WaStatusUpdate } from "./cloud.ts";
++import type { Claim } from "./event-claims.ts";
++
++export type WebhookDeps = {
++  claim(key: string, meta: { field: string; action: string; reason: string }): Promise<Claim>;
++  complete(key: string, token: string): Promise<{ completed: boolean }>;
++  fail(key: string, token: string, label: string): Promise<boolean>;
++  draft(plan: WaPlan): Promise<{ sent: boolean; drafted: boolean }>;
++  applyCoexistence?(updates: CoexistenceUpdates, newKeys: Set<string>): Promise<{ historyMessages: number; contacts: number; echoes: number }>;
++  applyStatuses(updates: WaStatusUpdate[]): Promise<number>;
++  doneCache: { has(key: string): boolean; add(key: string): void };
++};
++
++export const WEBHOOK_FAILED_MESSAGE = "Webhook processing failed; it will be retried.";
++export const WEBHOOK_IN_PROGRESS_MESSAGE = "An event in this delivery is still being processed; it will be retried.";
++
++export type WebhookOutcome = {
++  status: 200 | 500;
++  json: Record<string, unknown>;
++  /** For logs/tests only; never put into the HTTP body. */
++  claimed: string[];
++  completed: string[];
++  failed: string[];
++};
++
++export async function processWebhookBody(body: unknown, deps: WebhookDeps, options: { direct: boolean }): Promise<WebhookOutcome> {
++  const local = new Set<string>();
++  const plans = planEvents(normaliseWebhook(body), { has: (k) => local.has(k), add: (k) => void local.add(k) });
++  const claimed: { plan: WaPlan; token: string }[] = [];
++  const completed: string[] = [];
++  const failed: string[] = [];
++  let duplicates = 0;
++  let inProgress = 0;
++  let draftsWithheld = 0;
++  let sent = 0;
++  let statuses = 0;
++  let coexistence = { historyMessages: 0, contacts: 0, echoes: 0 };
++
++  try {
++    for (const plan of plans) {
++      if (plan.reason === "duplicate" || deps.doneCache.has(plan.key)) {
++        duplicates += 1;
++        continue;
++      }
++      const claim = await deps.claim(plan.key, { field: plan.field, action: plan.action, reason: plan.reason });
++      if (claim.state === "duplicate") {
++        duplicates += 1;
++        deps.doneCache.add(plan.key);
++      } else if (claim.state === "in_progress") {
++        inProgress += 1;
++      } else {
++        claimed.push({ plan, token: claim.token });
++      }
++    }
++    for (const { plan } of claimed) {
++      if (plan.action !== "draft") continue;
++      const result = await deps.draft(plan);
++      if (result.sent) sent += 1;
++      else if (result.drafted) draftsWithheld += 1;
++    }
++    if (!options.direct && deps.applyCoexistence) {
++      coexistence = await deps.applyCoexistence(coexistenceUpdates(body), new Set(claimed.map((c) => c.plan.key)));
++    }
++    statuses = await deps.applyStatuses(statusUpdatesFromWebhook(body));
++    for (const { plan, token } of claimed) {
++      await deps.complete(plan.key, token);
++      completed.push(plan.key);
++      deps.doneCache.add(plan.key);
++    }
++  } catch {
++    for (const { plan, token } of claimed) {
++      if (completed.includes(plan.key)) continue;
++      await deps.fail(plan.key, token, "processing_failed").catch(() => false);
++      failed.push(plan.key);
++    }
++    return { status: 500, json: { ok: false, error: WEBHOOK_FAILED_MESSAGE }, claimed: claimed.map((c) => c.plan.key), completed, failed };
++  }
++
++  const summary = { received: plans.length, processed: completed.length, duplicates, inProgress, draftsWithheld, sent, statuses, coexistence };
++  if (inProgress > 0) {
++    return { status: 500, json: { ok: false, error: WEBHOOK_IN_PROGRESS_MESSAGE, ...summary }, claimed: claimed.map((c) => c.plan.key), completed, failed };
++  }
++  return { status: 200, json: { ok: true, ...summary }, claimed: claimed.map((c) => c.plan.key), completed, failed };
++}
+--- before/scripts/check-whatsapp-direct.ts (new file)
++++ after/scripts/check-whatsapp-direct.ts
+@@ -0,0 +1,583 @@
++// @ts-nocheck
++// Offline checks for the WhatsApp Direct Cloud API changes C1–C10 (approved 11 Nov 2026).
++//
++//   node scripts/isolated-env.mjs -- npm run check:whatsapp-direct
++//
++// OFFLINE UNIT TESTS ONLY. No network: global fetch is replaced by a spy that records calls and never reaches the
++// internet. No database: C5 scenarios run against a SIMULATED in-memory collection that mimics MongoDB unique /
++// partial unique indexes and can be switched "down". They are NOT MongoDB integration tests.
++// Every identifier, token and secret below is fake.
++import { createHmac } from "node:crypto";
++import fs from "node:fs";
++import {
++  BLOCKED_LIVE_NUMBER,
++  DIRECT_MODE_ROUTE_ERROR,
++  KNOWN_PRODUCTION_APP_ID,
++  KNOWN_PRODUCTION_CONFIG_ID,
++  MAX_WEBHOOK_BYTES,
++  directModeRouteBlock,
++  directOutboundDecision,
++  directStatus,
++  filterDirectWebhook,
++  integrationMode,
++  sendEnvironmentDecision,
++} from "../lib/whatsapp/mode.ts";
++import { encryptToken, metaAppIds, normaliseWebhook, outboundAllowed, publicStatus, shouldSendWhatsApp, verifySignature } from "../lib/whatsapp/coexistence.ts";
++import { postMessage, resolveCredentials, sendGate, statusUpdatesFromWebhook } from "../lib/whatsapp/cloud.ts";
++import { CLAIM_LEASE_MS, claimEvent, completeEvent, failEvent, recordInboundOnce, reserveReply } from "../lib/whatsapp/event-claims.ts";
++import { WEBHOOK_FAILED_MESSAGE, processWebhookBody } from "../lib/whatsapp/webhook-process.ts";
++import { isolatedEnv, validateWhatsAppTestCreds } from "./isolated-env.mjs";
++import { ENV_REGISTRY } from "../lib/ai/env-registry.ts";
++
++const results = [];
++let section = "";
++function check(id, name, pass, detail = "") {
++  results.push({ section, id, name, pass: Boolean(pass), detail: String(detail).slice(0, 220) });
++}
++
++// ── fake identifiers (never real) ──
++const WABA = "100000000000011";
++const PNID = "100000000000022";
++const FOREIGN_WABA = "900000000000011";
++const FOREIGN_PNID = "900000000000022";
++const TOKEN = "EAAfakeTokenForOfflineTestsOnly000";
++const SECRET = "fake-app-secret-for-offline-tests";
++const TESTER = "919999000001";
++
++// ── process.env helpers: start from a clean WhatsApp/Meta environment ──
++const WA_KEYS = Object.keys(process.env).filter((k) => /^(WHATSAPP_|META_|AUTH_SECRET$|MARINA_ISOLATED_TEST$)/.test(k));
++for (const k of WA_KEYS) delete process.env[k];
++const ORIGINAL_NODE_ENV = process.env.NODE_ENV;
++function withEnv(vars, fn) {
++  const saved = {};
++  for (const k of Object.keys(vars)) saved[k] = process.env[k];
++  for (const [k, v] of Object.entries(vars)) (v === undefined ? delete process.env[k] : (process.env[k] = v));
++  try {
++    return fn();
++  } finally {
++    for (const [k, v] of Object.entries(saved)) (v === undefined ? delete process.env[k] : (process.env[k] = v));
++  }
++}
++async function withEnvAsync(vars, fn) {
++  const saved = {};
++  for (const k of Object.keys(vars)) saved[k] = process.env[k];
++  for (const [k, v] of Object.entries(vars)) (v === undefined ? delete process.env[k] : (process.env[k] = v));
++  try {
++    return await fn();
++  } finally {
++    for (const [k, v] of Object.entries(saved)) (v === undefined ? delete process.env[k] : (process.env[k] = v));
++  }
++}
++const DIRECT = { WHATSAPP_INTEGRATION_MODE: "direct", WHATSAPP_ACCESS_TOKEN: TOKEN, WHATSAPP_PHONE_NUMBER_ID: PNID, WHATSAPP_BUSINESS_ACCOUNT_ID: WABA };
++const TESTCFG = { WHATSAPP_TEST_PHONE_NUMBER_ID: PNID, WHATSAPP_TEST_BUSINESS_ACCOUNT_ID: WABA, WHATSAPP_TEST_RECIPIENTS: TESTER };
++
++// ── fetch spy: no request can leave this process ──
++const fetchCalls = [];
++globalThis.fetch = async (url) => {
++  fetchCalls.push(String(url));
++  return new Response(JSON.stringify({ messages: [{ id: "wamid.fake-from-spy" }] }), { status: 200, headers: { "content-type": "application/json" } });
++};
++
++const gateInput = (creds, to = TESTER) => ({ to, suppressed: false, template: false, windowOpen: true, consent: false, creds });
++
++// ════════════════════ C1: send permission independent of coexistence ════════════════════
++section = "C1 send permission (direct mode)";
++check("C1.1", "Mode defaults to coexistence when unset", integrationMode({}) === "coexistence");
++check("C1.2", "WHATSAPP_INTEGRATION_MODE=direct selects direct mode", integrationMode({ WHATSAPP_INTEGRATION_MODE: "direct" }) === "direct");
++check("C1.3", "Unknown mode value keeps coexistence (previous behaviour)", integrationMode({ WHATSAPP_INTEGRATION_MODE: "dirct" }) === "coexistence");
++const table = [
++  // [label, extra env, recipient, expected]
++  ["all off", {}, TESTER, false],
++  ["outbound only (was P14)", { WHATSAPP_OUTBOUND_ENABLED: "true" }, TESTER, false],
++  ["coexistence flags only (no direct approval)", { WHATSAPP_COEXISTENCE_ENABLED: "true", WHATSAPP_PRODUCTION_ONBOARDING_APPROVED: "true", WHATSAPP_OUTBOUND_ENABLED: "true" }, TESTER, false],
++  ["outbound + production sending approved", { WHATSAPP_OUTBOUND_ENABLED: "true", WHATSAPP_PRODUCTION_SENDING_APPROVED: "true" }, "919800000000", true],
++  ["production approval without outbound flag", { WHATSAPP_PRODUCTION_SENDING_APPROVED: "true" }, "919800000000", false],
++  ["test config + allow-listed recipient", { WHATSAPP_OUTBOUND_ENABLED: "true", ...TESTCFG }, TESTER, true],
++  ["test config + recipient NOT allow-listed", { WHATSAPP_OUTBOUND_ENABLED: "true", ...TESTCFG }, "919800000000", false],
++  ["test phone id differs from configured", { WHATSAPP_OUTBOUND_ENABLED: "true", ...TESTCFG, WHATSAPP_TEST_PHONE_NUMBER_ID: FOREIGN_PNID }, TESTER, false],
++  ["test WABA differs from configured", { WHATSAPP_OUTBOUND_ENABLED: "true", ...TESTCFG, WHATSAPP_TEST_BUSINESS_ACCOUNT_ID: FOREIGN_WABA }, TESTER, false],
++  ["test WABA missing", { WHATSAPP_OUTBOUND_ENABLED: "true", ...TESTCFG, WHATSAPP_TEST_BUSINESS_ACCOUNT_ID: undefined }, TESTER, false],
++];
++table.forEach(([label, extra, to, expected], i) => {
++  const env = { ...DIRECT, ...extra };
++  const d = directOutboundDecision(env, to);
++  const gate = withEnv({ ...Object.fromEntries(Object.keys({ ...DIRECT, ...TESTCFG, WHATSAPP_OUTBOUND_ENABLED: 1, WHATSAPP_PRODUCTION_SENDING_APPROVED: 1, WHATSAPP_COEXISTENCE_ENABLED: 1, WHATSAPP_PRODUCTION_ONBOARDING_APPROVED: 1 }).map((k) => [k, undefined])), ...env }, () =>
++    sendGate(gateInput(resolveCredentials(null), to))
++  );
++  check(`C1.T${i + 1}`, `Truth table: ${label} → ${expected ? "allowed" : "refused"}`, d.ok === expected && gate.allowed === expected, `${d.reason} | gate: ${gate.reason}`);
++});
++check(
++  "C1.4",
++  "Live business number refused in direct mode even with production approval",
++  withEnv({ ...DIRECT, WHATSAPP_OUTBOUND_ENABLED: "true", WHATSAPP_PRODUCTION_SENDING_APPROVED: "true" }, () => !sendGate(gateInput(resolveCredentials(null), BLOCKED_LIVE_NUMBER)).allowed)
++);
++check(
++  "C1.5",
++  "Live number can never be a test recipient",
++  withEnv({ ...DIRECT, ...TESTCFG, WHATSAPP_OUTBOUND_ENABLED: "true", WHATSAPP_TEST_RECIPIENTS: `${TESTER},${BLOCKED_LIVE_NUMBER}` }, () => !sendGate(gateInput(resolveCredentials(null), BLOCKED_LIVE_NUMBER)).allowed)
++);
++check("C1.6", "Direct mode: window, consent and suppression rules still apply", withEnv({ ...DIRECT, WHATSAPP_OUTBOUND_ENABLED: "true", WHATSAPP_PRODUCTION_SENDING_APPROVED: "true" }, () => {
++  const c = resolveCredentials(null);
++  return !sendGate({ ...gateInput(c), windowOpen: false }).allowed && !sendGate({ ...gateInput(c), template: true, consent: false }).allowed && !sendGate({ ...gateInput(c), suppressed: true }).allowed;
++}));
++check("C1.7", "Coexistence mode unchanged: three flags allow, outbound alone does not", outboundAllowed({ WHATSAPP_COEXISTENCE_ENABLED: "true", WHATSAPP_PRODUCTION_ONBOARDING_APPROVED: "true", WHATSAPP_OUTBOUND_ENABLED: "true" }) === true && outboundAllowed({ WHATSAPP_OUTBOUND_ENABLED: "true" }) === false);
++check("C1.8", "shouldSendWhatsApp in direct mode ignores coexistence flags", shouldSendWhatsApp({ ...DIRECT, WHATSAPP_COEXISTENCE_ENABLED: "true", WHATSAPP_PRODUCTION_ONBOARDING_APPROVED: "true", WHATSAPP_OUTBOUND_ENABLED: "true" }) === false && shouldSendWhatsApp({ ...DIRECT, WHATSAPP_OUTBOUND_ENABLED: "true", WHATSAPP_PRODUCTION_SENDING_APPROVED: "true" }) === true);
++
++// ════════════════════ C2: callers ════════════════════
++section = "C2 send context";
++check("C2.1", "Test-mode send decided without any stored display number (was P15)", withEnv({ ...DIRECT, ...TESTCFG, WHATSAPP_OUTBOUND_ENABLED: "true" }, () => sendGate(gateInput(resolveCredentials(null))).allowed));
++const inboundSrc = fs.readFileSync("lib/whatsapp/inbound.ts", "utf8");
++const followSrc = fs.readFileSync("lib/ai/followups.ts", "utf8");
++check("C2.2", "deliver() reads no Coexistence state in direct mode", /isDirectMode\(\) \? null : await readCoexistenceState\(\)/.test(inboundSrc));
++check("C2.3", "follow-ups read no Coexistence state in direct mode", /resolveCredentials\(isDirectMode\(\) \? null : await readCoexistenceState\(\)\)/.test(followSrc));
++
++// ════════════════════ C3: environment-only credentials ════════════════════
++section = "C3 credentials";
++const cipher = encryptToken("EAAstoredSignupTokenFake000", "fake-auth-secret-0123456789abcdef");
++const stored = { mode: "stored", tokenCiphertext: cipher, phoneNumberId: FOREIGN_PNID, wabaId: FOREIGN_WABA };
++withEnv({ AUTH_SECRET: "fake-auth-secret-0123456789abcdef", WHATSAPP_INTEGRATION_MODE: "direct" }, () => {
++  const c = resolveCredentials(stored);
++  check("C3.1", "Direct mode + stored Embedded Signup token + empty env → no credentials", c.source === "none" && c.token === "" && c.phoneNumberId === "" && c.wabaId === "", JSON.stringify({ ...c, token: c.token ? "[set]" : "" }));
++});
++withEnv({ AUTH_SECRET: "fake-auth-secret-0123456789abcdef", ...DIRECT }, () => {
++  const c = resolveCredentials(stored);
++  check("C3.2", "Direct mode uses env values only (stored IDs ignored)", c.source === "env" && c.token === TOKEN && c.phoneNumberId === PNID && c.wabaId === WABA);
++});
++withEnv({ ...DIRECT, WHATSAPP_BUSINESS_ACCOUNT_ID: undefined }, () => {
++  const c = resolveCredentials(stored);
++  check("C3.3", "Direct mode with a missing WABA ID → token withheld (fail closed)", c.source === "none" && c.token === "");
++});
++withEnv({ AUTH_SECRET: "fake-auth-secret-0123456789abcdef", WHATSAPP_INTEGRATION_MODE: undefined }, () => {
++  const c = resolveCredentials(stored);
++  check("C3.4", "Coexistence mode unchanged: stored signup token still used when env token is empty", c.source === "signup" && c.token === "EAAstoredSignupTokenFake000");
++});
++
++// ════════════════════ C4: webhook filter, raw bytes, size ════════════════════
++section = "C4 webhook filtering and signature";
++const cfg = { WHATSAPP_BUSINESS_ACCOUNT_ID: WABA, WHATSAPP_PHONE_NUMBER_ID: PNID };
++const msgChange = (pnid, id = "wamid.c4", extra = {}) => ({ field: "messages", value: { messaging_product: "whatsapp", metadata: { display_phone_number: "15550001111", phone_number_id: pnid }, contacts: [{ wa_id: TESTER, profile: { name: "Fake" } }], messages: [{ from: TESTER, id, timestamp: "1700000000", type: "text", text: { body: "hello" } }], ...extra } });
++const body = (entries) => ({ object: "whatsapp_business_account", entry: entries });
++const f1 = filterDirectWebhook(body([{ id: WABA, changes: [msgChange(FOREIGN_PNID)] }]), cfg);
++check("C4.1", "Foreign phone-number ID ignored (was P10: drafted)", f1.ok && f1.accepted === 0 && f1.ignoredForeign === 1 && normaliseWebhook(f1.body).length === 0, JSON.stringify({ a: f1.accepted, f: f1.ignoredForeign }));
++const f2 = filterDirectWebhook(body([{ id: FOREIGN_WABA, changes: [msgChange(PNID)] }]), cfg);
++check("C4.2", "Foreign WABA (entry.id) ignored", f2.ok && f2.accepted === 0 && f2.ignoredForeign === 1 && normaliseWebhook(f2.body).length === 0);
++const f3 = filterDirectWebhook(body([{ changes: [msgChange(PNID)] }]), cfg);
++check("C4.3", "Missing WABA ID ignored", f3.ok && f3.accepted === 0 && normaliseWebhook(f3.body).length === 0);
++const f4 = filterDirectWebhook(body([{ id: WABA, changes: [{ field: "messages", value: { messages: [{ id: "wamid.x", from: TESTER, type: "text", text: { body: "x" } }] } }] }]), cfg);
++check("C4.4", "Missing phone-number ID ignored", f4.ok && f4.accepted === 0 && normaliseWebhook(f4.body).length === 0);
++const f5 = filterDirectWebhook(body([{ id: WABA, changes: [msgChange(PNID, "wamid.ok")] }]), cfg);
++const ev5 = normaliseWebhook(f5.body);
++check("C4.5", "Matching WABA + phone-number ID accepted", f5.ok && f5.accepted === 1 && ev5.length === 1 && ev5[0].messageId === "wamid.ok");
++const f6 = filterDirectWebhook(body([{ id: WABA, changes: [{ field: "history", value: { metadata: { phone_number_id: PNID }, history: [] } }, { field: "smb_message_echoes", value: { metadata: { phone_number_id: PNID } } }] }]), cfg);
++check("C4.6", "Coexistence fields (history, echoes) dropped in direct mode", f6.ok && f6.accepted === 0 && f6.ignoredOther === 2);
++const statusBody = (pnid) => body([{ id: WABA, changes: [{ field: "messages", value: { metadata: { phone_number_id: pnid }, statuses: [{ id: "wamid.s", status: "delivered", recipient_id: TESTER, timestamp: "1700000000" }] } }] }]);
++check("C4.7", "Status update for a foreign phone-number ID ignored; own one kept", statusUpdatesFromWebhook(filterDirectWebhook(statusBody(FOREIGN_PNID), cfg).body).length === 0 && statusUpdatesFromWebhook(filterDirectWebhook(statusBody(PNID), cfg).body).length === 1);
++const f8 = filterDirectWebhook(body([{ id: WABA, changes: [msgChange(PNID)] }]), {});
++check("C4.8", "Direct mode without configured IDs → 503 (fail closed)", !f8.ok && f8.status === 503);
++const f9 = filterDirectWebhook(body([{ id: WABA, changes: [msgChange(PNID, "wamid.a"), msgChange(FOREIGN_PNID, "wamid.b")] }]), cfg);
++check("C4.9", "Mixed delivery: only the matching change survives", f9.ok && f9.accepted === 1 && f9.ignoredForeign === 1 && normaliseWebhook(f9.body).map((e) => e.messageId).join() === "wamid.a");
++const sign = (bytes) => "sha256=" + createHmac("sha256", SECRET).update(bytes).digest("hex");
++const uni = Buffer.from(JSON.stringify(body([{ id: WABA, changes: [msgChange(PNID, "wamid.u")] }])).replace("hello", "नमस्ते ⚓ café"), "utf8");
++check("C4.10", "Valid signature over non-ASCII bytes accepted", verifySignature(uni, sign(uni), SECRET).ok);
++const bom = Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), uni]);
++const decodedLikeReqText = new TextDecoder().decode(bom); // what req.text() would give (BOM removed)
++check("C4.11", "BOM body: raw-byte check accepts Meta's signature; decoded-text check would not", verifySignature(bom, sign(bom), SECRET).ok && !verifySignature(decodedLikeReqText, sign(bom), SECRET).ok);
++const invalid = Buffer.concat([Buffer.from('{"object":"whatsapp_business_account","x":"'), Buffer.from([0xff, 0xfe]), Buffer.from('"}')]);
++check("C4.12", "Invalid UTF-8 byte: raw-byte check is exact; decoded text differs", verifySignature(invalid, sign(invalid), SECRET).ok && !verifySignature(invalid.toString("utf8"), sign(invalid), SECRET).ok);
++check("C4.13", "Altered byte rejected (401)", verifySignature(Buffer.from(uni).fill(0x41, 5, 6), sign(uni), SECRET).status === 401);
++check("C4.14", "Missing signature rejected (401); secret unset → 503", verifySignature(uni, null, SECRET).status === 401 && verifySignature(uni, sign(uni), "").status === 503);
++const routeSrc = fs.readFileSync("app/api/meta/whatsapp/webhook/route.ts", "utf8");
++const iSize = routeSrc.indexOf("MAX_WEBHOOK_BYTES) {");
++const iSig = routeSrc.indexOf("verifySignature(raw");
++const iFilter = routeSrc.indexOf("filterDirectWebhook(body)");
++const iProcess = routeSrc.indexOf("processWebhookBody(");
++check("C4.15", "Route order: size limit → signature over raw bytes → ID filter → processing", iSize > 0 && iSize < iSig && iSig < iFilter && iFilter < iProcess && routeSrc.includes("req.arrayBuffer()") && !routeSrc.includes("req.text()"));
++check("C4.16", "Size limit is 1 MB and answered with 413", MAX_WEBHOOK_BYTES === 1_000_000 && (routeSrc.match(/status: 413/g) || []).length === 2);
++
++// ════════════════════ C6: non-production send guard ════════════════════
++section = "C6 non-production send guard (fetch spy; no network)";
++async function sendAttempt(vars, to = TESTER) {
++  const before = fetchCalls.length;
++  const res = await withEnvAsync(vars, () => postMessage(resolveCredentials(null), { to, type: "text", text: { body: "x" } }));
++  return { res, fetched: fetchCalls.length - before };
++}
++const ALLOWED_DIRECT = { ...DIRECT, WHATSAPP_OUTBOUND_ENABLED: "true", WHATSAPP_PRODUCTION_SENDING_APPROVED: "true" };
++for (const [id, nodeEnv] of [["C6.1", "development"], ["C6.2", "test"], ["C6.3", undefined]]) {
++  const a = await sendAttempt({ ...ALLOWED_DIRECT, NODE_ENV: nodeEnv, MARINA_ISOLATED_TEST: undefined });
++  check(id, `NODE_ENV=${nodeEnv ?? "(unset)"}: send refused before any network request`, !a.res.ok && a.fetched === 0, a.res.error);
++}
++const bypass = await sendAttempt({ ...ALLOWED_DIRECT, NODE_ENV: "development", WHATSAPP_ALLOW_OUTSIDE_PRODUCTION: "true" });
++check("C6.4", "No override variable bypasses the guard (WHATSAPP_ALLOW_OUTSIDE_PRODUCTION ignored)", !bypass.res.ok && bypass.fetched === 0);
++const isoMismatch = await sendAttempt({ ...ALLOWED_DIRECT, NODE_ENV: "development", MARINA_ISOLATED_TEST: "1", WHATSAPP_TEST_PHONE_NUMBER_ID: FOREIGN_PNID, WHATSAPP_TEST_BUSINESS_ACCOUNT_ID: WABA });
++check("C6.5", "Isolated launcher but configured phone ID ≠ test phone ID → refused, no request", !isoMismatch.res.ok && isoMismatch.fetched === 0);
++const isoNoWaba = await sendAttempt({ ...ALLOWED_DIRECT, NODE_ENV: "development", MARINA_ISOLATED_TEST: "1", WHATSAPP_TEST_PHONE_NUMBER_ID: PNID });
++check("C6.6", "Isolated launcher without matching test WABA → refused, no request", !isoNoWaba.res.ok && isoNoWaba.fetched === 0);
++const coexDev = await sendAttempt({ WHATSAPP_INTEGRATION_MODE: undefined, WHATSAPP_ACCESS_TOKEN: TOKEN, WHATSAPP_PHONE_NUMBER_ID: PNID, NODE_ENV: "development", MARINA_ISOLATED_TEST: "1", ...TESTCFG });
++check("C6.7", "Coexistence mode outside production → refused, no request", !coexDev.res.ok && coexDev.fetched === 0);
++const live = await sendAttempt({ ...ALLOWED_DIRECT, NODE_ENV: "production" }, BLOCKED_LIVE_NUMBER);
++check("C6.8", "Production: live business number refused inside postMessage, no request", !live.res.ok && live.fetched === 0);
++const isoOk = await sendAttempt({ ...DIRECT, ...TESTCFG, NODE_ENV: "development", MARINA_ISOLATED_TEST: "1" });
++check("C6.9", "Isolated launcher + exact test IDs: guard opens (request reached the SPY only, test phone ID in URL)", isoOk.res.ok && isoOk.fetched === 1 && fetchCalls.at(-1).includes(`/${PNID}/messages`));
++const prod = await sendAttempt({ ...ALLOWED_DIRECT, NODE_ENV: "production" });
++check("C6.10", "Production: guard opens (request reached the SPY only)", prod.res.ok && prod.fetched === 1);
++check("C6.11", "sendEnvironmentDecision is fail-closed for an empty environment", !sendEnvironmentDecision({}, PNID).ok);
++// Bypass audit: the only code that posts to Graph /messages is postMessage.
++const files = [];
++(function walk(d) {
++  for (const e of fs.readdirSync(d, { withFileTypes: true })) {
++    const p = `${d}/${e.name}`;
++    if (e.isDirectory()) walk(p);
++    else if (/\.(ts|tsx|mjs|js)$/.test(e.name)) files.push(p);
++  }
++})("lib");
++(function walk(d) {
++  for (const e of fs.readdirSync(d, { withFileTypes: true })) {
++    const p = `${d}/${e.name}`;
++    if (e.isDirectory()) walk(p);
++    else if (/\.(ts|tsx|mjs|js)$/.test(e.name)) files.push(p);
++  }
++})("app");
++const messagesUrl = files.filter((p) => /graph\.facebook\.com|graphUrl\(/.test(fs.readFileSync(p, "utf8")) && /\/messages`/.test(fs.readFileSync(p, "utf8")));
++// Call sites only ("await postMessage(creds"); the definition "function postMessage(creds: …" in cloud.ts is not a caller.
++const postCallers = files.filter((p) => /await postMessage\(creds/.test(fs.readFileSync(p, "utf8")));
++check("C6.13a", "Bypass audit: postMessage is defined once, in lib/whatsapp/cloud.ts", files.filter((p) => /function postMessage\(/.test(fs.readFileSync(p, "utf8"))).join() === "lib/whatsapp/cloud.ts");
++check("C6.12", "Bypass audit: only lib/whatsapp/cloud.ts builds a Graph /messages URL", messagesUrl.length === 1 && messagesUrl[0] === "lib/whatsapp/cloud.ts", messagesUrl.join(", "));
++check("C6.13", "Bypass audit: postMessage callers are inbound.ts and followups.ts only", postCallers.sort().join() === "lib/ai/followups.ts,lib/whatsapp/inbound.ts", postCallers.join(", "));
++check("C6.14", "Bypass audit: coexistence-actions Graph helper refuses /messages", /\/messages\$\/\.test\(path\)/.test(fs.readFileSync("lib/whatsapp/coexistence.ts", "utf8")));
++
++// ════════════════════ C7: routes closed in direct mode ════════════════════
++section = "C7 Embedded Signup / Coexistence routes";
++const blocked = directModeRouteBlock({ WHATSAPP_INTEGRATION_MODE: "direct" });
++check("C7.1", "Direct mode → 410 with calledMeta=false", blocked?.status === 410 && blocked.body.calledMeta === false && blocked.body.error === DIRECT_MODE_ROUTE_ERROR);
++check("C7.2", "Coexistence mode → routes stay open (unchanged)", directModeRouteBlock({}) === null);
++for (const [id, p] of [["C7.3", "app/api/meta/whatsapp/signup/exchange/route.ts"], ["C7.4", "app/api/meta/whatsapp/signup/approve/route.ts"], ["C7.5", "app/api/meta/whatsapp/coexistence/route.ts"]]) {
++  const src = fs.readFileSync(p, "utf8");
++  const post = src.slice(src.indexOf("export async function POST"));
++  const firstLines = post.split("\n").slice(1, 5).join("\n");
++  check(id, `${p.split("/").slice(-3, -1).join("/")}: directModeRouteBlock() runs first in POST (before auth, parsing, Meta)`, /directModeRouteBlock\(\)/.test(firstLines) && post.indexOf("directModeRouteBlock()") < post.indexOf("requireAdminSession"));
++}
++
++// ════════════════════ C8: status, panel, health ════════════════════
++section = "C8 status, admin panel, health";
++const st = directStatus({ ...DIRECT, META_APP_SECRET: SECRET, META_WEBHOOK_VERIFY_TOKEN: "fake-verify-token-123456", META_APP_ID: "123456789012345", WHATSAPP_OUTBOUND_ENABLED: "true", ...TESTCFG }, "2026-11-11T00:00:00.000Z");
++const stJson = JSON.stringify(st);
++check("C8.1", "Direct status exposes no token, secret, verify token or full ID", !stJson.includes(TOKEN) && !stJson.includes(SECRET) && !stJson.includes("fake-verify-token") && !stJson.includes(PNID) && !stJson.includes(WABA) && !stJson.includes(TESTER), stJson.slice(0, 200));
++check("C8.2", "Direct status shows masked IDs and flags", st.wabaIdMasked === "1000…0011" && st.phoneNumberIdMasked === "1000…0022" && st.tokenConfigured && st.outbound.testConfigMatches && st.embeddedSignup === "disabled");
++const panel = fs.readFileSync("components/AdminWhatsAppPanel.tsx", "utf8");
++check("C8.3", "Panel: direct branch returns before the Facebook SDK <Script> and signup controls", panel.indexOf("if (direct) {") > 0 && panel.indexOf("if (direct) {") < panel.indexOf("<Script src=\"https://connect.facebook.net") && !panel.slice(panel.indexOf("function DirectPanel"), panel.indexOf("export function AdminWhatsAppPanel")).includes("FB."));
++const panelHooksEnd = panel.lastIndexOf("useState(");
++check("C8.4", "Panel: all hooks are declared before the direct-mode early return (React hook order)", panelHooksEnd < panel.indexOf("if (direct) {"));
++const integ = fs.readFileSync("lib/ai/integrations.ts", "utf8");
++const coexFn = integ.slice(integ.indexOf("export async function checkCoexistence"));
++check("C8.5", "Integrations: coexistence check returns not_applicable before any Meta lookup in direct mode", coexFn.indexOf("isDirectMode()") > 0 && coexFn.indexOf("isDirectMode()") < coexFn.indexOf("appWebhookFields"));
++const health = fs.readFileSync("lib/ai/health.ts", "utf8");
++check("C8.6", "Health: coexistence not required for Agent 4 in direct mode", /isDirectMode\(\)\s*\?\s*c\("Business app coexistence", true, "info"/.test(health));
++const statusRoute = fs.readFileSync("app/api/meta/whatsapp/status/route.ts", "utf8");
++check("C8.7", "Status route returns directStatus in direct mode", /if \(isDirectMode\(\)\) return NextResponse\.json\(directStatus\(/.test(statusRoute));
++
++// ════════════════════ C9: no hard-coded production IDs ════════════════════
++section = "C9 production ID fallbacks removed";
++const ids = metaAppIds({});
++check("C9.1", "metaAppIds({}) → empty app and config id (no fallback)", ids.appId === "" && ids.configId === "");
++const ps = publicStatus({}, null);
++check("C9.2", "publicStatus without env exposes no production id", ps.appId === "" && ps.configId === "" && !JSON.stringify(ps).includes(KNOWN_PRODUCTION_CONFIG_ID) && !JSON.stringify(ps).includes(KNOWN_PRODUCTION_APP_ID));
++const example = fs.readFileSync(".env.example", "utf8");
++check("C9.3", ".env.example: META_APP_ID and META_CONFIG_ID blank, no production ids", /^META_APP_ID=$/m.test(example) && /^META_CONFIG_ID=$/m.test(example) && !example.includes(KNOWN_PRODUCTION_APP_ID) && !example.includes(KNOWN_PRODUCTION_CONFIG_ID));
++const gen = fs.readFileSync("scripts/gen-env-docs.ts", "utf8");
++check("C9.4", "Env doc generator has no production id defaults", !gen.includes(KNOWN_PRODUCTION_APP_ID) && !gen.includes(KNOWN_PRODUCTION_CONFIG_ID));
++const registry = fs.readFileSync("lib/ai/env-registry.ts", "utf8");
++check("C9.5", "Env registry text has no production ids", !registry.includes(KNOWN_PRODUCTION_APP_ID) && !registry.includes(KNOWN_PRODUCTION_CONFIG_ID));
++const idHits = files.filter((p) => { const s = fs.readFileSync(p, "utf8"); return s.includes(KNOWN_PRODUCTION_APP_ID) || s.includes(KNOWN_PRODUCTION_CONFIG_ID); });
++check("C9.6", "Production ids appear in app/lib code only as the deny-list constants in lib/whatsapp/mode.ts", idHits.join() === "lib/whatsapp/mode.ts", idHits.join(", "));
++
++// ════════════════════ C10: isolated launcher ════════════════════
++section = "C10 isolated launcher (fake identifiers only)";
++const good = { WHATSAPP_ACCESS_TOKEN: TOKEN, WHATSAPP_PHONE_NUMBER_ID: PNID, WHATSAPP_BUSINESS_ACCOUNT_ID: WABA, WHATSAPP_TEST_PHONE_NUMBER_ID: PNID, WHATSAPP_TEST_BUSINESS_ACCOUNT_ID: WABA, WHATSAPP_TEST_RECIPIENTS: TESTER };
++const v = (over) => validateWhatsAppTestCreds({ ...good, ...over });
++check("C10.1", "No WhatsApp direct values supplied → accepted (direct mode stays unconfigured)", validateWhatsAppTestCreds({}).length === 0);
++check("C10.2", "Exactly matching fake test IDs → accepted", v({}).length === 0);
++check("C10.3", "Phone-number ID ≠ test phone-number ID → refused", v({ WHATSAPP_PHONE_NUMBER_ID: FOREIGN_PNID }).some((p) => /WHATSAPP_PHONE_NUMBER_ID does not exactly match/.test(p)));
++check("C10.4", "WABA ID ≠ test WABA ID → refused", v({ WHATSAPP_BUSINESS_ACCOUNT_ID: FOREIGN_WABA }).some((p) => /WHATSAPP_BUSINESS_ACCOUNT_ID does not exactly match/.test(p)));
++check("C10.5", "Test WABA ID missing → refused", v({ WHATSAPP_TEST_BUSINESS_ACCOUNT_ID: "" }).some((p) => /WHATSAPP_TEST_BUSINESS_ACCOUNT_ID is required/.test(p)));
++check("C10.6", "Near-match (extra digit / whitespace inside) → refused", v({ WHATSAPP_PHONE_NUMBER_ID: `${PNID}0`, WHATSAPP_TEST_PHONE_NUMBER_ID: PNID }).length > 0);
++check("C10.7", "Known production app id as META_APP_ID → refused", v({ META_APP_ID: KNOWN_PRODUCTION_APP_ID }).some((p) => /known production identifier/.test(p)));
++check("C10.8", "Known production config id → refused", v({ META_CONFIG_ID: KNOWN_PRODUCTION_CONFIG_ID }).some((p) => /known production identifier/.test(p)));
++check("C10.9", "Live business number as a recipient → refused", v({ WHATSAPP_TEST_RECIPIENTS: `${TESTER},+${BLOCKED_LIVE_NUMBER}` }).some((p) => /live business number/.test(p)));
++check("C10.10", "Non-numeric ids → refused", v({ WHATSAPP_PHONE_NUMBER_ID: "abc", WHATSAPP_TEST_PHONE_NUMBER_ID: "abc" }).some((p) => /numeric/.test(p)));
++check("C10.11", "Problems never contain the supplied values", !JSON.stringify(v({ WHATSAPP_PHONE_NUMBER_ID: FOREIGN_PNID, META_APP_ID: KNOWN_PRODUCTION_APP_ID })).includes(FOREIGN_PNID) && !JSON.stringify(v({ WHATSAPP_ACCESS_TOKEN: "" })).includes(TOKEN));
++const ambient = { WHATSAPP_ACCESS_TOKEN: "EAAambientShouldBeBlanked0000", WHATSAPP_PHONE_NUMBER_ID: FOREIGN_PNID, WHATSAPP_BUSINESS_ACCOUNT_ID: FOREIGN_WABA, WHATSAPP_TEST_PHONE_NUMBER_ID: FOREIGN_PNID, WHATSAPP_TEST_BUSINESS_ACCOUNT_ID: FOREIGN_WABA, WHATSAPP_TEST_RECIPIENTS: TESTER, WHATSAPP_PRODUCTION_SENDING_APPROVED: "true", WHATSAPP_INTEGRATION_MODE: "coexistence", WHATSAPP_OUTBOUND_ENABLED: "true", META_APP_ID: KNOWN_PRODUCTION_APP_ID };
++const iso = isolatedEnv(ambient);
++check("C10.12", "Ambient (e.g. .env.local-style) WhatsApp values are blanked, not inherited", ["WHATSAPP_ACCESS_TOKEN", "WHATSAPP_PHONE_NUMBER_ID", "WHATSAPP_BUSINESS_ACCOUNT_ID", "WHATSAPP_TEST_PHONE_NUMBER_ID", "WHATSAPP_TEST_BUSINESS_ACCOUNT_ID", "WHATSAPP_TEST_RECIPIENTS", "META_APP_ID"].every((k) => iso.env[k] === ""));
++check("C10.13", "Launcher forces direct mode, outbound off, no production sending approval", iso.env.WHATSAPP_INTEGRATION_MODE === "direct" && iso.env.WHATSAPP_OUTBOUND_ENABLED === "false" && iso.env.WHATSAPP_PRODUCTION_SENDING_APPROVED === "false" && iso.env.MARINA_ISOLATED_TEST === "1");
++const regNames = new Set(ENV_REGISTRY.map((r) => r.name));
++check("C10.14", "All new variables are registered (so the launcher blanks them)", ["WHATSAPP_INTEGRATION_MODE", "WHATSAPP_PRODUCTION_SENDING_APPROVED", "WHATSAPP_TEST_PHONE_NUMBER_ID", "WHATSAPP_TEST_BUSINESS_ACCOUNT_ID", "WHATSAPP_TEST_RECIPIENTS"].every((n) => regNames.has(n)));
++const isoExample = fs.readFileSync(".env.isolated-test.example", "utf8");
++check("C10.15", "Isolated template lists the direct test names, all blank", ["WHATSAPP_ACCESS_TOKEN", "WHATSAPP_PHONE_NUMBER_ID", "WHATSAPP_BUSINESS_ACCOUNT_ID", "WHATSAPP_TEST_PHONE_NUMBER_ID", "WHATSAPP_TEST_BUSINESS_ACCOUNT_ID", "WHATSAPP_TEST_RECIPIENTS"].every((n) => new RegExp(`^${n}=$`, "m").test(isoExample)));
++const isoSrc = fs.readFileSync("scripts/isolated-env.mjs", "utf8");
++check("C10.16", "Launcher run mode exits (2) on fatal credential problems before spawning", isoSrc.indexOf("report.fatal.length") > 0 && isoSrc.indexOf("report.fatal.length") < isoSrc.indexOf("spawn(cmd"));
++check("C10.17", "Launcher never opens .env.local", !/readFileSync\([^)]*\.env\.local/.test(isoSrc) && !/"\.env\.local"/.test(isoSrc));
++
++// ════════════════════ C5: SIMULATED database (not MongoDB) ════════════════════
++section = "C5 retry/duplicate/failure — SIMULATED collection, not MongoDB";
++const tick = () => new Promise((r) => setImmediate(r));
++class SimCollection {
++  constructor(name, uniques = []) {
++    this.name = name;
++    this.docs = [];
++    this.uniques = uniques; // [{ fields: [...], partial?: (doc) => bool }]
++    this.down = false;
++    this.failOn = null; // (op, filter) => bool  → throws a simulated network error once
++  }
++  guard(op, filter) {
++    if (this.down || (this.failOn && this.failOn(op, filter))) {
++      this.failOn = null;
++      const e = new Error("simulated: connection refused");
++      e.name = "MongoNetworkError";
++      throw e;
++    }
++  }
++  static get(o, k) {
++    return o[k];
++  }
++  matches(doc, filter) {
++    return Object.entries(filter).every(([k, cond]) => {
++      if (k === "$or") return cond.some((f) => this.matches(doc, f));
++      const v = doc[k];
++      if (cond && typeof cond === "object" && !Array.isArray(cond)) {
++        if ("$lt" in cond) return v !== undefined && v < cond.$lt;
++        if ("$eq" in cond) return v === cond.$eq;
++        if ("$type" in cond) return typeof v === cond.$type;
++        if ("$in" in cond) return cond.$in.includes(v);
++      }
++      return v === cond;
++    });
++  }
++  violates(doc, except) {
++    return this.uniques.some((u) => {
++      if (u.partial && !u.partial(doc)) return false;
++      return this.docs.some((d) => d !== except && (!u.partial || u.partial(d)) && u.fields.every((f) => d[f] === doc[f]));
++    });
++  }
++  dup() {
++    const e = new Error("E11000 duplicate key (simulated)");
++    e.code = 11000;
++    return e;
++  }
++  async insertOne(doc) {
++    await tick();
++    this.guard("insertOne", doc);
++    const d = { ...doc };
++    if (this.violates(d)) throw this.dup();
++    this.docs.push(d);
++    return { insertedId: this.docs.length };
++  }
++  async findOne(filter) {
++    await tick();
++    this.guard("findOne", filter);
++    const d = this.docs.find((x) => this.matches(x, filter));
++    return d ? { ...d } : null;
++  }
++  apply(d, update) {
++    Object.assign(d, update.$set || {});
++    for (const [k, n] of Object.entries(update.$inc || {})) d[k] = (d[k] || 0) + n;
++  }
++  async findOneAndUpdate(filter, update) {
++    await tick();
++    this.guard("findOneAndUpdate", filter);
++    const d = this.docs.find((x) => this.matches(x, filter)); // single-step: atomic like the server
++    if (!d) return null;
++    this.apply(d, update);
++    return { ...d };
++  }
++  async updateOne(filter, update, options = {}) {
++    await tick();
++    this.guard("updateOne", filter);
++    const d = this.docs.find((x) => this.matches(x, filter));
++    if (d) {
++      this.apply(d, update);
++      return { matchedCount: 1, upsertedCount: 0 };
++    }
++    if (!options.upsert) return { matchedCount: 0, upsertedCount: 0 };
++    await tick(); // find-then-insert gap: a concurrent upsert can interleave here (as on a real server without an index)
++    const eq = Object.fromEntries(Object.entries(filter).filter(([k, v]) => !k.startsWith("$") && (typeof v !== "object" || v === null)));
++    const nd = { ...eq, ...(update.$setOnInsert || {}), ...(update.$set || {}) };
++    if (this.violates(nd)) throw this.dup();
++    this.docs.push(nd);
++    return { matchedCount: 0, upsertedCount: 1 };
++  }
++}
++const eventsUnique = [{ fields: ["key"] }];
++const messageUniques = [
++  { fields: ["wamid", "direction"], partial: (d) => d.direction === "in" && typeof d.wamid === "string" },
++  { fields: ["inReplyTo"], partial: (d) => typeof d.inReplyTo === "string" },
++];
++function world({ withMessageIndexes = true } = {}) {
++  const w = {
++    events: new SimCollection("wa_webhook_events", eventsUnique),
++    messages: new SimCollection("ai_wa_messages", withMessageIndexes ? messageUniques : []),
++    clock: Date.UTC(2026, 10, 11, 8, 0, 0),
++    sends: [],
++    failAfterInbound: false,
++    failStatuses: false,
++  };
++  w.deps = (cache = new Set()) => ({
++    claim: (k, m) => claimEvent(w.events, k, m, w.clock),
++    complete: (k, t) => completeEvent(w.events, k, t, w.clock),
++    fail: (k, t, l) => failEvent(w.events, k, t, l, w.clock),
++    // Mirrors lib/whatsapp/inbound.ts draftInbound/deliver (record once → skip if reply reserved → reserve → "send").
++    draft: async (plan) => {
++      await recordInboundOnce(w.messages, { from: plan.from, sessionId: `wa_${plan.from}`, wamid: plan.messageId, text: plan.text, at: "t" });
++      if (w.failAfterInbound) {
++        w.failAfterInbound = false;
++        const e = new Error("simulated failure after inbound record");
++        e.name = "MongoNetworkError";
++        throw e;
++      }
++      if (await w.messages.findOne({ inReplyTo: plan.messageId })) return { sent: false, drafted: false };
++      const r = await reserveReply(w.messages, plan.messageId, { direction: "out", to: plan.from, text: "reply", at: "t" });
++      if (!r.reserved) return { sent: false, drafted: false };
++      w.sends.push(plan.messageId); // simulated send (no network)
++      await w.messages.updateOne({ inReplyTo: plan.messageId }, { $set: { status: "sent" } });
++      return { sent: true, drafted: false };
++    },
++    applyStatuses: async (u) => {
++      if (w.failStatuses) {
++        w.failStatuses = false;
++        throw Object.assign(new Error("simulated status write failure"), { name: "MongoNetworkError" });
++      }
++      return u.length;
++    },
++    doneCache: { has: (k) => cache.has(k), add: (k) => void cache.add(k) },
++  });
++  w.inbound = (wamid) => w.messages.docs.filter((d) => d.direction === "in" && d.wamid === wamid).length;
++  w.replies = (wamid) => w.messages.docs.filter((d) => d.inReplyTo === wamid).length;
++  w.event = (wamid) => w.events.docs.find((d) => d.key === `msg:${wamid}`);
++  return w;
++}
++const delivery = (wamid) => body([{ id: WABA, changes: [msgChange(PNID, wamid)] }]);
++const run = (w, wamid, cache) => processWebhookBody(delivery(wamid), w.deps(cache), { direct: true });
++const leak = (json) => /Mongo|E11000|stack|at \w+ \(|wamid\.|simulated|connection/i.test(JSON.stringify(json));
++
++{
++  const w = world();
++  const cache = new Set();
++  const r1 = await run(w, "wamid.s1", cache);
++  check("C5.1", "First delivery: 200, event done, 1 inbound record, 1 reply", r1.status === 200 && w.event("wamid.s1").status === "done" && w.inbound("wamid.s1") === 1 && w.replies("wamid.s1") === 1 && w.sends.length === 1);
++  const r2 = await run(w, "wamid.s1", cache);
++  check("C5.2", "Duplicate retry (same process): 200 duplicate, nothing new written or sent", r2.status === 200 && r2.json.duplicates === 1 && w.inbound("wamid.s1") === 1 && w.replies("wamid.s1") === 1 && w.sends.length === 1);
++  const r3 = await run(w, "wamid.s1", new Set());
++  check("C5.3", "Retry after simulated application restart (empty memory cache): the DATABASE claim answers duplicate", r3.status === 200 && r3.json.duplicates === 1 && w.sends.length === 1 && w.inbound("wamid.s1") === 1);
++}
++{
++  const w = world();
++  w.events.down = true;
++  w.messages.down = true;
++  const r = await run(w, "wamid.s4", new Set());
++  check("C5.4", "Database down: HTTP 500, nothing recorded, nothing sent", r.status === 500 && w.events.docs.length === 0 && w.messages.docs.length === 0 && w.sends.length === 0);
++  check("C5.5", "500 body is the fixed message only (no error text, stack, driver name or ids)", r.json.error === WEBHOOK_FAILED_MESSAGE && Object.keys(r.json).join() === "ok,error" && !leak(r.json), JSON.stringify(r.json));
++  w.events.down = false;
++  w.messages.down = false;
++  const r2 = await run(w, "wamid.s4", new Set());
++  check("C5.6", "Database recovered: Meta's redelivery is processed exactly once", r2.status === 200 && w.event("wamid.s4").status === "done" && w.inbound("wamid.s4") === 1 && w.sends.length === 1);
++}
++{
++  const w = world();
++  w.failAfterInbound = true;
++  const r = await run(w, "wamid.s7", new Set());
++  const ev = w.event("wamid.s7");
++  check("C5.7", "Partial failure after the inbound record: 500 and event marked FAILED (not done)", r.status === 500 && ev.status === "failed" && ev.lastError === "processing_failed" && w.inbound("wamid.s7") === 1 && w.replies("wamid.s7") === 0);
++  const r2 = await run(w, "wamid.s7", new Set());
++  check("C5.8", "Retry of the failed event: re-claimed at once, inbound NOT duplicated, reply sent once", r2.status === 200 && w.event("wamid.s7").status === "done" && w.event("wamid.s7").attempts === 2 && w.inbound("wamid.s7") === 1 && w.replies("wamid.s7") === 1 && w.sends.length === 1);
++}
++{
++  const w = world();
++  // Reply sent, then the database goes down before "done" (completion and the failure write both fail).
++  w.events.failOn = (op, f) => op === "updateOne" && f.status === "processing";
++  const failEv = w.events;
++  const origUpdate = failEv.updateOne.bind(failEv);
++  let downForFail = true;
++  failEv.updateOne = async (f, u, o) => {
++    if (downForFail && f.claimToken && !("status" in f)) {
++      downForFail = false;
++      throw Object.assign(new Error("simulated"), { name: "MongoNetworkError" });
++    }
++    return origUpdate(f, u, o);
++  };
++  const r = await run(w, "wamid.s9", new Set());
++  check("C5.9", "Failure after the reply was sent: 500, event left 'processing' (not done)", r.status === 500 && w.event("wamid.s9").status === "processing" && w.sends.length === 1);
++  const r2 = await run(w, "wamid.s9", new Set());
++  check("C5.10", "Immediate redelivery while the claim is fresh: 500 'in progress', nothing re-sent", r2.status === 500 && r2.json.inProgress === 1 && w.sends.length === 1);
++  w.clock += CLAIM_LEASE_MS + 1000;
++  const r3 = await run(w, "wamid.s9", new Set());
++  check("C5.11", "After the lease expires (crash/restart): re-claimed, completed, reply NOT sent again", r3.status === 200 && w.event("wamid.s9").status === "done" && w.sends.length === 1 && w.replies("wamid.s9") === 1 && w.inbound("wamid.s9") === 1);
++}
++{
++  const w = world();
++  const [a, b, c] = await Promise.all([run(w, "wamid.c1", new Set()), run(w, "wamid.c1", new Set()), run(w, "wamid.c1", new Set())]);
++  const statuses = [a.status, b.status, c.status].sort().join();
++  check("C5.12", "Three simultaneous deliveries: one processes (200), others get 500 in-progress or duplicate", statuses.startsWith("200") && [a, b, c].filter((x) => x.claimed.length === 1).length === 1, statuses);
++  check("C5.13", "Simultaneous deliveries: exactly 1 inbound record and 1 send", w.inbound("wamid.c1") === 1 && w.sends.length === 1 && w.replies("wamid.c1") === 1);
++  const after = await run(w, "wamid.c1", new Set());
++  check("C5.14", "Meta's later redelivery of the 500'd copies: duplicate, nothing new", after.status === 200 && after.json.duplicates === 1 && w.sends.length === 1);
++}
++{
++  const w = world();
++  const results2 = await Promise.all([recordInboundOnce(w.messages, { wamid: "wamid.r", from: TESTER }), recordInboundOnce(w.messages, { wamid: "wamid.r", from: TESTER })]);
++  check("C5.15", "Concurrent inbound upserts WITH the partial unique index: 1 record ('inserted' + 'existing')", w.inbound("wamid.r") === 1 && results2.sort().join() === "existing,inserted", results2.join());
++  const w2 = world({ withMessageIndexes: false });
++  await Promise.all([recordInboundOnce(w2.messages, { wamid: "wamid.r", from: TESTER }), recordInboundOnce(w2.messages, { wamid: "wamid.r", from: TESTER })]);
++  check("C5.16", "Same race WITHOUT the index: 2 records — shows the index (not the upsert alone) is what guarantees it", w2.inbound("wamid.r") === 2, `records=${w2.inbound("wamid.r")}`);
++  const res3 = await Promise.all([reserveReply(w.messages, "wamid.r", { to: TESTER }), reserveReply(w.messages, "wamid.r", { to: TESTER })]);
++  check("C5.17", "Concurrent reply reservations WITH the index: exactly one wins", res3.filter((x) => x.reserved).length === 1 && w.replies("wamid.r") === 1);
++}
++{
++  const w = world();
++  w.events.docs.push({ key: "msg:wamid.legacy", field: "messages", action: "draft", reason: "x", at: "2026-11-01T00:00:00.000Z" });
++  const r = await run(w, "wamid.legacy", new Set());
++  check("C5.18", "Pre-C5 event document (no status) counts as done: duplicate, not reprocessed", r.status === 200 && r.json.duplicates === 1 && w.sends.length === 0);
++}
++{
++  const w = world();
++  w.failStatuses = true;
++  const r = await run(w, "wamid.st", new Set());
++  check("C5.19", "Status-update write failure also answers 500 and leaves the event failed", r.status === 500 && w.event("wamid.st").status === "failed");
++}
++{
++  const w = world();
++  const c1 = await claimEvent(w.events, "k1", { field: "messages", action: "draft", reason: "r" }, w.clock, "tokenA");
++  w.clock += CLAIM_LEASE_MS + 1;
++  const c2 = await claimEvent(w.events, "k1", { field: "messages", action: "draft", reason: "r" }, w.clock, "tokenB");
++  const stale = await completeEvent(w.events, "k1", "tokenA", w.clock);
++  const fresh = await completeEvent(w.events, "k1", "tokenB", w.clock);
++  check("C5.20", "Completion is fenced by the claim token (stale holder cannot mark done)", c1.state === "claimed" && c2.state === "claimed" && c2.retry && !stale.completed && fresh.completed);
++}
++{
++  const w = world();
++  const dbl = body([{ id: WABA, changes: [msgChange(PNID, "wamid.b1"), msgChange(PNID, "wamid.b1")] }]);
++  const r = await processWebhookBody(dbl, w.deps(new Set()), { direct: true });
++  check("C5.21", "Same message twice inside one delivery: processed once", r.status === 200 && r.json.duplicates === 1 && w.inbound("wamid.b1") === 1 && w.sends.length === 1);
++}
++{
++  const routeTxt = fs.readFileSync("app/api/meta/whatsapp/webhook/route.ts", "utf8");
++  check("C5.22", "Route: memory cache only learns keys after the database marks them done (no seen-before-processing Set)", !routeTxt.includes("__marinaWaSeen") && routeTxt.includes("__marinaWaDone") && !routeTxt.includes("recordWebhookKey"));
++  const inboundTxt = fs.readFileSync("lib/whatsapp/inbound.ts", "utf8");
++  const draftFn = inboundTxt.slice(inboundTxt.indexOf("export async function draftInbound"), inboundTxt.indexOf("export async function applyCoexistenceUpdates"));
++  check("C5.23", "draftInbound re-throws (no swallowed database errors) and logs a fixed label only", /throw err;/.test(draftFn) && /console\.error\("\[whatsapp\] inbound failed"\);/.test(draftFn));
++}
++
++// ── output ──
++let current = "";
++const lines = [];
++for (const r of results) {
++  if (r.section !== current) {
++    current = r.section;
++    lines.push("", current);
++  }
++  lines.push(`  ${r.pass ? "PASS" : "FAIL"} ${r.id} ${r.name}${r.pass ? "" : ` — ${r.detail}`}`);
++}
++const failed = results.filter((r) => !r.pass).length;
++lines.push("", `TOTAL ${results.length - failed} passed, ${failed} failed (offline; C5 = simulated collection, not MongoDB; fetch spy calls: ${fetchCalls.length}, all intercepted)`);
++console.log(`WhatsApp Direct Cloud API checks ${new Date().toISOString()} — offline, fake identifiers, no network, no database`);
++console.log(lines.join("\n"));
++process.env.NODE_ENV = ORIGINAL_NODE_ENV;
++process.exit(failed ? 1 : 0);
+--- before/docs/phase2/WHATSAPP_DIRECT_CLOUD_API_SETUP.md (new file)
++++ after/docs/phase2/WHATSAPP_DIRECT_CLOUD_API_SETUP.md
+@@ -0,0 +1,65 @@
++# WhatsApp Direct Cloud API: setup (business-owned WABA)
++
++**Applies when `WHATSAPP_INTEGRATION_MODE=direct`.** Without it, the site keeps the earlier Embedded Signup / Coexistence behaviour (`WHATSAPP_COEXISTENCE_SETUP.md`).
++**Status (11 Nov 2026):** code changes C1–C10 are implemented and verified only by offline tests. Nothing has been tested against Meta. See `reports/phase2/WHATSAPP_DIRECT_CLOUD_API_IMPLEMENTATION_REPORT.md`.
++
++## What direct mode does
++
++- **Credentials:** read from the server environment only. A token stored earlier by Embedded Signup is never used.
++- **Webhook:** accepts only `messages` changes for the configured WABA ID **and** phone-number ID. Everything else is acknowledged and dropped before processing.
++- **Embedded Signup and Coexistence:** the routes answer **410** and the admin panel does not load the Facebook SDK.
++- **Sending** needs `WHATSAPP_OUTBOUND_ENABLED=true` and either:
++  - `WHATSAPP_PRODUCTION_SENDING_APPROVED=true` (written approval), **or**
++  - the approved test number and test WABA, sending only to `WHATSAPP_TEST_RECIPIENTS`.
++- **Never sends from a non-production server.** The single exception is the isolated test launcher with the exact test IDs.
++- The live business number is never a recipient.
++
++## Server environment (names only; values are set by the client on the server)
++
++| Variable | Notes |
++|---|---|
++| `WHATSAPP_INTEGRATION_MODE` | `direct` |
++| `WHATSAPP_ACCESS_TOKEN` | System User token with `whatsapp_business_messaging` + `whatsapp_business_management`, scoped to the WABA |
++| `WHATSAPP_PHONE_NUMBER_ID` | Numeric phone-number ID |
++| `WHATSAPP_BUSINESS_ACCOUNT_ID` | Numeric WABA ID |
++| `META_APP_ID` | Must be set explicitly. There is no built-in default |
++| `META_APP_SECRET` (or `META_WEBHOOK_APP_SECRET`) | Verifies `X-Hub-Signature-256` |
++| `META_WEBHOOK_VERIFY_TOKEN` | Random string, also entered in the App Dashboard |
++| `META_GRAPH_API_VERSION` | Optional (default `v26.0`) |
++| `WHATSAPP_OUTBOUND_ENABLED` | `false` until sending is approved |
++| `WHATSAPP_PRODUCTION_SENDING_APPROVED` | `true` only after written approval |
++| `WHATSAPP_FOLLOWUP_TEMPLATE`, `WHATSAPP_TEMPLATE_LANGUAGE` | Optional, approved template only |
++
++The coexistence variables (`META_CONFIG_ID`, `WHATSAPP_COEXISTENCE_*`, `WHATSAPP_PRODUCTION_ONBOARDING_APPROVED`) are not used in direct mode.
++
++## Steps done by the client in Meta (not by this site)
++
++1. Register the phone number and set the two-step PIN in WhatsApp Manager. The site never calls `/register`.
++2. Subscribe the app to the WABA (App Dashboard, or `POST /{waba}/subscribed_apps`). The site only reads it.
++3. Webhook: callback `https://<site>/api/meta/whatsapp/webhook`, the verify token, and the field `messages`.
++4. Create message templates in WhatsApp Manager.
++
++**Number plan:** a decision is still open (Audit §3). The current Business-app number stays blocked in code.
++
++## Webhook behaviour
++
++| Situation | Response |
++|---|---|
++| Body > 1 MB | 413 (before any signature work) |
++| Missing or wrong signature | 401. Secret not configured: 503 |
++| Not JSON | 400 |
++| Direct mode with WABA / phone-number ID not configured | 503 |
++| Foreign or missing WABA ID or phone-number ID, or a non-`messages` field | Dropped. 200 with `ignoredForeign` / `ignoredOther` counts |
++| Processed, or already processed (duplicate) | 200 |
++| Database processing failed | 500 with a fixed message. The event is marked `failed` and Meta redelivers |
++| Same event still being processed by another request | 500 ("in progress"). Meta redelivers later |
++
++## Isolated testing
++
++1. Put the separate Meta **test** app values in `.env.isolated-test.local`.
++2. The test values must satisfy both:
++   - `WHATSAPP_PHONE_NUMBER_ID` = `WHATSAPP_TEST_PHONE_NUMBER_ID`
++   - `WHATSAPP_BUSINESS_ACCOUNT_ID` = `WHATSAPP_TEST_BUSINESS_ACCOUNT_ID`
++3. `node scripts/isolated-env.mjs -- …` refuses to start on a mismatch, a known production ID, or an unexpected name.
++4. The launcher forces `direct` mode and outbound off.
++5. Offline checks: `node scripts/isolated-env.mjs -- npm run check:whatsapp-direct`.

@@ -4,12 +4,21 @@
  * Relative imports only, so the pure parts run under `npm run check:phase2`.
  */
 import { BLOCKED_LIVE_NUMBER, decryptToken, graphVersion, outboundAllowed, type StoredCoexistence } from "./coexistence.ts";
-import { env, requestJson } from "../ai/http.ts";
+import { env, looksLikePlaceholder, requestJson } from "../ai/http.ts";
+import { directConfig, directOutboundDecision, isDirectMode, sendEnvironmentDecision } from "./mode.ts";
 
 export type WaCredentials = { token: string; phoneNumberId: string; wabaId: string; source: "env" | "signup" | "none" };
 
-/** WHATSAPP_* env first, then the encrypted token stored by Embedded Signup. */
+/**
+ * Coexistence mode: WHATSAPP_* env first, then the encrypted token stored by Embedded Signup.
+ * Direct mode (C3): environment only. The stored Embedded Signup token and stored IDs are never used; if any of
+ * token / phone-number ID / WABA ID is missing, no token is returned (source "none"), so nothing can be read or sent.
+ */
 export function resolveCredentials(stored: StoredCoexistence | null): WaCredentials {
+  if (isDirectMode(process.env)) {
+    const cfg = directConfig(process.env);
+    return { token: cfg.complete ? cfg.token : "", phoneNumberId: cfg.phoneNumberId, wabaId: cfg.wabaId, source: cfg.complete ? "env" : "none" };
+  }
   const token = env("WHATSAPP_ACCESS_TOKEN");
   const phoneNumberId = env("WHATSAPP_PHONE_NUMBER_ID") || stored?.phoneNumberId || "";
   const wabaId = env("WHATSAPP_BUSINESS_ACCOUNT_ID") || stored?.wabaId || "";
@@ -42,12 +51,13 @@ export type WaCheck = { label: string; ok: boolean | null; detail: string; live:
 export async function pingWhatsAppCloud(creds: WaCredentials, webhook: { handshakeAt?: string }) {
   const checks: WaCheck[] = [];
   const verifyToken = Boolean(env("META_WEBHOOK_VERIFY_TOKEN"));
-  const appSecret = Boolean(env("META_WEBHOOK_APP_SECRET") || env("META_APP_SECRET"));
+  const secretValue = env("META_WEBHOOK_APP_SECRET") || env("META_APP_SECRET");
+  const appSecret = Boolean(secretValue) && !looksLikePlaceholder(secretValue);
   checks.push({
     label: "Webhook verify token and app secret set",
     ok: verifyToken && appSecret,
     live: false,
-    detail: `Verify token ${verifyToken ? "set" : "missing (META_WEBHOOK_VERIFY_TOKEN)"} · signature secret ${appSecret ? "set" : "missing (META_WEBHOOK_APP_SECRET or META_APP_SECRET)"}. Callback: /api/meta/whatsapp/webhook.`,
+    detail: `Verify token ${verifyToken ? "set" : "missing (META_WEBHOOK_VERIFY_TOKEN)"} · signature secret ${appSecret ? "set" : secretValue ? "is placeholder text (META_APP_SECRET)" : "missing (META_WEBHOOK_APP_SECRET or META_APP_SECRET)"}. Callback: /api/meta/whatsapp/webhook.`,
   });
   checks.push({
     label: "Meta verified the webhook callback",
@@ -128,7 +138,11 @@ export type SendGate = { allowed: boolean; reason: string };
 /** Every rule a message must pass before it is sent. */
 export function sendGate(input: { to: string; suppressed: boolean; template: boolean; windowOpen: boolean; consent: boolean; creds: WaCredentials; businessNumber?: string }): SendGate {
   const to = input.to.replace(/\D/g, "");
-  if (!outboundAllowed(process.env, input.businessNumber)) {
+  if (isDirectMode(process.env)) {
+    // C1: direct mode — outbound flag + written production sending approval, or the approved test number/recipients.
+    const decision = directOutboundDecision(process.env, to);
+    if (!decision.ok) return { allowed: false, reason: decision.reason };
+  } else if (!outboundAllowed(process.env, input.businessNumber)) {
     return { allowed: false, reason: "WhatsApp sending is off: it needs WHATSAPP_COEXISTENCE_ENABLED and WHATSAPP_OUTBOUND_ENABLED, plus written production approval or replies from the verified test number." };
   }
   if (!input.creds.token || !input.creds.phoneNumberId) return { allowed: false, reason: "WhatsApp Cloud API credentials are missing." };
@@ -140,7 +154,16 @@ export function sendGate(input: { to: string; suppressed: boolean; template: boo
   return { allowed: true, reason: "ok" };
 }
 
+/**
+ * The single function that sends a WhatsApp message (both callers — inbound replies and follow-ups — use it).
+ * C6: outside production it refuses, fail-closed, BEFORE any network request; the live business number is refused
+ * as a recipient here too, independent of sendGate.
+ */
 export async function postMessage(creds: WaCredentials, payload: Record<string, unknown>) {
+  const where = sendEnvironmentDecision(process.env, creds.phoneNumberId);
+  if (!where.ok) return { ok: false as const, error: where.reason };
+  if (String(payload.to ?? "").replace(/\D/g, "") === BLOCKED_LIVE_NUMBER) return { ok: false as const, error: "The business's own number cannot be messaged." };
+  if (!creds.token || !creds.phoneNumberId) return { ok: false as const, error: "WhatsApp Cloud API credentials are missing." };
   const res = await requestJson<{ messages?: { id?: string }[] }>(graphUrl(`/${encodeURIComponent(creds.phoneNumberId)}/messages`), {
     method: "POST",
     headers: { Authorization: `Bearer ${creds.token}`, "Content-Type": "application/json" },

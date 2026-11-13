@@ -4,20 +4,33 @@ import { agentEnabled } from "@/lib/ai/agents";
 import { isSuppressed, recordConsent } from "@/lib/ai/followups";
 import { HUMAN_TAKEOVER_HOURS, type CoexistenceUpdates, type WaPlan } from "@/lib/whatsapp/coexistence";
 import { isOptOut, postMessage, resolveCredentials, sendGate, textPayload, type WaStatusUpdate } from "@/lib/whatsapp/cloud";
-import { readCoexistenceState, updateOnboardingFields } from "@/lib/whatsapp/store";
+import { readCoexistenceState, updateOnboardingFields, messagesCollection } from "@/lib/whatsapp/store";
+import { isDirectMode } from "@/lib/whatsapp/mode";
+import { isDuplicateKeyError, recordInboundOnce, reserveReply } from "@/lib/whatsapp/event-claims";
 
 const OPT_IN = /^\s*(start|subscribe|yes,? (?:send|keep) me updates)\s*[.!]?\s*$/i;
 
-async function deliver(to: string, body: string, sessionId: string, options: { system?: boolean } = {}) {
+/**
+ * Sends (or withholds) the single reply to inbound message `inReplyTo`.
+ * C5: the reply is RESERVED (unique per inReplyTo) before any gate or send, so a webhook retry can never send twice;
+ * a retry that finds the reservation does nothing. Database errors propagate (the webhook answers 500).
+ * C2: in direct mode no Coexistence state is read; the mode-aware sendGate decides.
+ */
+async function deliver(to: string, body: string, sessionId: string, inReplyTo: string, options: { system?: boolean } = {}) {
   const db = await getDb();
-  const state = await readCoexistenceState();
-  const creds = resolveCredentials(state);
+  const messages = await messagesCollection();
   const at = new Date().toISOString();
+  const reservation = await reserveReply(messages, inReplyTo, { direction: "out", to, sessionId, text: body, at });
+  if (!reservation.reserved) return { sent: false as const, drafted: false as const, reason: "already handled" };
+  const finish = (fields: Record<string, unknown>) => messages.updateOne({ inReplyTo }, { $set: fields });
+
+  const state = isDirectMode() ? null : await readCoexistenceState();
+  const creds = resolveCredentials(state);
   // The owner replied from the WhatsApp Business app recently: keep the AI quiet (opt-out confirmations still go out).
   const session = options.system ? null : await db.collection("ai_sessions").findOne({ id: sessionId }, { projection: { humanTakeoverUntil: 1 } });
   if (typeof session?.humanTakeoverUntil === "string" && session.humanTakeoverUntil > at) {
     const reason = "The business is replying from the WhatsApp Business app, so the AI reply was held.";
-    await db.collection("ai_wa_messages").insertOne({ direction: "out", to, sessionId, text: body, status: "withheld", reason, at });
+    await finish({ status: "withheld", reason });
     return { sent: false as const, drafted: true as const, reason };
   }
   const gate = sendGate({
@@ -27,47 +40,44 @@ async function deliver(to: string, body: string, sessionId: string, options: { s
     windowOpen: true,
     consent: false,
     creds,
-    businessNumber: state?.displayNumber,
+    ...(state ? { businessNumber: state.displayNumber } : {}),
   });
   if (!gate.allowed) {
-    await db.collection("ai_wa_messages").insertOne({ direction: "out", to, sessionId, text: body, status: "withheld", reason: gate.reason, at });
+    await finish({ status: "withheld", reason: gate.reason });
     return { sent: false as const, drafted: true as const, reason: gate.reason };
   }
   const res = await postMessage(creds, textPayload(to, body));
-  await db.collection("ai_wa_messages").insertOne({
-    direction: "out",
-    to,
-    sessionId,
-    text: body,
-    wamid: res.ok ? res.wamid : "",
-    status: res.ok ? "sent" : "failed",
-    ...(res.ok ? {} : { reason: res.error }),
-    at,
-  });
+  // If this write fails after a successful send, the reservation stays "pending" and a retry still sends nothing.
+  await finish({ wamid: res.ok ? res.wamid : "", status: res.ok ? "sent" : "failed", ...(res.ok ? {} : { reason: res.error }) });
   return res.ok ? { sent: true as const, drafted: false as const } : { sent: false as const, drafted: true as const, reason: res.error };
 }
 
 /**
  * Agent 4: one WhatsApp conversation per sender. Gemini writes the reply from catalogue facts (shared with chat);
  * it is sent only when every send rule passes, otherwise it is kept as a withheld draft for the admin.
+ * C5: the inbound record is written at most once per wamid; a retry skips the AI when a reply is already reserved;
+ * any error propagates so the webhook answers 500 and the event is retried (it is not marked done).
  */
 export async function draftInbound(plan: WaPlan) {
   if (plan.action !== "draft" || !plan.text || !plan.messageId) return { sent: false as const, drafted: false as const };
   const from = (plan.from || "").replace(/\D/g, "");
   if (!from) return { sent: false as const, drafted: false as const };
   const sessionId = `wa_${from}`.slice(0, 80);
+  const wamid = plan.messageId;
   try {
     const db = await getDb();
-    await db.collection("ai_wa_messages").insertOne({ direction: "in", from, sessionId, wamid: plan.messageId, text: plan.text, at: new Date().toISOString() });
+    const messages = await messagesCollection();
+    await recordInboundOnce(messages, { from, sessionId, wamid, text: plan.text, at: new Date().toISOString() });
+    if (await messages.findOne({ inReplyTo: wamid })) return { sent: false as const, drafted: false as const };
 
     if (isOptOut(plan.text)) {
       await recordConsent({ channel: "whatsapp", address: from, granted: false, source: "whatsapp_stop", sessionId });
-      return deliver(from, "You're unsubscribed and won't receive follow-up messages from Marina Muse. Reply START any time to opt back in.", sessionId, { system: true });
+      return deliver(from, "You're unsubscribed and won't receive follow-up messages from Marina Muse. Reply START any time to opt back in.", sessionId, wamid, { system: true });
     }
     if (OPT_IN.test(plan.text)) {
       await db.collection("ai_suppression").deleteOne({ phone: from });
       await recordConsent({ channel: "whatsapp", address: from, granted: true, source: "whatsapp_start", sessionId });
-      return deliver(from, "Thank you — you'll receive order and enquiry updates from Marina Muse on WhatsApp. Reply STOP any time to opt out.", sessionId, { system: true });
+      return deliver(from, "Thank you — you'll receive order and enquiry updates from Marina Muse on WhatsApp. Reply STOP any time to opt out.", sessionId, wamid, { system: true });
     }
 
     // Agent switched off (AI_AGENTS_DISABLED): the message is kept for the team, no AI reply is drafted.
@@ -81,10 +91,11 @@ export async function draftInbound(plan: WaPlan) {
       knownContact: { phone: `+${from}`, ...(plan.profileName ? { name: plan.profileName } : {}) },
     });
     if ("error" in result || !result.reply) return { sent: false as const, drafted: false as const };
-    return deliver(from, result.reply, sessionId);
+    return deliver(from, result.reply, sessionId, wamid);
   } catch (err) {
-    console.error("[whatsapp] inbound failed", err instanceof Error ? err.message : "failed");
-    return { sent: false as const, drafted: false as const };
+    // Fixed label only (no message text, numbers or error details); the error goes up so the event is retried.
+    console.error("[whatsapp] inbound failed");
+    throw err;
   }
 }
 
@@ -106,19 +117,28 @@ export async function applyCoexistenceUpdates(updates: CoexistenceUpdates, newKe
     for (const m of chunk.messages.slice(0, 1000)) {
       if (await db.collection("ai_wa_messages").findOne({ wamid: m.id }, { projection: { _id: 1 } })) continue;
       const sessionId = `wa_${m.customer}`.slice(0, 80);
-      await db.collection("ai_wa_messages").insertOne({
-        direction: m.fromBusiness ? "out" : "in",
-        source: "history",
-        ...(m.fromBusiness ? { to: m.customer } : { from: m.customer }),
-        sessionId,
-        wamid: m.id,
-        type: m.type,
-        text: m.text,
-        status: "history",
-        at: m.timestamp,
-      });
+      try {
+        await db.collection("ai_wa_messages").insertOne({
+          direction: m.fromBusiness ? "out" : "in",
+          source: "history",
+          ...(m.fromBusiness ? { to: m.customer } : { from: m.customer }),
+          sessionId,
+          wamid: m.id,
+          type: m.type,
+          text: m.text,
+          status: "history",
+          at: m.timestamp,
+        });
+      } catch (err) {
+        // C5: the same message was recorded concurrently (unique inbound index) — already present.
+        if (isDuplicateKeyError(err)) continue;
+        throw err;
+      }
       if (m.text) {
-        await db.collection("ai_messages").insertOne({ sessionId, role: m.fromBusiness ? "business" : "customer", text: m.text, source: "history", at: m.timestamp });
+        // C5: keyed by wamid so a redelivery after a partial failure does not add the line twice.
+        await db
+          .collection("ai_messages")
+          .updateOne({ sessionId, wamid: m.id, source: "history" }, { $setOnInsert: { sessionId, wamid: m.id, role: m.fromBusiness ? "business" : "customer", text: m.text, source: "history", at: m.timestamp } }, { upsert: true });
       }
       counts.historyMessages += 1;
     }
@@ -149,19 +169,21 @@ export async function applyCoexistenceUpdates(updates: CoexistenceUpdates, newKe
       await db.collection("ai_wa_messages").updateOne({ wamid: echo.revokeOf }, { $set: { status: "revoked", text: null } });
     } else if (echo.editOf) {
       await db.collection("ai_wa_messages").updateOne({ wamid: echo.editOf }, { $set: { text: echo.text, editedAt: echo.timestamp } });
+    } else if (!echo.id) {
+      // No wamid to key on (not expected from Meta): recorded as before, without the retry guarantee.
+      await db.collection("ai_wa_messages").insertOne({ direction: "out", source: "business_app", to: echo.customer, sessionId, wamid: "", type: echo.type, text: echo.text, status: "sent", at: echo.timestamp });
     } else {
-      await db.collection("ai_wa_messages").insertOne({
-        direction: "out",
-        source: "business_app",
-        to: echo.customer,
-        sessionId,
-        wamid: echo.id,
-        type: echo.type,
-        text: echo.text,
-        status: "sent",
-        at: echo.timestamp,
-      });
-      if (echo.text) await db.collection("ai_messages").insertOne({ sessionId, role: "business", text: echo.text, source: "business_app", at: echo.timestamp });
+      // C5: upserts keyed by the echo's wamid, so a redelivery after a partial failure writes nothing twice.
+      await db.collection("ai_wa_messages").updateOne(
+        { wamid: echo.id, source: "business_app" },
+        { $setOnInsert: { direction: "out", source: "business_app", to: echo.customer, sessionId, wamid: echo.id, type: echo.type, text: echo.text, status: "sent", at: echo.timestamp } },
+        { upsert: true }
+      );
+      if (echo.text) {
+        await db
+          .collection("ai_messages")
+          .updateOne({ sessionId, wamid: echo.id, source: "business_app" }, { $setOnInsert: { sessionId, wamid: echo.id, role: "business", text: echo.text, source: "business_app", at: echo.timestamp } }, { upsert: true });
+      }
     }
     // A person is handling this chat from the phone: the AI must not reply on top of them.
     await db.collection("ai_sessions").updateOne(

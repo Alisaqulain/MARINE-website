@@ -1,0 +1,4 @@
+{"ts":"2026-11-10T07:38:01.126Z","t":"start","pid":7972,"resumedUnits":0,"roots":["git:D:\\src\\flutter"]}
+{"ts":"2026-11-10T08:04:35.794Z","t":"git-result","unit":"git:D:\\src\\flutter","repo":"D:\\src\\flutter","ok":true,"bytes":19364699514}
+{"ts":"2026-11-10T08:04:35.796Z","t":"done","unit":"git:D:\\src\\flutter","root":"git:D:\\src\\flutter","files":1,"bytes":19364699514,"unreadable":0,"empty":0,"links":0,"skippedExt":{}}
+{"ts":"2026-11-10T08:04:35.797Z","t":"complete","units":1,"files":1,"bytes":19364699514}

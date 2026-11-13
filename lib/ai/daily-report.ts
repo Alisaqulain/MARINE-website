@@ -1,5 +1,5 @@
 import { getDb } from "@/lib/mongodb";
-import { sendOwnerMail } from "@/lib/mail";
+import { assertOwnerMailAllowed, sendOwnerMail } from "@/lib/mail";
 import { dailyReportText, type DailyReportInput } from "@/lib/ai/alerts";
 import { growthReport } from "@/lib/ai/growth";
 import { externalGrowthData, growthNarrative } from "@/lib/ai/growth-agent";
@@ -78,6 +78,8 @@ export async function buildDailyReport(now = new Date()) {
 }
 
 export async function sendDailyReport() {
+  // Refuse before building, so a blocked send spends no AI quota.
+  assertOwnerMailAllowed();
   const report = await buildDailyReport();
   await sendOwnerMail(report.subject, report.text);
   const db = await getDb();

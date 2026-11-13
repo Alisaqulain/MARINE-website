@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { ExternalLink, Mail, MapPin, MessageCircle, Phone } from "lucide-react";
 import { BannerHero } from "@/components/BannerHero";
 import { ContactForm } from "@/components/ContactForm";

@@ -7,27 +7,41 @@
 import { createHash, timingSafeEqual } from "crypto";
 import { agentInstructions } from "./agents.ts";
 import { geminiModel } from "./gemini.ts";
-import { env, flag, requestJson } from "./http.ts";
+import { env, flag, isUuid, looksLikePlaceholder, requestJson } from "./http.ts";
 
 export const VAPI_TOOLS = ["lookup_product", "record_enquiry"] as const;
+/** Name of the assistant this site creates and manages. Other assistants in the org (e.g. Riley) are never touched. */
+export const VAPI_ASSISTANT_NAME = "Marina Muse Assistant";
 
 export function vapiBase() {
   const base = env("VAPI_API_BASE") || "https://api.vapi.ai";
   return /^https:\/\/api(\.eu)?\.vapi\.ai$/.test(base) ? base : "https://api.vapi.ai";
 }
 
+/**
+ * Vapi's private API key and every object id (assistant, phone number, credential) are UUIDs; Vapi answers
+ * 400 "id must be a valid UUID" for anything else. Returns null when the value is usable, else the problem.
+ */
+export function vapiValueProblem(name: "VAPI_API_KEY" | "VAPI_ASSISTANT_ID" | "VAPI_PHONE_NUMBER_ID" | "VAPI_SIP_CREDENTIAL_ID" | "VAPI_WEBHOOK_SECRET", value = env(name)) {
+  if (!value) return "not set";
+  if (looksLikePlaceholder(value)) return "is placeholder text, not a real value";
+  if (name === "VAPI_WEBHOOK_SECRET") return value.length >= 24 ? null : "is too short (use openssl rand -hex 32)";
+  return isUuid(value) ? null : "is not a Vapi UUID (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)";
+}
+
 export function vapiStatus() {
-  const apiKey = Boolean(env("VAPI_API_KEY"));
-  const assistantId = env("VAPI_ASSISTANT_ID");
-  const phoneNumberId = env("VAPI_PHONE_NUMBER_ID");
+  const usable = (name: Parameters<typeof vapiValueProblem>[0]) => vapiValueProblem(name) === null;
+  const apiKey = usable("VAPI_API_KEY");
+  const assistantId = usable("VAPI_ASSISTANT_ID");
+  const phoneNumberId = usable("VAPI_PHONE_NUMBER_ID");
   return {
     apiKey,
-    assistantId: Boolean(assistantId),
-    phoneNumberId: Boolean(phoneNumberId),
-    sipCredentialId: Boolean(env("VAPI_SIP_CREDENTIAL_ID")),
-    webhookReady: Boolean(env("VAPI_WEBHOOK_SECRET")),
-    /** Outbound calls are billable: off unless the flag and every id are set. */
-    outboundEnabled: flag("VAPI_OUTBOUND_ENABLED") && apiKey && Boolean(assistantId) && Boolean(phoneNumberId),
+    assistantId,
+    phoneNumberId,
+    sipCredentialId: usable("VAPI_SIP_CREDENTIAL_ID"),
+    webhookReady: usable("VAPI_WEBHOOK_SECRET"),
+    /** Outbound calls are billable: off unless the flag and every id are set and valid. */
+    outboundEnabled: flag("VAPI_OUTBOUND_ENABLED") && apiKey && assistantId && phoneNumberId,
   };
 }
 
@@ -39,7 +53,8 @@ function safeEqual(a: string, b: string) {
 
 /** Vapi sends the server secret as `Authorization: Bearer <secret>` (Bearer credential) or the legacy `X-Vapi-Secret`. */
 export function vapiRequestAuthorized(headers: { get(name: string): string | null }, secret = env("VAPI_WEBHOOK_SECRET")) {
-  if (!secret) return false;
+  // A placeholder or short secret is guessable: refuse everything rather than accept it.
+  if (vapiValueProblem("VAPI_WEBHOOK_SECRET", secret)) return false;
   const bearer = headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim() || "";
   const legacy = headers.get("x-vapi-secret")?.trim() || "";
   return (bearer !== "" && safeEqual(bearer, secret)) || (legacy !== "" && safeEqual(legacy, secret));
@@ -126,13 +141,48 @@ export function isMissedCall(m: Pick<VapiMessage, "endedReason" | "transcript" |
   return m.direction === "inbound" && !callerSpoke;
 }
 
+export const ENQUIRY_TYPES = ["wholesale", "bulk", "oem", "callback", "other"] as const;
+
+/** What the caller hears when a tool cannot run. Never implies the enquiry was saved. */
+export const TOOL_FAILURE_SPOKEN = {
+  lookup_product: "I'm sorry, I'm having trouble accessing the product information right now, and I don't want to give you incorrect details. Would you like me to arrange a callback from our team?",
+  record_enquiry: "I'm sorry, I wasn't able to save your details just now. Please email our team or call us again later, and we'll be happy to help.",
+} as const;
+
+/** Tool results returned to the model when a handler throws: honest, and never claims a save. */
+export const TOOL_FAILURE_RESULT: Record<string, string> = {
+  lookup_product: "The catalogue lookup failed. Say you can't access product information right now, give no product details, and offer a callback from the team.",
+  record_enquiry: "The enquiry was NOT saved because of a system error. Tell the caller their details could not be saved and suggest they email the team or call again later. Do not say the team will follow up.",
+};
+
+/**
+ * Consent gate for `record_enquiry`: only an explicit `true` saves. Silence, "maybe", a string or a missing flag
+ * does not. Pure, so /test covers it.
+ */
+export function enquiryDecision(args: Record<string, unknown>) {
+  if (args.consentToContact !== true) {
+    return {
+      save: false as const,
+      result: "Not saved: the caller has not clearly agreed to be contacted. Do not say the enquiry was saved. Tell them they can email the team or call again whenever they are ready.",
+    };
+  }
+  const enquiryType = (ENQUIRY_TYPES as readonly string[]).includes(String(args.enquiryType)) ? String(args.enquiryType) : "other";
+  const notes = [`${enquiryType} enquiry`, args.product, args.quantity ? `${args.quantity} units` : "", args.timeline, args.notes]
+    .filter((part) => typeof part === "string" || typeof part === "number")
+    .join(". ")
+    .slice(0, 1000);
+  return { save: true as const, enquiryType, notes };
+}
+
 /** The assistant configuration this site expects in Vapi. Gemini model, grounded tools, our webhook. */
 export function desiredAssistant(origin: string, secret = env("VAPI_WEBHOOK_SECRET")) {
   const url = `${origin.replace(/\/$/, "")}/api/ai/voice/webhook`;
   const server = { url, ...(secret ? { headers: { "x-vapi-secret": secret } } : {}) };
   return {
-    name: "Marina AI Voice Agent",
+    name: VAPI_ASSISTANT_NAME,
     firstMessage: "Hello, thank you for calling Marina Muse International. How can I help you today?",
+    /** Vapi's own voice: no separate provider key; billed only as part of call minutes. */
+    voice: { provider: "vapi", voiceId: "Emma" },
     model: {
       provider: "google",
       model: env("VAPI_MODEL") || geminiModel(),
@@ -150,6 +200,8 @@ export function desiredAssistant(origin: string, secret = env("VAPI_WEBHOOK_SECR
               required: ["query"],
             },
           },
+          // Spoken by Vapi when our server cannot answer (timeout, non-2xx).
+          messages: [{ type: "request-failed", content: TOOL_FAILURE_SPOKEN.lookup_product }],
           server,
         },
         {
@@ -160,6 +212,7 @@ export function desiredAssistant(origin: string, secret = env("VAPI_WEBHOOK_SECR
             parameters: {
               type: "object",
               properties: {
+                enquiryType: { type: "string", enum: [...ENQUIRY_TYPES] },
                 name: { type: "string" },
                 company: { type: "string" },
                 email: { type: "string" },
@@ -167,11 +220,15 @@ export function desiredAssistant(origin: string, secret = env("VAPI_WEBHOOK_SECR
                 product: { type: "string" },
                 timeline: { type: "string" },
                 notes: { type: "string" },
-                consentToContact: { type: "boolean", description: "True only if the caller agreed to be contacted by phone, email or WhatsApp" },
+                consentToContact: {
+                  type: "boolean",
+                  description: "True only if the caller clearly said yes to being contacted by phone, email or WhatsApp. Without it nothing is saved.",
+                },
               },
-              required: ["notes"],
+              required: ["notes", "consentToContact"],
             },
           },
+          messages: [{ type: "request-failed", content: TOOL_FAILURE_SPOKEN.record_enquiry }],
           server,
         },
       ],
@@ -217,7 +274,10 @@ export async function getAssistant() {
 
 /** Admin action: writes `desiredAssistant` to the Vapi assistant. Never called by /test. */
 export async function syncAssistant(origin: string) {
-  if (!env("VAPI_API_KEY") || !env("VAPI_ASSISTANT_ID")) return { ok: false as const, error: "VAPI_API_KEY and VAPI_ASSISTANT_ID are required." };
+  const problem = (["VAPI_API_KEY", "VAPI_ASSISTANT_ID", "VAPI_WEBHOOK_SECRET"] as const)
+    .map((name) => [name, vapiValueProblem(name)] as const)
+    .find(([, issue]) => issue);
+  if (problem) return { ok: false as const, error: `${problem[0]} ${problem[1]}.` };
   const res = await requestJson<AssistantShape>(`${vapiBase()}/assistant/${encodeURIComponent(env("VAPI_ASSISTANT_ID"))}`, {
     method: "PATCH",
     headers: vapiHeaders(),
@@ -227,6 +287,28 @@ export async function syncAssistant(origin: string) {
     secrets: [env("VAPI_API_KEY"), env("VAPI_WEBHOOK_SECRET")],
   });
   return res.ok ? { ok: true as const } : { ok: false as const, error: res.error || "Vapi rejected the update." };
+}
+
+/**
+ * Admin/one-off action: creates a NEW assistant from `desiredAssistant`. Never called by /test.
+ * No retry (a retried POST could create a duplicate), and refuses if an assistant with the same name exists.
+ */
+export async function createAssistant(origin: string) {
+  const problem = (["VAPI_API_KEY", "VAPI_WEBHOOK_SECRET"] as const).map((name) => [name, vapiValueProblem(name)] as const).find(([, issue]) => issue);
+  if (problem) return { ok: false as const, error: `${problem[0]} ${problem[1]}.` };
+  const existing = await vapiGet<AssistantShape[]>("/assistant?limit=100");
+  if (!existing.ok) return { ok: false as const, error: existing.error || "Could not list assistants." };
+  const clash = (existing.data || []).find((a) => a.name === VAPI_ASSISTANT_NAME);
+  if (clash) return { ok: false as const, error: `An assistant named "${VAPI_ASSISTANT_NAME}" already exists (…${String(clash.id).slice(-4)}). Use it instead of creating another.` };
+  const res = await requestJson<AssistantShape>(`${vapiBase()}/assistant`, {
+    method: "POST",
+    headers: vapiHeaders(),
+    body: JSON.stringify(desiredAssistant(origin)),
+    timeoutMs: 20_000,
+    retries: 0,
+    secrets: [env("VAPI_API_KEY"), env("VAPI_WEBHOOK_SECRET")],
+  });
+  return res.ok && res.data?.id ? { ok: true as const, id: res.data.id, assistant: res.data } : { ok: false as const, error: res.error || "Vapi did not return an assistant id." };
 }
 
 export function e164(number: string) {

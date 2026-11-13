@@ -13,15 +13,16 @@ import {
 } from "./attribution.ts";
 import { dailyReportText, ownerAlertText, recommendedActions, shouldAlertOwner, type DailyReportInput } from "./alerts.ts";
 import { parseVoiceLanguages, summarizeCall, validateCallInsight, voiceLanguageSupported } from "./calls.ts";
-import { feedItemErrors, googleMerchantXml } from "./feed.ts";
+import { feedIds, feedItemErrors, feedTitle, googleMerchantXml } from "./feed.ts";
 import { approvalReply, approvalStillValid, requiresOwnerApproval, type SessionApproval } from "./permissions.ts";
 import { classifyLead, contactFromText, leadSegment, quantityFromText, scoreLead, signalsFromText, statedValueUsd } from "./scoring.ts";
 import { agentInstructions, factsBlock, replyIsGrounded } from "./agents.ts";
 import { redactSecrets } from "./http.ts";
-import { assistantDrift, desiredAssistant, e164, isMissedCall, parseVapiMessage, vapiRequestAuthorized } from "./vapi.ts";
+import { assistantDrift, desiredAssistant, e164, enquiryDecision, isMissedCall, parseVapiMessage, TOOL_FAILURE_RESULT, vapiRequestAuthorized } from "./vapi.ts";
 import { exotelCallbackAuthorized, exotelRows, parseExotelCallback } from "./exotel.ts";
-import { agentScore, agentStatus, rollupStatus, summarise, type AgentCheck } from "./integration-status.ts";
+import { agentScore, agentStatus, failureOwner, rollupStatus, summarise, type AgentCheck } from "./integration-status.ts";
 import { ENV_REGISTRY, envReport } from "./env-registry.ts";
+import { devDatabaseBlockReason } from "../env-mongo-uri.ts";
 import { agentEnabled } from "./agents.ts";
 import { growthRecommendations, internalLinkSuggestions, journeyFunnel, lowConversionProducts, type ProductActivity } from "./growth-insights.ts";
 import { isOptOut, sendGate, statusUpdatesFromWebhook, templatePayload } from "../whatsapp/cloud.ts";
@@ -74,6 +75,13 @@ export function runPhase2SelfTest(): SelfTestResult[] {
   check("No empty SKU brackets", !answerFromCatalogue("brass telescope", [telescope]).text.includes("()"));
   check("Says when a product is not in the catalogue", answerFromCatalogue("Do you sell submarines?", [compass]).unknown);
   check("Does not invent a warranty", answerFromCatalogue("What is the warranty?", [compass]).unknown);
+  const wheel: CatalogueFact = { ...compass, slug: "teak-ship-wheel", name: "Handmade Teak Ship Wheel", sku: "WHL-1", description: "Teak ship wheel." };
+  check("A ship wheel question finds the product, not the shipping policy", answerFromCatalogue("ship wheel price", [wheel]).products[0]?.slug === wheel.slug);
+  check("A shipping destination question gets the shipping policy", answerFromCatalogue("do you ship to Germany?", [wheel]).policy === "shipping");
+  const bare: CatalogueFact = { ...wheel, price: 0, stock: "", quantity: undefined, material: undefined, dimensions: undefined, moq: undefined };
+  const bareText = answerFromCatalogue("teak ship wheel", [bare]).text;
+  check("Missing price is never read as $0.00", bareText.includes("price not listed") && !bareText.includes("$0"), bareText);
+  check("Missing stock, material and MOQ are not invented", bareText.includes("stock not confirmed") && !/Material:|Dimensions:|minimum/i.test(bareText), bareText);
   check("Shipping policy matches the site (7–12 business days)", APPROVED_POLICIES.shipping!.includes("7–12"), APPROVED_POLICIES.shipping!);
   check("Returns policy covers wholesale", APPROVED_POLICIES.returns!.includes("/returns#wholesale"), APPROVED_POLICIES.returns!);
   check(
@@ -182,6 +190,14 @@ export function runPhase2SelfTest(): SelfTestResult[] {
   check("Rejects a zero price", feedItemErrors({ ...goodItem, price: 0 }).some((e) => e.includes("Price")));
   const feed = googleMerchantXml([goodItem, { ...goodItem, id: "2", title: "" }], "https://example.com");
   check("Valid item is listed, invalid one is reported", feed.xml.includes("<g:id>1</g:id>") && feed.errors.length === 1, JSON.stringify(feed.errors));
+  const longSlug = "personalized-antique-brass-compass-engraved-nautical-compass-leather-pouch-wedding-gift-birthday-gift";
+  const ids = feedIds([{ sku: "MM-1", slug: "a" }, { sku: "MM-DUP", slug: "dup-one" }, { sku: "MM-DUP", slug: "dup-two" }, { slug: longSlug }, { slug: "short-slug" }]);
+  check("Feed ids: unique SKU kept, duplicate SKU falls back to slug", ids[0] === "MM-1" && ids[1] === "dup-one" && ids[2] === "dup-two" && new Set(ids).size === ids.length, ids.join(" | "));
+  check("Feed ids are at most 50 characters and stable", ids.every((id) => id.length <= 50) && feedIds([{ slug: longSlug }])[0] === ids[3] && ids[4] === "short-slug", ids[3]);
+  check("Id over 50 characters is rejected", feedItemErrors({ ...goodItem, id: "x".repeat(51) }).some((e) => e.includes("50")));
+  const longTitle = "Vintage Style Brass Marine Telescope on Wooden Tripod, Personalized Double Barrel Nautical Decor, Polished Brass Spyglass, Maritime Gift for Captains and Sailors";
+  check("Titles over 150 characters are cut at a whole word", feedTitle(longTitle).length <= 150 && longTitle.startsWith(feedTitle(longTitle)) && !feedTitle(longTitle).endsWith(",") && feedTitle("Compass") === "Compass", feedTitle(longTitle));
+  check("Feed items say identifier_exists=no (handmade, no GTIN)", feed.xml.includes("<g:identifier_exists>no</g:identifier_exists>"));
 
   section = "§17 Revenue attribution & conversion intelligence";
   check("Google referrer → organic search", sourceFromVisit({ referrer: "https://www.google.com/search" }) === "organic_search");
@@ -245,6 +261,12 @@ export function runPhase2SelfTest(): SelfTestResult[] {
     search: { clicks: 30, impressions: 900, topQueries: [{ query: "brass compass", clicks: 12, position: 6.2 }], opportunities: [{ query: "nautical decor", impressions: 400, ctr: 0.5, position: 11 }] },
   });
   check("Report includes GA4 and Search Console when connected", withGoogle.text.includes("Organic Search: 80 sessions") && withGoogle.text.includes('"brass compass"'), withGoogle.text.slice(-300));
+  const cents = dailyReportText({ ...reportInput, orders: 1, revenue: 412.5, averageOrderValue: 137.5, revenueBySource: [{ source: "direct", orders: 1, revenue: 124.5 }] });
+  check(
+    "Money shows cents when needed ($412.50, $18,500) and '1 order' is singular",
+    cents.subject.endsWith("1 order · $412.50") && cents.text.includes("Average order value: $137.50") && cents.text.includes("direct: 1 order, $124.50") && cents.text.includes("$18,500"),
+    cents.subject
+  );
   check(
     "Keyword opportunity becomes a recommended action",
     recommendedActions({ ...reportInput, search: { clicks: 0, impressions: 0, topQueries: [], opportunities: [{ query: "nautical decor", impressions: 400, ctr: 0.5, position: 11 }] } }).some((a) => a.includes("nautical decor"))
@@ -284,14 +306,36 @@ export function runPhase2SelfTest(): SelfTestResult[] {
   const tools = parseVapiMessage({ message: { type: "tool-calls", toolCallList: [{ id: "t1", function: { name: "lookup_product", arguments: '{"query":"compass"}' } }] } });
   check("Parses tool calls with JSON-string arguments", tools?.toolCalls[0]?.args.query === "compass", JSON.stringify(tools?.toolCalls));
   const headers = (map: Record<string, string>) => ({ get: (name: string) => map[name.toLowerCase()] ?? null });
-  check("Vapi Bearer secret accepted", vapiRequestAuthorized(headers({ authorization: "Bearer s3cret-value" }), "s3cret-value"));
-  check("Vapi legacy X-Vapi-Secret accepted", vapiRequestAuthorized(headers({ "x-vapi-secret": "s3cret-value" }), "s3cret-value"));
-  check("Wrong or missing Vapi secret rejected", !vapiRequestAuthorized(headers({ authorization: "Bearer nope" }), "s3cret-value") && !vapiRequestAuthorized(headers({}), "s3cret-value") && !vapiRequestAuthorized(headers({ authorization: "Bearer x" }), ""));
+  check("Vapi Bearer secret accepted", vapiRequestAuthorized(headers({ authorization: "Bearer s3cret-value-long-enough-24" }), "s3cret-value-long-enough-24"));
+  check("Vapi legacy X-Vapi-Secret accepted", vapiRequestAuthorized(headers({ "x-vapi-secret": "s3cret-value-long-enough-24" }), "s3cret-value-long-enough-24"));
+  check("Wrong or missing Vapi secret rejected", !vapiRequestAuthorized(headers({ authorization: "Bearer nope" }), "s3cret-value-long-enough-24") && !vapiRequestAuthorized(headers({}), "s3cret-value-long-enough-24") && !vapiRequestAuthorized(headers({ authorization: "Bearer x" }), ""));
   const desired = desiredAssistant("https://example.com", "s3cret-value");
   check("Assistant config uses Gemini (provider google)", desired.model.provider === "google" && desired.model.messages[0].content.includes("Never invent"));
   check("Assistant webhook points at this site with the secret header", desired.server.url === "https://example.com/api/ai/voice/webhook" && desired.server.headers?.["x-vapi-secret"] === "s3cret-value");
   check("Drift: an OpenAI-model assistant is flagged", assistantDrift({ model: { provider: "openai", tools: [] }, server: { url: "x" } }, desired).length === 3);
   check("Drift: matching assistant passes", assistantDrift({ model: { provider: "google", model: desired.model.model, tools: desired.model.tools }, server: { url: desired.server.url } }, desired).length === 0);
+  check("Assistant voice is Vapi Emma", desired.voice.provider === "vapi" && desired.voice.voiceId === "Emma");
+  const enquiryTool = desired.model.tools.find((t) => t.function.name === "record_enquiry")!;
+  check("record_enquiry requires the consent flag", enquiryTool.function.parameters.required.includes("consentToContact"));
+  check("Both tools have an honest spoken failure message", desired.model.tools.every((t) => t.messages?.[0]?.type === "request-failed" && !/\bsaved\b/i.test(t.messages[0].content)));
+  const consentCases: [string, Record<string, unknown>][] = [
+    ["explicit no", { notes: "x", consentToContact: false }],
+    ["missing consent", { notes: "x" }],
+    ["ambiguous string 'maybe'", { notes: "x", consentToContact: "maybe" }],
+    ["string 'true' is not a clear yes", { notes: "x", consentToContact: "true" }],
+  ];
+  for (const [label, args] of consentCases) {
+    const d = enquiryDecision(args);
+    check(`Enquiry not saved: ${label}`, !d.save && !d.result.toLowerCase().startsWith("enquiry saved"));
+  }
+  const typed = (["wholesale", "bulk", "oem", "callback", "other"] as const).map((t) => enquiryDecision({ enquiryType: t, notes: "n", consentToContact: true }));
+  check("Enquiry saved only on explicit yes, typed wholesale/bulk/OEM/callback/other", typed.every((d, i) => d.save && d.enquiryType === ["wholesale", "bulk", "oem", "callback", "other"][i] && d.notes.startsWith(`${d.enquiryType} enquiry`)));
+  check("Unknown enquiry type is filed as other", enquiryDecision({ enquiryType: "spam", notes: "n", consentToContact: true }).save && (enquiryDecision({ enquiryType: "spam", notes: "n", consentToContact: true }) as { enquiryType: string }).enquiryType === "other");
+  const segOf = (t: string, q: number) => leadSegment((enquiryDecision({ enquiryType: t, quantity: q, notes: "n", consentToContact: true }) as { notes: string }).notes, q);
+  check("Enquiry type drives the CRM segment", segOf("wholesale", 200) === "wholesale" && segOf("bulk", 500) === "bulk" && segOf("oem", 1000) === "oem");
+  check("A failed save is never reported as saved", TOOL_FAILURE_RESULT.record_enquiry.includes("was NOT saved"));
+  const voicePrompt = agentInstructions("voice");
+  check("Voice prompt: consent before saving, no order/payment/delivery promises", /clear yes/.test(voicePrompt) && /never say an order is placed/i.test(voicePrompt) && /card or bank details/.test(voicePrompt) && /delivery date/.test(voicePrompt));
   check("E.164 normalisation", e164("+91 98000 00000") === "+919800000000" && e164("12") === null);
   const exo = parseExotelCallback(new URLSearchParams("CallSid=abc&Status=no-answer&From=09800000000&To=08000000000&Direction=inbound"));
   check("Exotel no-answer callback is a missed call", exo?.missed === true && exo.callSid === "abc");
@@ -333,6 +377,10 @@ export function runPhase2SelfTest(): SelfTestResult[] {
   const creds = { token: "t", phoneNumberId: "1", wabaId: "2", source: "env" as const };
   const flagNames = ["WHATSAPP_COEXISTENCE_ENABLED", "WHATSAPP_PRODUCTION_ONBOARDING_APPROVED", "WHATSAPP_OUTBOUND_ENABLED"];
   const saved = flagNames.map((n) => process.env[n]);
+  // These are the coexistence-mode send rules: pin the mode so an ambient WHATSAPP_INTEGRATION_MODE (the isolated
+  // launcher forces "direct") cannot change what is tested. Direct-mode rules: scripts/check-whatsapp-direct.ts.
+  const savedMode = process.env.WHATSAPP_INTEGRATION_MODE;
+  process.env.WHATSAPP_INTEGRATION_MODE = "coexistence";
   flagNames.forEach((n) => (process.env[n] = "false"));
   check("Sending blocked while approval flags are off", !sendGate({ to: "919800000000", suppressed: false, template: false, windowOpen: true, consent: false, creds }).allowed);
   flagNames.forEach((n) => (process.env[n] = "true"));
@@ -342,6 +390,8 @@ export function runPhase2SelfTest(): SelfTestResult[] {
   check("Opted-out number is never messaged", !sendGate({ to: "919800000000", suppressed: true, template: true, windowOpen: true, consent: true, creds }).allowed);
   check("Business's own live number is never messaged", !sendGate({ to: "917457099540", suppressed: false, template: false, windowOpen: true, consent: true, creds }).allowed);
   flagNames.forEach((n, i) => (saved[i] === undefined ? delete process.env[n] : (process.env[n] = saved[i])));
+  if (savedMode === undefined) delete process.env.WHATSAPP_INTEGRATION_MODE;
+  else process.env.WHATSAPP_INTEGRATION_MODE = savedMode;
   check("Template payload shape", JSON.stringify(templatePayload("+91 98000 00000", "followup", "en", ["Ravi"])).includes('"to":"919800000000"'));
   const secret = "app-secret-123";
   const raw = JSON.stringify(waBody);
@@ -368,18 +418,32 @@ export function runPhase2SelfTest(): SelfTestResult[] {
 
   section = "/test status rules";
   check("Nothing set → Not configured", rollupStatus({ requiredSet: 0, requiredTotal: 2, steps: [] }) === "not_configured");
-  check("Some variables missing → Partially configured", rollupStatus({ requiredSet: 1, requiredTotal: 2, steps: [] }) === "partial");
-  const step = (result: "pass" | "fail" | "warn", kind: "config" | "credential" | "live") => ({ label: "", result, detail: "", kind });
-  check("Credential rejected → Authentication failed", rollupStatus({ requiredSet: 2, requiredTotal: 2, steps: [step("fail", "credential")] }) === "auth_failed");
-  check("Credentials OK but API operation failed → API error", rollupStatus({ requiredSet: 2, requiredTotal: 2, steps: [step("pass", "credential"), step("fail", "live")] }) === "api_error");
-  check("Settings present but no live check → never Connected", rollupStatus({ requiredSet: 2, requiredTotal: 2, steps: [{ label: "", result: "pass", detail: "", kind: "config" }] }) === "partial");
-  check("All live checks passed → Connected", rollupStatus({ requiredSet: 2, requiredTotal: 2, steps: [step("pass", "live")] }) === "connected");
-  check("Connected + real activity → Operational", rollupStatus({ requiredSet: 2, requiredTotal: 2, steps: [step("pass", "live")], activity: true }) === "operational");
-  check("Activity never upgrades a failing check", rollupStatus({ requiredSet: 2, requiredTotal: 2, steps: [step("fail", "live")], activity: true }) === "api_error");
+  check("Some variables missing → Configuration incomplete", rollupStatus({ requiredSet: 1, requiredTotal: 2, steps: [] }) === "partial");
+  type St = Parameters<typeof rollupStatus>[0]["steps"][number];
+  const step = (result: St["result"], kind: St["kind"], extra: Partial<St> = {}): St => ({ label: "", result, detail: "", kind, ...extra });
+  const roll = (steps: St[], activity = false) => rollupStatus({ requiredSet: 2, requiredTotal: 2, steps, activity });
+  check("Settings present, nothing verified → Credentials present (never Connected)", roll([step("pass", "config")]) === "credentials_present");
+  check("Credential accepted, no API operation yet → Authentication verified", roll([step("pass", "credential")]) === "authenticated");
+  check("Credential rejected → Authentication failed", roll([step("fail", "credential")]) === "auth_failed");
+  check("Live failure with HTTP 400/404 → Code/configuration error", roll([step("pass", "credential"), step("fail", "live", { http: 400 })]) === "config_error");
+  check("Live failure marked activation → External activation required", roll([step("pass", "credential"), step("fail", "live", { http: 400, failure: "activation" })]) === "activation_required");
+  check("HTTP 429 → Provider quota restriction", roll([step("pass", "credential"), step("fail", "live", { http: 429 })]) === "quota_restricted");
+  check("HTTP 403 → Provider API restriction", roll([step("pass", "credential"), step("fail", "live", { http: 403 })]) === "provider_restricted");
+  check("Placeholder value → Placeholder credentials", roll([step("pass", "credential"), step("fail", "config", { failure: "placeholder" })]) === "placeholder_credentials");
+  check("Owner must create/supply something → Client-side action required", roll([step("pass", "credential"), step("fail", "config", { failure: "client" })]) === "client_action_required");
+  check("Primary out of quota but fallback works → still API operation successful", roll([step("warn", "live", { failure: "quota" }), step("pass", "live")]) === "connected");
+  check("Timeout (HTTP 0) → Timeout / temporary failure", roll([step("pass", "credential"), step("fail", "live", { http: 0 })]) === "temporary_failure");
+  check("Credentials rejected outrank other failures", roll([step("fail", "credential", { http: 401 }), step("fail", "live", { http: 0 })]) === "auth_failed");
+  check("All live checks passed → API operation successful", roll([step("pass", "live")]) === "connected");
+  check("Primary down but fallback answered (temporary warning) → still API operation successful", roll([step("warn", "live", { failure: "temporary" }), step("pass", "live")]) === "connected");
+  check("Setup warning (e.g. activation pending) → Configuration incomplete", roll([step("pass", "live"), step("warn", "config", { failure: "activation" })]) === "partial");
+  check("Connected + real activity → Production activity verified", roll([step("pass", "live")], true) === "operational");
+  check("Activity never upgrades a failing check", roll([step("fail", "live", { http: 503 })], true) === "temporary_failure");
+  check("External vs internal ownership", failureOwner("config") === "internal" && failureOwner("activation") === "external" && failureOwner("auth") === "external");
   check(
     "Summary counts",
-    JSON.stringify(summarise(["connected", "auth_failed", "partial", "not_configured", "operational", "api_error"])) ===
-      JSON.stringify({ total: 6, operational: 1, connected: 1, partial: 1, failed: 2, notConfigured: 1 })
+    JSON.stringify(summarise(["connected", "auth_failed", "partial", "not_configured", "operational", "temporary_failure", "authenticated"])) ===
+      JSON.stringify({ total: 7, operational: 1, connected: 1, partial: 2, failed: 2, notConfigured: 1 })
   );
 
   section = "/test agent status rules";
@@ -416,6 +480,27 @@ export function runPhase2SelfTest(): SelfTestResult[] {
   check("G- id in GA4_PROPERTY_ID flagged as invalid", get("GA4_PROPERTY_ID").valid === false && /digits/.test(get("GA4_PROPERTY_ID").problem || ""), get("GA4_PROPERTY_ID").problem || "");
   check("Sample admin password flagged", get("ADMIN_PASSWORD").valid === false, get("ADMIN_PASSWORD").problem || "");
   check("Missing variables are reported as not set", get("VAPI_API_KEY").set === false && get("VAPI_API_KEY").valid === false);
+
+  const dev = { NODE_ENV: "development" } as NodeJS.ProcessEnv;
+  check("Dev guard: local test database allowed", devDatabaseBlockReason("mongodb://app:pw@127.0.0.1:27018/marina_muse_dev?authSource=marina_muse_dev", dev) === null);
+  check("Dev guard: Atlas SRV URI refused outside production", Boolean(devDatabaseBlockReason("mongodb+srv://app:pw@cluster0.abc.mongodb.net/?retryWrites=true", dev)));
+  check("Dev guard: one remote host in a host list is refused", Boolean(devDatabaseBlockReason("mongodb://app:pw@localhost:27017,ac-x-shard-00-01.abc.mongodb.net:27017/db", dev)));
+  check("Dev guard: password containing @ does not fool the host check", Boolean(devDatabaseBlockReason("mongodb://app:p@localhost@cluster0.abc.mongodb.net/db", dev)));
+  check("Dev guard: explicitly allowed dev host accepted", devDatabaseBlockReason("mongodb://app:pw@dev-db.internal:27017/db", { ...dev, MONGODB_DEV_ALLOWED_HOSTS: "dev-db.internal" }) === null);
+  check("Dev guard: production runtime is not affected", devDatabaseBlockReason("mongodb+srv://app:pw@cluster0.abc.mongodb.net/", { NODE_ENV: "production" } as NodeJS.ProcessEnv) === null);
+  check("Dev guard: refusal never repeats the URI", !/cluster0|app:pw/.test(devDatabaseBlockReason("mongodb+srv://app:pw@cluster0.abc.mongodb.net/", dev) || ""));
+  const formats = envReport({
+    GEMINI_API_KEY: "AQ.Ab8RN6Kxyz-new-format-key-0123456789abcd",
+    VAPI_API_KEY: "3f0c2a4e-1b2c-4d5e-8f90-123456789abc",
+    VAPI_ASSISTANT_ID: "YOUR_ASSISTANT_ID",
+    VAPI_PHONE_NUMBER_ID: "12345",
+    META_APP_SECRET: "YOUR_META_APP_SECRET",
+  });
+  const fmt = (n: string) => formats.find((e) => e.name === n)!;
+  check("New AQ.-format Gemini key accepted (Google issues both formats)", fmt("GEMINI_API_KEY").valid === true, fmt("GEMINI_API_KEY").problem || "");
+  check("UUID Vapi private key accepted", fmt("VAPI_API_KEY").valid === true);
+  check("Placeholder ids and secrets flagged as placeholder text", /placeholder/.test(fmt("VAPI_ASSISTANT_ID").problem || "") && /placeholder/.test(fmt("META_APP_SECRET").problem || ""));
+  check("Non-UUID Vapi id flagged", /UUID/.test(fmt("VAPI_PHONE_NUMBER_ID").problem || ""));
   check("Report never contains a value", !JSON.stringify(sample).includes("AIzaSyD-valid") && !JSON.stringify(sample).includes("0123456789abcdef0123456789abcdef"));
   const badJson = envReport({ GOOGLE_SERVICE_ACCOUNT_JSON: "{not json" }).find((e) => e.name === "GOOGLE_SERVICE_ACCOUNT_JSON")!;
   check("Broken service-account JSON flagged", badJson.valid === false && !String(badJson.problem).includes("{not"), badJson.problem || "");

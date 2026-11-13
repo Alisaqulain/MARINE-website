@@ -75,7 +75,7 @@ export function answerFromCatalogue(question: string, products: CatalogueFact[])
   if (/\b(return|refund)\b/.test(lower)) {
     return { text: APPROVED_POLICIES.returns!, products: [], quote: false, unknown: false, policy: "returns" };
   }
-  if (/\b(ship|delivery|deliver)\b/.test(lower) && query.every((token) => !["compass", "telescope", "binocular"].includes(token))) {
+  if (/\b(ship|delivery|deliver)\b/.test(lower) && query.every((token) => !["compass", "telescope", "binocular", "wheel"].includes(token))) {
     return { text: APPROVED_POLICIES.shipping!, products: [], quote: false, unknown: false, policy: "shipping" };
   }
   if (/\b(custom|manufactur|oem)\b/.test(lower) && !query.some((token) => products.some((product) => product.name.toLowerCase().includes(token)))) {
@@ -105,11 +105,15 @@ export function answerFromCatalogue(question: string, products: CatalogueFact[])
         ? `${product.quantity} available`
         : product.stock === "in-stock"
           ? "in stock"
-          : product.stock;
+          : product.stock
+            ? product.stock.replace(/-/g, " ")
+            : "stock not confirmed";
+    // A missing price must never read as "$0.00".
+    const price = Number.isFinite(product.price) && product.price > 0 ? `$${product.price.toFixed(2)} USD` : "price not listed";
     const material = product.material ? ` Material: ${product.material}.` : "";
     const dimensions = product.dimensions && product.dimensions !== "See product description" ? ` Dimensions: ${product.dimensions}.` : "";
     const sku = product.sku ? ` (${product.sku})` : "";
-    return `${product.name}${sku} is $${product.price.toFixed(2)} USD, ${stock}.${material}${dimensions} Page: ${product.href}`;
+    return `${product.name}${sku} is ${price}, ${stock}.${material}${dimensions} Page: ${product.href}`;
   });
   const quote = /\b(quote|wholesale|bulk|logo|oem)\b/i.test(lower);
   return {

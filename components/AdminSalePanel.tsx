@@ -1,10 +1,10 @@
 "use client";
 
 import { ProductImage } from "@/components/ProductImage";
-import { listingCategories } from "@/lib/listing-categories";
+import { listingCategoriesFromTree, type CategoryTreeNode } from "@/lib/listing-categories";
 import type { ShopSale } from "@/lib/sales";
 import { saleWindowLive, saleWindowPast } from "@/lib/sale-time";
-import { shopNowTree, type ShopNowChild } from "@/lib/shop-now-data";
+import { shopNowTree } from "@/lib/shop-now-data";
 import { useEffect, useMemo, useState } from "react";
 
 function saleIsLive(sale: ShopSale) {
@@ -29,15 +29,16 @@ function saleIsPast(sale: ShopSale) {
   return saleWindowPast(sale);
 }
 
-function categoryWithChildren(slug: string): Set<string> {
+/** The category and everything under it, from the live tree (built-in tree until it loads). */
+function categoryWithChildren(slug: string, tree: CategoryTreeNode[]): Set<string> {
   const out = new Set([slug]);
-  function collect(nodes: ShopNowChild[]) {
+  function collect(nodes: CategoryTreeNode[]) {
     for (const node of nodes) {
       out.add(node.slug);
       if (node.children) collect(node.children);
     }
   }
-  function find(nodes: ShopNowChild[]): boolean {
+  function find(nodes: CategoryTreeNode[]): boolean {
     for (const node of nodes) {
       if (node.slug === slug) {
         collect(node.children ?? []);
@@ -47,7 +48,7 @@ function categoryWithChildren(slug: string): Set<string> {
     }
     return false;
   }
-  find(shopNowTree.map((parent) => ({ slug: parent.slug, name: parent.name, children: parent.children })));
+  find(tree.length ? tree : shopNowTree);
   return out;
 }
 
@@ -76,7 +77,8 @@ export function AdminSalePanel({ channel }: { channel: "retail" | "wholesale" })
   const [sales, setSales] = useState<ShopSale[]>([]);
   const [salesLoading, setSalesLoading] = useState(true);
   const [listings, setListings] = useState<Listing[]>([]);
-  const [categories, setCategories] = useState<{ slug: string; name: string }[]>([]);
+  const [categoryTree, setCategoryTree] = useState<CategoryTreeNode[]>([]);
+  const categories = useMemo(() => listingCategoriesFromTree(categoryTree), [categoryTree]);
   const [form, setForm] = useState(emptyForm);
   const [category, setCategory] = useState("all");
   const [query, setQuery] = useState("");
@@ -115,7 +117,7 @@ export function AdminSalePanel({ channel }: { channel: "retail" | "wholesale" })
           setListingsError("Listings could not be loaded — the server did not respond. Check that the site is running, then retry.");
           return {};
         }),
-      fetch("/api/categories").then((res) => res.json()).catch(() => ({})),
+      fetch("/api/categories", { cache: "no-store" }).then((res) => res.json()).catch(() => ({})),
     ]);
     setListingsLoading(false);
     setListings(
@@ -130,13 +132,7 @@ export function AdminSalePanel({ channel }: { channel: "retail" | "wholesale" })
           }))
         : []
     );
-    const extras = Array.isArray(categoryRes.items)
-      ? categoryRes.items
-          .map((item: { slug?: string; name?: string }) => ({ slug: String(item.slug ?? ""), name: String(item.name ?? "") }))
-          .filter((item: { slug: string; name: string }) => item.slug && item.name)
-      : [];
-    const base = listingCategories();
-    setCategories([...base, ...extras.filter((item: { slug: string }) => !base.some((category) => category.slug === item.slug))]);
+    if (Array.isArray(categoryRes.tree) && categoryRes.tree.length) setCategoryTree(categoryRes.tree);
   }
 
   useEffect(() => {
@@ -145,7 +141,7 @@ export function AdminSalePanel({ channel }: { channel: "retail" | "wholesale" })
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const inCategory = category === "all" ? null : categoryWithChildren(category);
+    const inCategory = category === "all" ? null : categoryWithChildren(category, categoryTree);
     const picked = new Set(form.picked);
     return listings.filter((item) => {
       if (pickFilter === "selected" && !picked.has(item.slug)) return false;
@@ -154,7 +150,7 @@ export function AdminSalePanel({ channel }: { channel: "retail" | "wholesale" })
       if (!q) return true;
       return item.name.toLowerCase().includes(q) || item.slug.toLowerCase().includes(q);
     });
-  }, [listings, category, query, pickFilter, form.picked]);
+  }, [listings, category, categoryTree, query, pickFilter, form.picked]);
 
   const listingName = (slug: string) => listings.find((item) => item.slug === slug)?.name ?? slug;
 
@@ -229,10 +225,20 @@ export function AdminSalePanel({ channel }: { channel: "retail" | "wholesale" })
         method: editingId ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
-      });
+      }).catch(() => null);
+      if (!res) {
+        setError("Could not save this sale — the server did not respond. Check your connection and try again.");
+        return;
+      }
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(typeof data.error === "string" ? data.error : "Could not save this sale.");
+        setError(
+          typeof data.error === "string"
+            ? data.error
+            : res.status === 401
+              ? "Your admin session has expired. Sign in again, then publish the sale."
+              : `Could not save this sale (HTTP ${res.status}). Try again in a moment.`
+        );
         return;
       }
       setStep("home");

@@ -1,0 +1,50 @@
+archive:D:\DittoDebug_3_25_113_0.7z
+archive:D:\e.pptx
+archive:D:\flutter_windows_3.47.7-stable.zip
+archive:D:\Food Delivery Management System Using Oracle Database.pptx
+archive:D:\Food_Delivery_App_System (1).pptx
+archive:D:\Food_Delivery_App_System (2).pptx
+archive:D:\Food_Delivery_App_System (3).pptx
+archive:D:\Food_Delivery_App_System.pptx
+archive:D:\humsafar-main.zip
+archive:D:\JavaScript_Complete_Guide_A_to_Z.pptx
+archive:D:\Program Files (x86)\Microsoft\Copilot\Application\undocked_copilot\Installer\msedge.7z
+archive:D:\sqldeveloper-26.2.0.186.2220-x64\sqldeveloper\jlib\schemas.zip
+archive:D:\sqldeveloper-26.2.0.186.2220-x64\sqldeveloper\modules\javafx\osx-aarch64\lib\src.zip
+archive:D:\sqldeveloper-26.2.0.186.2220-x64\sqldeveloper\modules\javafx\windows-x64\lib\src.zip
+archive:D:\sqldeveloper-26.2.0.186.2220-x64\sqldeveloper\sqldeveloper\extensions\oracle.datamodeler\reports\oracle.sqldeveloper.datamodeler_reports.59.46.zip
+archive:D:\sqldeveloper-26.2.0.186.2220-x64\sqldeveloper\sqldeveloper\extensions\oracle.datamodeler\samples\Dimensional_model\global11_demo.zip
+archive:D:\sqldeveloper-26.2.0.186.2220-x64\sqldeveloper\sqldeveloper\extensions\oracle.datamodeler\xmlmetadata\doc\SQLDeveloperDataModelerScripting.docx
+archive:D:\sqldeveloper-26.2.0.186.2220-x64.zip
+archive:D:\WINDOWS.X64_213000_db_home\javavm\doc\javadoc.zip
+archive:D:\WINDOWS.X64_213000_db_home\javavm\lib\aurora.zip
+archive:D:\WINDOWS.X64_213000_db_home\javavm\lib\jaccelerator.zip
+archive:D:\WINDOWS.X64_213000_db_home\jdk\javafx-src.zip
+archive:D:\WINDOWS.X64_213000_db_home\jdk\jre\lib\deploy\ffjcext.zip
+archive:D:\WINDOWS.X64_213000_db_home\lib\jdev-rt.zip
+archive:D:\WINDOWS.X64_213000_db_home\lib\opc_installer.zip
+archive:D:\WINDOWS.X64_213000_db_home\lib\osbws_installer.zip
+archive:D:\WINDOWS.X64_213000_db_home\lib\ra_installer.zip
+archive:D:\WINDOWS.X64_213000_db_home\lib\transx.zip
+archive:D:\WINDOWS.X64_213000_db_home\md\doc\sdoapi.zip
+archive:D:\WINDOWS.X64_213000_db_home\md\doc\sdondmxml.zip
+archive:D:\WINDOWS.X64_213000_db_home\md\doc\sdonm.zip
+archive:D:\WINDOWS.X64_213000_db_home\md\doc\sdotopo.zip
+archive:D:\WINDOWS.X64_213000_db_home\md\doc\sdoutl.zip
+archive:D:\WINDOWS.X64_213000_db_home\md\gdal\bin\gdalplugins\gdal_ECW_JP2ECW.zip
+archive:D:\WINDOWS.X64_213000_db_home\md\gdal\bin\gdalplugins\gdal_HDF4.zip
+archive:D:\WINDOWS.X64_213000_db_home\md\gdal\bin\gdalplugins\gdal_HDF5.zip
+archive:D:\WINDOWS.X64_213000_db_home\md\gdal\bin\gdalplugins\ogr_FileGDB.zip
+archive:D:\WINDOWS.X64_213000_db_home\md\gdal\bin\gdalplugins\ogr_PG.zip
+archive:D:\WINDOWS.X64_213000_db_home\md\gdal\gdal33_linux64.zip
+archive:D:\WINDOWS.X64_213000_db_home\md\gdal\gdal33_win64.zip
+archive:D:\WINDOWS.X64_213000_db_home\md\jlib\elocation.ear.zip
+archive:D:\WINDOWS.X64_213000_db_home\md\jlib\geocoder.ear.zip
+archive:D:\WINDOWS.X64_213000_db_home\md\jlib\mapviewer.ear.zip
+archive:D:\WINDOWS.X64_213000_db_home\md\jlib\ndmserver.ear.zip
+archive:D:\WINDOWS.X64_213000_db_home\md\jlib\routeserver.ear.zip
+archive:D:\WINDOWS.X64_213000_db_home\OPatch\ocm\generic.zip
+archive:D:\WINDOWS.X64_213000_db_home\precomp\lib\ottclasses.zip
+archive:D:\WINDOWS.X64_213000_db_home\python\lib\site-packages\dateutil\zoneinfo\dateutil-zoneinfo.tar.gz
+archive:D:\WINDOWS.X64_213000_db_home\python\lib\site-packages\docutils\writers\odf_odt\styles.odt
+archive:D:\WINDOWS.X64_213000_db_home.zip

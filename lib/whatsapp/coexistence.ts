@@ -1,13 +1,32 @@
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, scryptSync, timingSafeEqual } from "crypto";
+import { looksLikePlaceholder } from "../ai/http.ts";
+import { BLOCKED_LIVE_NUMBER, KNOWN_PRODUCTION_APP_ID, KNOWN_PRODUCTION_CONFIG_ID, directOutboundPossible, isDirectMode } from "./mode.ts";
 
-/** Digits for the live Marina Muse WhatsApp Business app number. Graph calls that include it are refused. */
-export const BLOCKED_LIVE_NUMBER = "917457099540";
+/** Digits for the live Marina Muse WhatsApp Business app number. Graph calls that include it are refused. (Defined in mode.ts.) */
+export { BLOCKED_LIVE_NUMBER };
 
 /** Embedded Signup implementation guide names v26.0 as the latest Graph API version to pass to FB.init. */
 export const DEFAULT_GRAPH_API_VERSION = "v26.0";
 
-export const SUPPLIED_APP_ID = "1588276335845243";
-export const SUPPLIED_CONFIG_ID = "1760993601871515";
+/**
+ * The production app and configuration IDs. C9: they are NOT a fallback any more; exported only so checks and the
+ * isolated launcher can confirm they are never returned or used as test identifiers.
+ */
+export const SUPPLIED_APP_ID = KNOWN_PRODUCTION_APP_ID;
+export const SUPPLIED_CONFIG_ID = KNOWN_PRODUCTION_CONFIG_ID;
+
+/**
+ * Meta app and Embedded Signup configuration ids, from the environment only (C9). Unset means "not configured" in
+ * every environment: there is no fallback to hard-coded production ids. `isolated` reports MARINA_ISOLATED_TEST=1.
+ */
+export function metaAppIds(env: NodeJS.ProcessEnv = process.env) {
+  const isolated = env.MARINA_ISOLATED_TEST === "1";
+  return {
+    appId: env.META_APP_ID?.trim() || "",
+    configId: env.META_CONFIG_ID?.trim() || "",
+    isolated,
+  };
+}
 
 const BLOCKED_GRAPH_PATHS = ["/register", "/deregister", "/smb_app_data", "/messages", "/subscribed_apps"];
 
@@ -572,9 +591,11 @@ export function verifyHandshake(input: {
   return { ok: true as const, challenge: input.challenge };
 }
 
-export function verifySignature(raw: string, header: string | null, secret: string | undefined) {
+/** `raw` is the exact request body; the webhook route passes the received bytes (C4) so the HMAC is byte-exact. */
+export function verifySignature(raw: string | Uint8Array, header: string | null, secret: string | undefined) {
   const key = secret?.trim() || "";
-  if (!key) return { ok: false as const, status: 503, error: "Webhook secret is not configured." };
+  // A placeholder secret is public knowledge: treat it as not configured so nobody can sign with it.
+  if (!key || looksLikePlaceholder(key)) return { ok: false as const, status: 503, error: "Webhook secret is not configured." };
   if (!header?.startsWith("sha256=")) return { ok: false as const, status: 401, error: "Webhook signature was rejected." };
   const digest = createHmac("sha256", key).update(raw).digest("hex");
   const expected = Buffer.from(`sha256=${digest}`);
@@ -875,6 +896,8 @@ export function coexistenceUpdates(body: unknown): CoexistenceUpdates {
 export const HUMAN_TAKEOVER_HOURS = 24;
 
 export function shouldSendWhatsApp(env: NodeJS.ProcessEnv) {
+  // C1: direct mode does not depend on any coexistence flag.
+  if (isDirectMode(env)) return directOutboundPossible(env);
   const flags = readFlags(env);
   return flags.coexistenceEnabled && flags.productionOnboardingApproved && flags.outboundEnabled;
 }
@@ -882,8 +905,11 @@ export function shouldSendWhatsApp(env: NodeJS.ProcessEnv) {
 /**
  * Automatic replies from the coexistence number. Production: all three approval flags.
  * Test: coexistence + outbound flags, and the business number must be the verified test number.
+ * C1: in direct mode this is the flag-level answer only; the per-recipient decision is `directOutboundDecision`
+ * (applied in `sendGate`).
  */
 export function outboundAllowed(env: NodeJS.ProcessEnv, businessNumber?: string | null) {
+  if (isDirectMode(env)) return directOutboundPossible(env);
   const flags = readFlags(env);
   if (!flags.coexistenceEnabled || !flags.outboundEnabled) return false;
   if (flags.productionOnboardingApproved) return true;
@@ -923,8 +949,7 @@ export function coexistenceMode(env: NodeJS.ProcessEnv, stored: StoredCoexistenc
 
 export function publicStatus(env: NodeJS.ProcessEnv, stored: StoredCoexistence | null): PublicWhatsAppStatus {
   const flags = readFlags(env);
-  const appId = env.META_APP_ID?.trim() || SUPPLIED_APP_ID;
-  const configId = env.META_CONFIG_ID?.trim() || SUPPLIED_CONFIG_ID;
+  const { appId, configId } = metaAppIds(env);
   const version = graphVersion(env.META_GRAPH_API_VERSION);
   const signupAllowed = productionSignupAllowed(env);
   const mode = stored?.mode || "none";
@@ -942,7 +967,9 @@ export function publicStatus(env: NodeJS.ProcessEnv, stored: StoredCoexistence |
       ? "requested, waiting for history webhooks"
       : "not requested";
   const blockers = [
-    "Confirm in the Meta dashboard that configuration 1760993601871515 is a Facebook Login for Business config for WhatsApp Embedded Signup with the two approved permissions.",
+    configId
+      ? `Confirm in the Meta dashboard that configuration ${configId} is a Facebook Login for Business config for WhatsApp Embedded Signup with the two approved permissions.`
+      : "META_CONFIG_ID is not set (there is no built-in fallback): set it to the Facebook Login for Business configuration for WhatsApp Embedded Signup.",
     "Your business must be a Tech Provider or Solution Partner, and the test phone must run WhatsApp Business app 2.24.17 or newer.",
     "Subscribe the app's WhatsApp Business Account webhook fields: messages, history, smb_app_state_sync, smb_message_echoes, account_update (App Dashboard → WhatsApp → Configuration).",
     "The callback URL must be public HTTPS (/api/meta/whatsapp/webhook) with META_WEBHOOK_VERIFY_TOKEN; localhost cannot receive Meta webhooks.",

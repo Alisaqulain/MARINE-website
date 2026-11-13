@@ -13,6 +13,17 @@ export function paypalMode() {
   return (process.env.PAYPAL_MODE ?? "sandbox").trim().toLowerCase() === "live" ? "live" : "sandbox";
 }
 
+/** A local or development server must not charge real cards: live mode is refused outside production. */
+function assertPayPalModeAllowed() {
+  if (
+    paypalMode() === "live" &&
+    process.env.NODE_ENV !== "production" &&
+    process.env.PAYPAL_ALLOW_LIVE_OUTSIDE_PRODUCTION !== "1"
+  ) {
+    throw new Error("PayPal is in LIVE mode outside production. Use PAYPAL_MODE=sandbox with sandbox credentials for development.");
+  }
+}
+
 export async function pingPayPal() {
   const mode = paypalMode();
   const webhookSet = Boolean(process.env.PAYPAL_WEBHOOK_ID?.trim());
@@ -79,6 +90,7 @@ export async function createPayPalCheckout(input: {
   origin: string;
   whatsapp?: boolean;
 }) {
+  assertPayPalModeAllowed();
   const token = await paypalAccessToken();
   const origin = input.origin.replace(/\/$/, "") || getSiteOrigin();
   const value = input.amount.toFixed(2);
@@ -156,6 +168,7 @@ export type PayPalCapture = {
 };
 
 export async function capturePayPalOrder(paypalOrderId: string) {
+  assertPayPalModeAllowed();
   const token = await paypalAccessToken();
   const res = await fetch(`${paypalBaseUrl()}/v2/checkout/orders/${encodeURIComponent(paypalOrderId)}/capture`, {
     method: "POST",

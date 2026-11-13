@@ -7,7 +7,7 @@ import type { AgentId } from "@/lib/ai/agents";
  * (agent, operation, ok, duration, sanitised error) in ai_usage and summarised on /test.
  */
 
-export async function recordUsage(entry: { agent: AgentId; op: string; ok: boolean; ms: number; error?: string }) {
+export async function recordUsage(entry: { agent: AgentId; op: string; ok: boolean; ms: number; error?: string; model?: string; failure?: string; fallbackUsed?: boolean }) {
   try {
     const db = await getDb();
     await db.collection("ai_usage").insertOne({ ...entry, error: entry.error?.slice(0, 200), at: new Date().toISOString() });
@@ -20,7 +20,16 @@ export async function recordUsage(entry: { agent: AgentId; op: string; ok: boole
 export async function generateFor(agent: AgentId, op: string, input: Parameters<typeof generate>[0]): Promise<GeminiResult> {
   const started = Date.now();
   const result = await generate(input);
-  void recordUsage({ agent, op, ok: result.ok, ms: Date.now() - started, error: result.ok ? undefined : result.error });
+  void recordUsage({
+    agent,
+    op,
+    ok: result.ok,
+    ms: Date.now() - started,
+    error: result.ok ? undefined : result.error,
+    model: result.model,
+    failure: result.failure,
+    fallbackUsed: result.attempts.length > 1,
+  });
   return result;
 }
 

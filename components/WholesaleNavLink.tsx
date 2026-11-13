@@ -12,7 +12,6 @@ type Props = Omit<ComponentProps<typeof Link>, "href"> & {
 /** Wholesale / B2B link — retail customers get a popup to log out and switch accounts. */
 export function WholesaleNavLink({ callbackUrl = "/wholesale", href, onClick, ...rest }: Props) {
   const { wholesaleEntryHref, handleWholesaleClick } = useWholesaleGate();
-  const target = href ?? callbackUrl;
 
   return (
     <Link

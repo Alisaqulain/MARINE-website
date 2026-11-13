@@ -35,9 +35,14 @@ import { AdminAiPanel } from "@/components/AdminAiPanel";
 import { AdminWhatsAppPanel } from "@/components/AdminWhatsAppPanel";
 import { AdminTeamPanel } from "@/components/AdminTeamPanel";
 import { BulkActions, deleteUrls, useRowSelection } from "@/components/AdminSelection";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { AdminProductImagesField } from "@/components/AdminProductImageField";
-import { listingCategories } from "@/lib/listing-categories";
+import {
+  listingCategoriesFromTree,
+  newlyAddedCategories,
+  NEWLY_ADDED_DAYS,
+  type CategoryTreeNode,
+} from "@/lib/listing-categories";
 import type { ListingImage } from "@/lib/listing-images";
 import { lowStockMessage } from "@/lib/product-display";
 import type { AdminProductFilter, AdminProductSort } from "@/lib/admin-catalog";
@@ -45,6 +50,8 @@ import type { AdminProductFilter, AdminProductSort } from "@/lib/admin-catalog";
 type Panel = "customer" | "wholesale";
 
 const PRODUCT_DRAFT_KEY = "marina-admin-product-draft";
+/** Products loaded per "Show more" click on the Products tab. */
+const PRODUCT_STEP = 20;
 
 type Tab =
   | "overview"
@@ -145,11 +152,12 @@ export function AdminDashboard() {
   const [testimonials, setTestimonials] = useState<Record<string, unknown>[]>([]);
   const [users, setUsers] = useState<Record<string, unknown>[]>([]);
   const [products, setProducts] = useState<Record<string, unknown>[]>([]);
-  const [productPage, setProductPage] = useState(1);
+  // "Show more" loads the first N products; each click adds PRODUCT_STEP.
+  const [productLimit, setProductLimit] = useState(PRODUCT_STEP);
   const [productPagination, setProductPagination] = useState({
     total: 0,
     totalPages: 1,
-    pageSize: 10,
+    pageSize: PRODUCT_STEP,
   });
   const [productSearch, setProductSearch] = useState("");
   const [productSearchInput, setProductSearchInput] = useState("");
@@ -193,7 +201,9 @@ export function AdminDashboard() {
   const [productForm, setProductForm] = useState(emptyProductForm());
   const [tagDraft, setTagDraft] = useState("");
   const [categoryQuery, setCategoryQuery] = useState("");
-  const [extraCategories, setExtraCategories] = useState<{ slug: string; name: string }[]>([]);
+  const [categoryTree, setCategoryTree] = useState<CategoryTreeNode[] | null>(null);
+  const allCategories = useMemo(() => listingCategoriesFromTree(categoryTree), [categoryTree]);
+  const recentCategories = useMemo(() => newlyAddedCategories(categoryTree), [categoryTree]);
   const [editing, setEditing] = useState<{ mongoId: string | null; slug: string } | null>(null);
   const [draftRestored, setDraftRestored] = useState(false);
 
@@ -250,7 +260,7 @@ export function AdminDashboard() {
       fetch("/api/testimonials").then((x) => x.json()),
       fetch(`/api/admin/customers?segment=${segment}`).then((x) => x.json()),
       fetch(
-        `/api/admin/products?channel=${channel}&page=${productPage}&pageSize=10&sort=${productSort}&filter=${productFilter}${productSearch ? `&q=${encodeURIComponent(productSearch)}` : ""}`
+        `/api/admin/products?channel=${channel}&page=1&pageSize=${productLimit}&sort=${productSort}&filter=${productFilter}${productSearch ? `&q=${encodeURIComponent(productSearch)}` : ""}`
       ).then((x) => x.json()),
     ]);
     setQuotes(q.items ?? []);
@@ -261,10 +271,10 @@ export function AdminDashboard() {
     setUsers(u.items ?? []);
     setProducts(p.items ?? []);
     setProductPagination(
-      p.pagination ?? { total: p.items?.length ?? 0, totalPages: 1, pageSize: 10 }
+      p.pagination ?? { total: p.items?.length ?? 0, totalPages: 1, pageSize: productLimit }
     );
     if (typeof p.counts?.total === "number") setProductCatalogTotal(p.counts.total);
-  }, [panel, productPage, productSearch, productSort, productFilter]);
+  }, [panel, productLimit, productSearch, productSort, productFilter]);
 
   useEffect(() => {
     void load();
@@ -284,23 +294,15 @@ export function AdminDashboard() {
   }, [loadVisitors]);
 
   useEffect(() => {
-    setProductPage(1);
+    setProductLimit(PRODUCT_STEP);
   }, [panel, productSearch, productSort, productFilter]);
 
   useEffect(() => {
-    void fetch("/api/categories")
+    // The live tree, so renames, deletions and new categories from Admin → Categories show here too.
+    void fetch("/api/categories", { cache: "no-store" })
       .then((r) => r.json())
       .then((data) => {
-        if (Array.isArray(data.items)) {
-          setExtraCategories(
-            data.items
-              .map((item: { slug?: string; name?: string }) => ({
-                slug: String(item.slug ?? ""),
-                name: String(item.name ?? ""),
-              }))
-              .filter((item: { slug: string; name: string }) => item.slug && item.name)
-          );
-        }
+        if (Array.isArray(data.tree) && data.tree.length) setCategoryTree(data.tree);
       })
       .catch(() => {});
   }, [tab]);
@@ -675,7 +677,7 @@ export function AdminDashboard() {
                   <Stat label="Website visitors" value={String(visitorSummary.totalVisitors)} onClick={() => setTab("visitors")} />
                   <Stat
                     label="Categories"
-                    value={String(listingCategories().length + extraCategories.length)}
+                    value={String(allCategories.length)}
                     onClick={() => setTab(canAddProduct ? "categories" : "products")}
                   />
                   <Stat label="Contacts" value={String(contacts.length)} onClick={() => setTab("contacts")} />
@@ -759,18 +761,6 @@ export function AdminDashboard() {
                     </select>
                   </label>
                 </div>
-                <AdminListPagination
-                  className="border-t bg-white px-4 py-3"
-                  page={productPagination.totalPages ? productPage : 0}
-                  totalPages={productPagination.totalPages}
-                  summary={
-                        <>
-                      Page {productPagination.totalPages ? productPage : 0} of {productPagination.totalPages} ·{" "}
-                      {productPagination.total} products
-                    </>
-                  }
-                  onPageChange={setProductPage}
-                />
                 <AdminProductList
                   products={products}
                   canDelete={canDelete}
@@ -784,7 +774,20 @@ export function AdminDashboard() {
                   onChanged={() => void load()}
                   priceMode={panel === "wholesale" ? "wholesale" : "retail"}
                 />
-
+                <div className="flex flex-col items-center gap-2 border-t px-4 py-5">
+                  <p className="text-xs text-navy-600">
+                    Showing {products.length} of {productPagination.total} products
+                  </p>
+                  {products.length < productPagination.total ? (
+                    <button
+                      type="button"
+                      onClick={() => setProductLimit((n) => n + PRODUCT_STEP)}
+                      className="rounded-full border border-navy-900 px-8 py-2 text-sm font-medium text-navy-900 hover:bg-navy-900 hover:text-white"
+                    >
+                      Show more
+                    </button>
+                  ) : null}
+                </div>
               </div>
           ) : null}
 
@@ -1036,16 +1039,24 @@ export function AdminDashboard() {
                     onChange={(e) => setCategoryQuery(e.target.value)}
                   />
                   <div className="max-h-96 space-y-1 overflow-y-auto rounded-lg border border-[#e6dfd2] p-2">
-                    {[...listingCategories(), ...extraCategories.filter((item) => !listingCategories().some((category) => category.slug === item.slug))]
-                      .filter((category) => {
-                        const q = categoryQuery.trim().toLowerCase();
-                        if (!q) return true;
-                        return category.name.toLowerCase().includes(q) || category.slug.includes(q);
-                      })
-                      .map((category) => {
+                    {(() => {
+                      const q = categoryQuery.trim().toLowerCase();
+                      const matches = (category: { slug: string; name: string }) =>
+                        !q || category.name.toLowerCase().includes(q) || category.slug.includes(q);
+                      const recent = recentCategories.filter(matches);
+                      return [
+                        ...(recent.length ? [{ heading: `Newly added (last ${NEWLY_ADDED_DAYS} days)`, items: recent }] : []),
+                        { heading: recent.length ? "All categories" : "", items: allCategories.filter(matches) },
+                      ];
+                    })().map((group) => (
+                      <div key={group.heading || "all"} className="space-y-1">
+                        {group.heading ? (
+                          <p className="pt-1 text-[10px] font-semibold uppercase tracking-wide text-[#8C6E28]">{group.heading}</p>
+                        ) : null}
+                        {group.items.map((category) => {
                       const checked = productForm.categories.includes(category.slug);
                       return (
-                        <label key={category.slug} className="flex items-start gap-2 text-xs text-navy-800">
+                        <label key={`${group.heading}:${category.slug}`} className="flex items-start gap-2 text-xs text-navy-800">
                           <input
                             type="checkbox"
                             className="mt-0.5"
@@ -1063,10 +1074,10 @@ export function AdminDashboard() {
                         </label>
                       );
                     })}
+                      </div>
+                    ))}
                   </div>
-                  <p className="text-[10px] text-navy-500">
-                    {listingCategories().length + extraCategories.filter((item) => !listingCategories().some((category) => category.slug === item.slug)).length} categories
-                  </p>
+                  <p className="text-[10px] text-navy-500">{allCategories.length} categories</p>
                 </fieldset>
                 <label className="block text-xs">
                   <span className="mb-1 block text-navy-600">Personalisation charge ($)</span>

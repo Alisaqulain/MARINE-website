@@ -3,7 +3,27 @@
 import { useCallback, useEffect, useState } from "react";
 import Script from "next/script";
 
+/** C8: `/api/meta/whatsapp/status` in direct Cloud API mode (masked IDs and set/missing flags only). */
+type DirectStatus = {
+  integrationMode: "direct";
+  wabaIdMasked: string | null;
+  phoneNumberIdMasked: string | null;
+  tokenConfigured: boolean;
+  appIdConfigured: boolean;
+  webhookSecretConfigured: boolean;
+  verifyTokenConfigured: boolean;
+  missing: string[];
+  graphVersion: string;
+  outbound: { enabled: boolean; productionApproved: boolean; testConfigMatches: boolean; testRecipients: number; possible: boolean; nonProductionBlocked: boolean };
+  webhookHandshake: string;
+  webhookHandshakeAt: string | null;
+  liveNumberBlocked: true;
+  embeddedSignup: "disabled";
+  callbackPath: string;
+};
+
 type Status = {
+  integrationMode?: "coexistence";
   appId?: string;
   configId?: string;
   graphVersion?: string;
@@ -59,20 +79,59 @@ declare global {
 
 const row = "grid gap-1 border-b border-navy-100 py-2 text-sm sm:grid-cols-[12rem_1fr]";
 
+function DirectPanel({ status }: { status: DirectStatus }) {
+  const yes = (v: boolean, a = "set", b = "missing") => (v ? a : b);
+  return (
+    <div className="space-y-4">
+      <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-navy-900">
+        <span className="font-semibold">Mode: Direct Cloud API (business-owned WABA).</span> Embedded Signup and Coexistence are disabled. The client&apos;s live
+        WhatsApp number is blocked as a recipient and is never registered, migrated or messaged from this site.
+      </div>
+      <div className="rounded-xl bg-white p-5 shadow-sm">
+        <h2 className="font-serif text-lg text-navy-900">WhatsApp Direct Cloud API</h2>
+        <p className="mt-1 text-sm text-navy-600">Values come from the server environment only and are never shown. The live Graph check runs on the /test page.</p>
+        <dl className="mt-4">
+          <div className={row}><dt>WABA ID</dt><dd>{status.wabaIdMasked || "missing (WHATSAPP_BUSINESS_ACCOUNT_ID)"}</dd></div>
+          <div className={row}><dt>Phone-number ID</dt><dd>{status.phoneNumberIdMasked || "missing (WHATSAPP_PHONE_NUMBER_ID)"}</dd></div>
+          <div className={row}><dt>Access token</dt><dd>{yes(status.tokenConfigured, "saved on the server", "missing (WHATSAPP_ACCESS_TOKEN)")}</dd></div>
+          <div className={row}><dt>Meta app ID</dt><dd>{yes(status.appIdConfigured)}</dd></div>
+          <div className={row}><dt>Webhook secret</dt><dd>{yes(status.webhookSecretConfigured, "saved on the server")}</dd></div>
+          <div className={row}><dt>Verify token</dt><dd>{yes(status.verifyTokenConfigured, "saved on the server")}</dd></div>
+          <div className={row}><dt>Graph API</dt><dd>{status.graphVersion}</dd></div>
+          <div className={row}><dt>Webhook</dt><dd>{status.callbackPath} · handshake {status.webhookHandshake}{status.webhookHandshakeAt ? ` (${status.webhookHandshakeAt.slice(0, 16)})` : ""} · only the configured WABA and phone-number ID are accepted</dd></div>
+          <div className={row}><dt>Outbound flag</dt><dd>{status.outbound.enabled ? "on" : "off"}</dd></div>
+          <div className={row}><dt>Production sending approval</dt><dd>{status.outbound.productionApproved ? "given" : "not given"}</dd></div>
+          <div className={row}><dt>Test configuration</dt><dd>{status.outbound.testConfigMatches ? `test number and test WABA match · ${status.outbound.testRecipients} test recipient(s)` : "not configured"}</dd></div>
+          <div className={row}><dt>Automatic replies</dt><dd>{status.outbound.possible ? "possible" : "off — replies are drafted and withheld"}{status.outbound.nonProductionBlocked ? " · this is not a production server, so nothing is sent" : ""}</dd></div>
+          <div className={row}><dt>Embedded Signup</dt><dd>disabled in direct mode</dd></div>
+        </dl>
+        {status.missing.length ? <p className="mt-3 text-sm text-red-700">Missing: {status.missing.join(", ")}.</p> : null}
+      </div>
+    </div>
+  );
+}
+
 export function AdminWhatsAppPanel() {
   const [status, setStatus] = useState<Status | null>(null);
+  const [direct, setDirect] = useState<DirectStatus | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [sdkReady, setSdkReady] = useState(false);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/meta/whatsapp/status");
-    const json = (await res.json().catch(() => ({}))) as Status;
+    const json = (await res.json().catch(() => ({}))) as Status | DirectStatus;
     if (!res.ok) {
-      setError(json.error || "WhatsApp status is unavailable.");
+      setError((json as Status).error || "WhatsApp status is unavailable.");
       return;
     }
-    setStatus(json);
+    if (json.integrationMode === "direct") {
+      setDirect(json as DirectStatus);
+      setStatus(null);
+      return;
+    }
+    setDirect(null);
+    setStatus(json as Status);
   }, []);
 
   useEffect(() => {
@@ -163,6 +222,16 @@ export function AdminWhatsAppPanel() {
         session,
       });
     }, status.launch);
+  }
+
+  // C8: direct mode — no Facebook SDK, no Embedded Signup or Coexistence controls. (After all hooks.)
+  if (direct) {
+    return (
+      <>
+        {error ? <p className="text-sm text-red-700">{error}</p> : null}
+        <DirectPanel status={direct} />
+      </>
+    );
   }
 
   return (

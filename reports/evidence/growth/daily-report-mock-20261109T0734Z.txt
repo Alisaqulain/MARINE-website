@@ -1,0 +1,168 @@
+===== A: full mock =====
+SUBJECT: [Marina AI] Daily owner report — 2026-11-09 · 3 orders · $412.5
+chars: 1648 | lines: 54 | format problems: none
+recommended actions: 5
+
+Daily owner report for 2026-11-09
+
+ORDERS & REVENUE
+  Paid orders: 3
+  Revenue: $412.5 USD
+  Average order value: $137.5
+
+B2B PIPELINE
+  Leads: 4
+  High-value pipeline (estimate, not revenue): $18,500
+  • high-value 86 · $18,500 — MOCK: 25 telescopes for a hotel chain, quote requested
+
+NEEDS YOUR REVIEW
+  Pending approvals: 1
+  • Call (missed): MOCK: missed call, callback needed
+
+CONVERSION
+  Visitors 220 → enquiries 9 (4.1%)
+  Enquiries → leads 4 (44.4%)
+  Leads → orders 3 (75%)
+
+TOP PRODUCTS
+  • Decorative Brass Anchor (MOCK): 3 sold, $147
+  • Handmade Teak Ship Wheel 18" (MOCK): 2 sold, $108
+
+REVENUE BY SOURCE
+  • google / organic: 2 orders, $288
+  • direct: 1 orders, $124.5
+
+SHOPPING FEED & SEARCH
+  Feed items: 340 · with errors: 0
+  Search visibility data: connected
+  Merchant Center upload: not connected
+
+GOOGLE ANALYTICS (GA4)
+  Sessions 220 · key events 9 · purchases 3 · revenue $412.5
+  • Organic Search: 120 sessions, $288
+  • Direct: 100 sessions, $124.5
+  Top landing pages:
+  • /: 90 sessions, 4 key events, $200
+
+SEARCH CONSOLE
+  Clicks 14 · impressions 900
+  • "brass ship wheel": 6 clicks, position 8.2
+  Keyword opportunities:
+  • "nautical telescope": 300 impressions, CTR 0.3%, position 14
+
+RECOMMENDED ACTIONS
+  • Decide 1 pending approval request(s) — customers are waiting.
+  • Review 1 high-value lead(s) worth $18,500 in estimated pipeline.
+  • Approve or dismiss 1 callback task(s), including missed calls.
+  • "nautical telescope" has 300 impressions at position 14 but 0.3% CTR — improve that page's title and meta description.
+  • The Shopping feed is generated locally but not uploaded to Merchant Center.
+
+
+===== B: mock DB data + live GA4/Search Console (read-only) =====
+SUBJECT: [Marina AI] Daily owner report — 2026-11-09 · 3 orders · $412.5
+chars: 1493 | lines: 53 | format problems: none
+recommended actions: 4
+
+Daily owner report for 2026-11-09
+
+ORDERS & REVENUE
+  Paid orders: 3
+  Revenue: $412.5 USD
+  Average order value: $137.5
+
+B2B PIPELINE
+  Leads: 4
+  High-value pipeline (estimate, not revenue): $18,500
+  • high-value 86 · $18,500 — MOCK: 25 telescopes for a hotel chain, quote requested
+
+NEEDS YOUR REVIEW
+  Pending approvals: 1
+  • Call (missed): MOCK: missed call, callback needed
+
+CONVERSION
+  Visitors 220 → enquiries 9 (4.1%)
+  Enquiries → leads 4 (44.4%)
+  Leads → orders 3 (75%)
+
+TOP PRODUCTS
+  • Decorative Brass Anchor (MOCK): 3 sold, $147
+  • Handmade Teak Ship Wheel 18" (MOCK): 2 sold, $108
+
+REVENUE BY SOURCE
+  • google / organic: 2 orders, $288
+  • direct: 1 orders, $124.5
+
+SHOPPING FEED & SEARCH
+  Feed items: 340 · with errors: 0
+  Search visibility data: connected
+  Merchant Center upload: not connected
+
+GOOGLE ANALYTICS (GA4)
+  Sessions 8 · key events 0 · purchases 0 · revenue $0
+  • Direct: 8 sessions, $0
+  Top landing pages:
+  • /test: 5 sessions, 0 key events, $0
+  • /: 2 sessions, 0 key events, $0
+  • (not set): 1 sessions, 0 key events, $0
+
+SEARCH CONSOLE
+  Clicks 0 · impressions 1
+  • "ship searchlight market": 0 clicks, position 41
+  Keyword opportunities:
+
+RECOMMENDED ACTIONS
+  • Decide 1 pending approval request(s) — customers are waiting.
+  • Review 1 high-value lead(s) worth $18,500 in estimated pipeline.
+  • Approve or dismiss 1 callback task(s), including missed calls.
+  • The Shopping feed is generated locally but not uploaded to Merchant Center.
+
+
+===== C: empty day, GA4/Search Console unavailable =====
+SUBJECT: [Marina AI] Daily owner report — 2026-11-09 · 0 orders · $0
+chars: 1057 | lines: 43 | format problems: none
+recommended actions: 5
+
+Daily owner report for 2026-11-09
+
+ORDERS & REVENUE
+  Paid orders: 0
+  Revenue: $0 USD
+  Average order value: —
+
+B2B PIPELINE
+  Leads: 4
+  High-value pipeline (estimate, not revenue): $18,500
+
+NEEDS YOUR REVIEW
+  Pending approvals: 1
+
+CONVERSION
+  Visitors 220 → enquiries 9 (4.1%)
+  Enquiries → leads 4 (44.4%)
+  Leads → orders 3 (75%)
+
+TOP PRODUCTS
+  —
+
+REVENUE BY SOURCE
+  —
+
+SHOPPING FEED & SEARCH
+  Feed items: 340 · with errors: 0
+  Search visibility data: not connected
+  Merchant Center upload: not connected
+
+GOOGLE ANALYTICS (GA4)
+  Not connected
+
+SEARCH CONSOLE
+  Not connected
+
+RECOMMENDED ACTIONS
+  • Decide 1 pending approval request(s) — customers are waiting.
+  • Approve or dismiss 1 callback task(s), including missed calls.
+  • Search Console is not connected — set GOOGLE_SERVICE_ACCOUNT_* and SEARCH_CONSOLE_SITE_URL to see queries and rankings.
+  • GA4 is not connected — set GA4_PROPERTY_ID and the Google service account to see traffic and conversions.
+  • The Shopping feed is generated locally but not uploaded to Merchant Center.
+
+

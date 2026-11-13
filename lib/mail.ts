@@ -65,8 +65,18 @@ export function ownerAlertEmails(): string[] {
   return fromEnv.length ? fromEnv : adminEmailsList();
 }
 
-/** Plain-text mail to the owner (alerts, daily report). Throws when SMTP is not configured. */
+/**
+ * Plain-text mail to the owner (alerts, daily report). Throws when SMTP is not configured.
+ * Outside production it only goes to an explicit OWNER_ALERT_EMAILS test recipient, never to the admin list.
+ */
+export function assertOwnerMailAllowed() {
+  if (process.env.NODE_ENV !== "production" && !process.env.OWNER_ALERT_EMAILS?.trim()) {
+    throw new Error("Owner mail is disabled outside production until OWNER_ALERT_EMAILS names an authorized test recipient.");
+  }
+}
+
 export async function sendOwnerMail(subject: string, text: string) {
+  assertOwnerMailAllowed();
   const transport = await otpTransport();
   try {
     await transport.sendMail({

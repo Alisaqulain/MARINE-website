@@ -9,9 +9,44 @@ export type FeedItem = {
   availability: "in_stock" | "out_of_stock" | "preorder";
 };
 
+/** Google Merchant Center limits. */
+const MAX_ID = 50;
+const MAX_TITLE = 150;
+
+/** Short stable hash (FNV-1a), so an id stays the same from one feed fetch to the next. */
+function shortHash(value: string) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < value.length; i++) h = Math.imul(h ^ value.charCodeAt(i), 0x01000193) >>> 0;
+  return h.toString(36);
+}
+
+/**
+ * One unique id per product, at most 50 characters: the SKU when it is unique, otherwise the slug,
+ * shortened with a hash suffix when too long. A repeated SKU falls back to the slug-based id.
+ */
+export function feedIds(products: { sku?: string; slug: string }[]): string[] {
+  const skuCount = new Map<string, number>();
+  for (const p of products) if (p.sku?.trim()) skuCount.set(p.sku.trim(), (skuCount.get(p.sku.trim()) ?? 0) + 1);
+  return products.map((p) => {
+    const sku = p.sku?.trim() ?? "";
+    if (sku && skuCount.get(sku) === 1 && sku.length <= MAX_ID) return sku;
+    const suffix = `-${shortHash(p.slug)}`;
+    return p.slug.length <= MAX_ID ? p.slug : `${p.slug.slice(0, MAX_ID - suffix.length).replace(/-+$/, "")}${suffix}`;
+  });
+}
+
+/** Titles over 150 characters are disapproved; cut at the last whole word. */
+export function feedTitle(title: string) {
+  const clean = title.replace(/\s+/g, " ").trim();
+  if (clean.length <= MAX_TITLE) return clean;
+  const cut = clean.slice(0, MAX_TITLE);
+  return cut.slice(0, cut.lastIndexOf(" ") > 100 ? cut.lastIndexOf(" ") : MAX_TITLE).replace(/[\s,–—-]+$/, "");
+}
+
 export function feedItemErrors(item: FeedItem): string[] {
   const errors: string[] = [];
   if (!item.id.trim()) errors.push("Missing id");
+  if (item.id.length > MAX_ID) errors.push(`Id longer than ${MAX_ID} characters`);
   if (!item.title.trim()) errors.push("Missing title");
   if (!item.description.trim()) errors.push("Missing description");
   if (!/^https?:\/\//.test(item.link)) errors.push("Landing page must be an absolute URL");
@@ -44,7 +79,7 @@ export function googleMerchantXml(items: FeedItem[], origin: string): { xml: str
     return [
       `<item>`,
       `<g:id>${escapeXml(item.id)}</g:id>`,
-      `<g:title>${escapeXml(item.title)}</g:title>`,
+      `<g:title>${escapeXml(feedTitle(item.title))}</g:title>`,
       `<g:description>${escapeXml(item.description.slice(0, 5000))}</g:description>`,
       `<g:link>${escapeXml(link)}</g:link>`,
       `<g:image_link>${escapeXml(image)}</g:image_link>`,
@@ -52,6 +87,8 @@ export function googleMerchantXml(items: FeedItem[], origin: string): { xml: str
       `<g:availability>${item.availability}</g:availability>`,
       `<g:condition>new</g:condition>`,
       `<g:brand>Marina Muse International</g:brand>`,
+      // Handmade, own-brand products have no GTIN; Google asks for identifier_exists=no in that case.
+      `<g:identifier_exists>no</g:identifier_exists>`,
       `</item>`,
     ];
   });

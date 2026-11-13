@@ -31,6 +31,9 @@ import {
   verifyHandshake,
   verifySignature,
   webhookSummary,
+  metaAppIds,
+  SUPPLIED_APP_ID,
+  SUPPLIED_CONFIG_ID,
 } from "../lib/whatsapp/coexistence.ts";
 
 const results = [];
@@ -42,6 +45,15 @@ const envOff = {
   WHATSAPP_PRODUCTION_ONBOARDING_APPROVED: "false",
   WHATSAPP_OUTBOUND_ENABLED: "false",
 };
+// Isolated test environment must never fall back to the client's Meta app (10 Nov 2026).
+const isoIds = metaAppIds({ MARINA_ISOLATED_TEST: "1" });
+check("isolated test mode: no fallback to the supplied Meta app or config", isoIds.appId === "" && isoIds.configId === "" && isoIds.isolated === true, JSON.stringify(isoIds));
+const isoExplicit = metaAppIds({ MARINA_ISOLATED_TEST: "1", META_APP_ID: "111", META_CONFIG_ID: "222" });
+check("isolated test mode: an explicitly configured test app is used", isoExplicit.appId === "111" && isoExplicit.configId === "222", JSON.stringify(isoExplicit));
+const normalIds = metaAppIds({});
+// C9 (approved 4b, 11 Nov 2026): the expectation changed from "falls back to the supplied ids" to "no fallback".
+check("normal mode: no fallback to the hard-coded production ids (C9)", normalIds.appId === "" && normalIds.configId === "" && normalIds.appId !== SUPPLIED_APP_ID && normalIds.configId !== SUPPLIED_CONFIG_ID && normalIds.isolated === false, JSON.stringify(normalIds));
+check("isolated public status exposes no app id", publicStatus({ ...envOff, MARINA_ISOLATED_TEST: "1" }, null).appId === "", "empty");
 const status = publicStatus(envOff, null);
 check("production signup stays disabled", status.signupAllowed === false && status.liveNumberTouched === false, "disabled");
 check("webhook subscription is not claimed", status.webhookSubscription === "not verified" && status.coexistenceVerified === "not verified", status.webhookSubscription);

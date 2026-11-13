@@ -1,0 +1,7 @@
+{
+  "gemini-3.8-flash": {
+    "resetAt": "2026-11-09T07:59:13.000Z",
+    "seenAt": "2026-11-08T16:36:51.000Z",
+    "message": "Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.8-flash (retry in 15h22m22s)"
+  }
+}

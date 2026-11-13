@@ -9,7 +9,12 @@ import {
   nodeMajor,
   shouldTryDirectShards,
 } from "@/lib/atlas-connect";
-import { mongoUriFromProcessEnv, parseMongoCredentials, sanitizeEnvValue } from "@/lib/env-mongo-uri";
+import {
+  devDatabaseBlockReason,
+  mongoUriFromProcessEnv,
+  parseMongoCredentials,
+  sanitizeEnvValue,
+} from "@/lib/env-mongo-uri";
 import { resolveMaxPoolSize } from "@/lib/mongodb-pool";
 
 /** Atlas on Windows + OpenSSL 3 often fails on IPv6 first — prefer IPv4. */
@@ -42,6 +47,8 @@ let uriPromise: Promise<string> | undefined;
 async function normalizedSrvFromEnv(): Promise<string> {
   const fromEnv = mongoUriFromProcessEnv();
   if (!fromEnv) throw new Error("MONGODB_URI is not set");
+  const blocked = devDatabaseBlockReason(fromEnv);
+  if (blocked) throw new Error(`Database connection refused: ${blocked}`);
   const srv = normalizeMongoUri(fromEnv);
   if (!srv) throw new Error("MONGODB_URI is not set");
   return srv;

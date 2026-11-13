@@ -23,6 +23,8 @@ Put values in `.env.local` (development) or `.env.production.local` (server), re
 | --- | --- | --- | --- | --- | --- |
 | `MONGODB_URI` 🔒 | Required | platform | both | cloud.mongodb.com → Database → Connect → Drivers | Copy the SRV connection string and insert the database user's password. |
 | `MONGODB_URI_STANDARD` 🔒 | Optional | platform | both | Connect → Drivers → standard connection string | Only if SRV DNS fails on the server; overrides MONGODB_URI. |
+| `MONGODB_DEV_ALLOWED_HOSTS` | Optional | platform | development | .env.local | Development refuses every non-local database host. List a dedicated development database host here (comma-separated) to allow it. Never the production cluster. |
+| `MARINA_ISOLATED_TEST` | Optional | platform, whatsapp | development | Set automatically by the isolated test launcher | Never set by hand. 1 = isolated Phase 2 test environment: no fallback to the client's Meta app; integration values come only from .env.isolated-test.local. Must be unset in production. |
 | `MONGODB_DB_NAME` | Required | platform | both | .env | Database name, e.g. marina_muse. |
 | `MONGODB_PREFER_IPV4` | Optional | platform | both | .env | 1 to prefer IPv4 (recommended on the VPS). |
 | `MONGODB_NODE_PROCESSES` | Optional | platform | production | .env | Number of app processes sharing the Atlas connection limit (e.g. 2 under PM2). |
@@ -74,6 +76,7 @@ Put values in `.env.local` (development) or `.env.production.local` (server), re
 | `PAYPAL_CLIENT_ID` | Required for this feature | platform | both | developer.paypal.com → Apps & Credentials | Client ID of the live (or sandbox) app. |
 | `PAYPAL_CLIENT_SECRET` 🔒 | Required for this feature | platform | both | Same app | Secret of that app. |
 | `PAYPAL_MODE` | Required for this feature | platform | both | .env | sandbox or live. |
+| `PAYPAL_ALLOW_LIVE_OUTSIDE_PRODUCTION` | Optional | platform | development | .env.local | Leave unset. Outside production, PAYPAL_MODE=live is refused unless this is 1. |
 | `PAYPAL_WEBHOOK_ID` | Required for this feature | platform | production | App → Webhooks → Add webhook (…/api/paypal/webhook) | Webhook ID shown after creating it. |
 | `RAZORPAY_KEY_ID` | Optional | platform | both | dashboard.razorpay.com → Settings → API Keys | Only if Razorpay checkout is used. |
 | `RAZORPAY_KEY_SECRET` 🔒 | Optional | platform | both | Same page | Key secret. |
@@ -85,6 +88,7 @@ Put values in `.env.local` (development) or `.env.production.local` (server), re
 | `SHIPGLOBAL_CSB5` | Optional | platform | both | .env | 1 for CSB-V shipments (optional). |
 | `SHIPGLOBAL_IOSS` | Optional | platform | both | .env | EU IOSS number (optional). |
 | `SHIPGLOBAL_SELLER_FIRST` | Optional | platform | both | .env | Seller first name on labels (optional). |
+| `SHIPGLOBAL_ALLOW_OUTSIDE_PRODUCTION` | Optional | platform | development | .env.local | Leave unset. Outside production, ShipGlobal label booking is refused unless this is 1 (bookings are real and billable). |
 | `SHIPGLOBAL_SELLER_LAST` | Optional | platform | both | .env | Seller last name on labels (optional). |
 | `KVM2_UPLOAD_URL` | Optional | platform | production | Your upload server | Remote image host exposing POST /upload; empty = save under public/uploads. |
 | `KVM2_UPLOAD_TOKEN` 🔒 | Optional | platform | production | Your upload server | Bearer token for that upload endpoint. |
@@ -95,7 +99,10 @@ Put values in `.env.local` (development) or `.env.production.local` (server), re
 | Variable | Required | Agents | Scope | Where to get it | How |
 | --- | --- | --- | --- | --- | --- |
 | `GEMINI_API_KEY` 🔒 | Required | chat, voice, growth, whatsapp | both | aistudio.google.com/apikey (or Google Cloud → APIs → Generative Language API → Credentials) | Create an API key. A Gemini app/Pro subscription is not an API key. Enable billing for production quotas. |
-| `GEMINI_MODEL` | Optional | chat, voice, growth, whatsapp | both | ai.google.dev/gemini-api/docs/models | Model id; default gemini-2.5-flash. |
+| `GEMINI_MODEL` | Optional | chat, voice, growth, whatsapp | both | ai.google.dev/gemini-api/docs/models | Model id; default gemini-3.5-flash. gemini-2.5-flash is no longer available to new API users. |
+| `GEMINI_FALLBACK_MODEL` | Optional | chat, voice, growth, whatsapp | both | ai.google.dev/gemini-api/docs/models | Model(s) tried when GEMINI_MODEL times out, is overloaded, returns 404 or a long 429. Comma-separated; default gemini-3.5-flash, gemini-3.5-flash-lite. |
+| `GEMINI_TEST_API_KEY` 🔒 | Optional | chat, voice | development | aistudio.google.com/apikey, in the separate project marina-muse-gemini-testing | Test-only key for the conversation test harness (reports/evidence/text-tests). Must belong to a Google Cloud project the website does not use: quota is per project, so a second key in the website project is not isolation. The app never reads it; never put the production key here. |
+| `GEMINI_TEST_PROJECT_CONFIRMED` | Optional | chat, voice | development | Google AI Studio → API keys (shows each key project) | Set to marina-muse-gemini-testing only after checking that GEMINI_TEST_API_KEY belongs to that project. The test harness refuses to run without it. |
 | `AI_AGENTS_DISABLED` | Optional | chat, voice, growth, whatsapp | both | .env | Comma-separated agents to switch off: chat, voice, growth, whatsapp. Empty = all on. |
 
 ## Scheduled jobs
@@ -128,6 +135,7 @@ Put values in `.env.local` (development) or `.env.production.local` (server), re
 | `EXOTEL_API_TOKEN` 🔒 | Required for this feature | voice | both | my.exotel.com → API Settings | API token for that key. |
 | `EXOTEL_ACCOUNT_SID` | Required for this feature | voice | both | my.exotel.com → API Settings (Account SID) | Your account SID. |
 | `EXOTEL_SUBDOMAIN` | Optional | voice | both | API Settings (cluster) | api.in.exotel.com (Mumbai) or api.exotel.com (Singapore). |
+| `EXOTEL_REGION` | Optional | voice | both | my.exotel.com → account region | Informational (e.g. Singapore or Mumbai). /test warns when it does not match EXOTEL_SUBDOMAIN. |
 | `EXOTEL_PHONE_NUMBER` | Required for this feature | voice | both | my.exotel.com → ExoPhones | The ExoPhone customers call, in E.164 (+91…). Requires KYC. |
 | `EXOTEL_TRUNK_SID` | Required for this feature | voice | both | vSIP trunk created by Exotel / via /v2/accounts/{sid}/trunks | Trunk routing the ExoPhone to <VAPI_SIP_CREDENTIAL_ID>.sip.vapi.ai. vSIP must be enabled by Exotel. |
 | `EXOTEL_WEBHOOK_TOKEN` 🔒 | Required for this feature | voice | both | Generate locally: openssl rand -hex 24 | Put in the ExoPhone StatusCallback URL: /api/ai/voice/webhook?provider=exotel&token=… |
@@ -136,22 +144,27 @@ Put values in `.env.local` (development) or `.env.production.local` (server), re
 
 | Variable | Required | Agents | Scope | Where to get it | How |
 | --- | --- | --- | --- | --- | --- |
-| `WHATSAPP_ACCESS_TOKEN` 🔒 | Required for this feature | whatsapp | both | business.facebook.com → Business settings → System users → Generate token (app 1588276335845243) | Permanent System User token with whatsapp_business_messaging + whatsapp_business_management. Optional if Embedded Signup stored a token. |
+| `WHATSAPP_ACCESS_TOKEN` 🔒 | Required for this feature | whatsapp | both | business.facebook.com → Business settings → System users → Generate token (for your Meta app) | Permanent System User token with whatsapp_business_messaging + whatsapp_business_management. Direct mode (WHATSAPP_INTEGRATION_MODE=direct): required, environment only. Coexistence mode: optional if Embedded Signup stored a token. |
 | `WHATSAPP_PHONE_NUMBER_ID` | Required for this feature | whatsapp | both | developers.facebook.com → your app → WhatsApp → API Setup (Phone number ID) | Numeric phone-number ID (not the phone number). Filled automatically after a coexistence signup. |
 | `WHATSAPP_BUSINESS_ACCOUNT_ID` | Required for this feature | whatsapp | both | WhatsApp → API Setup (WhatsApp Business Account ID) | Numeric WABA ID. |
 | `WHATSAPP_FOLLOWUP_TEMPLATE` | Optional | whatsapp, chat | both | business.facebook.com → WhatsApp Manager → Message templates | Name of an APPROVED template for consented follow-ups outside the 24-hour window. |
 | `WHATSAPP_TEMPLATE_LANGUAGE` | Optional | whatsapp | both | Template details | Language code of that template, e.g. en or en_US. |
-| `META_APP_ID` | Required for this feature | whatsapp | both | developers.facebook.com → your app → App settings → Basic | 1588276335845243 (supplied). |
+| `META_APP_ID` | Required for this feature | whatsapp | both | developers.facebook.com → your app → App settings → Basic | Your Meta app id. No built-in default: unset means not configured. |
 | `META_APP_SECRET` 🔒 | Required for this feature | whatsapp | both | App settings → Basic → App secret (Show) | Server only. Verifies webhook signatures and exchanges signup codes. |
 | `META_WEBHOOK_APP_SECRET` 🔒 | Optional | whatsapp | both | Same as META_APP_SECRET | Optional; defaults to META_APP_SECRET. |
 | `META_WEBHOOK_VERIFY_TOKEN` 🔒 | Required for this feature | whatsapp | both | Generate locally, then paste in App → WhatsApp → Configuration → Webhook | Any random string; Meta echoes it during webhook verification. |
 | `META_GRAPH_API_VERSION` | Optional | whatsapp | both | developers.facebook.com/docs/graph-api/changelog | Default v26.0. |
+| `WHATSAPP_INTEGRATION_MODE` | Optional | whatsapp | both | .env | direct = business-owned WABA with a System User token (Embedded Signup and Coexistence disabled). Unset = coexistence (previous behaviour). |
+| `WHATSAPP_PRODUCTION_SENDING_APPROVED` | Optional | whatsapp | production | .env | Direct mode: true only after written approval to send from the configured number (with WHATSAPP_OUTBOUND_ENABLED=true). Sends never leave a non-production server. |
+| `WHATSAPP_TEST_PHONE_NUMBER_ID` | Optional | whatsapp | development | Test app → WhatsApp → API Setup (test number's Phone number ID) | Direct-mode test configuration: must equal WHATSAPP_PHONE_NUMBER_ID exactly. Meta-provided TEST number only. |
+| `WHATSAPP_TEST_BUSINESS_ACCOUNT_ID` | Optional | whatsapp | development | Test app → WhatsApp → API Setup (test WhatsApp Business Account ID) | Direct-mode test configuration: must equal WHATSAPP_BUSINESS_ACCOUNT_ID exactly. |
+| `WHATSAPP_TEST_RECIPIENTS` | Optional | whatsapp | development | .env.isolated-test.local | Comma-separated tester numbers (digits with country code) allowed in test mode. The business number is never accepted. |
 
 ## WhatsApp coexistence
 
 | Variable | Required | Agents | Scope | Where to get it | How |
 | --- | --- | --- | --- | --- | --- |
-| `META_CONFIG_ID` | Required for this feature | whatsapp | both | App → Facebook Login for Business → Configurations | 1760993601871515 (supplied): Embedded Signup v4 configuration. |
+| `META_CONFIG_ID` | Required for this feature | whatsapp | both | App → Facebook Login for Business → Configurations | Embedded Signup v4 configuration id (coexistence mode only). No built-in default. |
 | `WHATSAPP_COEXISTENCE_ENABLED` | Optional | whatsapp | both | .env | true to open Embedded Signup (test mode needs WHATSAPP_COEXISTENCE_TEST_NUMBER). |
 | `WHATSAPP_COEXISTENCE_TEST_NUMBER` | Optional | whatsapp | development | .env | The only number that may be onboarded before production approval (10 digits = India). |
 | `WHATSAPP_PRODUCTION_ONBOARDING_APPROVED` | Optional | whatsapp | production | .env | true only after written approval to onboard the client's live number. |
@@ -167,6 +180,7 @@ Put values in `.env.local` (development) or `.env.production.local` (server), re
 | `GA4_PROPERTY_ID` | Required for this feature | growth | both | analytics.google.com → Admin → Property details (Property ID) | Numeric property ID (not the G- ID). Add the service-account email as Viewer in Property access management. |
 | `GA4_MEASUREMENT_ID` | Optional | growth | both | Admin → Data streams → Web stream (Measurement ID) | G-XXXXXXX, for server-side purchase events. |
 | `GA4_API_SECRET` 🔒 | Optional | growth | both | Web stream → Measurement Protocol API secrets → Create | Secret for server-side purchase events. |
+| `NEXT_PUBLIC_GA4_IN_DEVELOPMENT` | Optional | growth | development | .env.local | Leave unset. Development builds load the GA4 tag only when this is 1, and then in debug mode. |
 | `NEXT_PUBLIC_GA4_MEASUREMENT_ID` | Optional | growth | production | Same as GA4_MEASUREMENT_ID | Browser tag (loads after cookie consent). Rebuild after changing. |
 | `SEARCH_CONSOLE_SITE_URL` | Required for this feature | growth | both | search.google.com/search-console → property selector | sc-domain:marinamuseinternational.com (domain property) or https://marinamuseinternational.com/ (URL prefix). Add the service-account email under Settings → Users and permissions. |
 

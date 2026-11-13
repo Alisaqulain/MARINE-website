@@ -10,7 +10,10 @@
     "build": "next build && node scripts/verify-build-static.mjs",
     "start": "next start -H 0.0.0.0",
     "check:mongo": "node scripts/check-mongo-env.mjs",
+    "dev:db": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/dev-db.mjs",
+    "dev:scheduler": "node scripts/dev-scheduler.mjs",
     "check:whatsapp": "node scripts/check-whatsapp-coexistence.ts",
+    "check:whatsapp-direct": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-whatsapp-direct.ts",
     "check:phase2": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-phase2.ts",
     "docs:env": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/gen-env-docs.ts",
     "check:routes": "node scripts/check-routes.mjs"

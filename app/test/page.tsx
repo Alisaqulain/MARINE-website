@@ -14,9 +14,17 @@ export const metadata: Metadata = { title: "Integration health", robots: { index
 const STATUS: Record<IntegrationStatus, { card: string; badge: string }> = {
   operational: { card: "border-emerald-300 bg-emerald-50", badge: "bg-emerald-700 text-white" },
   connected: { card: "border-emerald-200 bg-emerald-50/60", badge: "bg-emerald-500 text-white" },
+  authenticated: { card: "border-sky-200 bg-sky-50", badge: "bg-sky-600 text-white" },
+  credentials_present: { card: "border-sky-200 bg-sky-50/60", badge: "bg-sky-500 text-white" },
   partial: { card: "border-amber-200 bg-amber-50", badge: "bg-amber-500 text-white" },
+  placeholder_credentials: { card: "border-red-200 bg-red-50", badge: "bg-rose-600 text-white" },
+  client_action_required: { card: "border-violet-200 bg-violet-50", badge: "bg-violet-600 text-white" },
+  config_error: { card: "border-red-200 bg-red-50", badge: "bg-red-700 text-white" },
   auth_failed: { card: "border-red-200 bg-red-50", badge: "bg-red-600 text-white" },
-  api_error: { card: "border-red-200 bg-red-50", badge: "bg-red-700 text-white" },
+  activation_required: { card: "border-orange-200 bg-orange-50", badge: "bg-orange-600 text-white" },
+  quota_restricted: { card: "border-orange-200 bg-orange-50", badge: "bg-orange-700 text-white" },
+  provider_restricted: { card: "border-orange-200 bg-orange-50", badge: "bg-orange-800 text-white" },
+  temporary_failure: { card: "border-amber-200 bg-amber-50", badge: "bg-amber-600 text-white" },
   not_configured: { card: "border-gray-200 bg-gray-50", badge: "bg-gray-500 text-white" },
 };
 
@@ -67,7 +75,7 @@ export default async function TestPage() {
         Real checks of every integration and the four AI agents. “Credentials” and “live API” steps are labelled separately; an integration is only
         Operational when real production activity has been seen. Nothing is sent, called or charged.
       </p>
-      <p className="mt-1 text-xs text-navy-500">
+        <p className="mt-1 text-xs text-navy-500">
         Checked {when(health.checkedAt)} in {health.ms} ms · NODE_ENV {health.environment.nodeEnv} ·{" "}
         {health.environment.production ? "Production" : "Test / development"} environment · PayPal {health.environment.paypalMode}
       </p>
@@ -78,9 +86,9 @@ export default async function TestPage() {
         <Stat label="Integrations up" value={`${summary.operational + summary.connected}/${summary.total}`} tone="bg-emerald-50 text-emerald-900" />
         <Stat label="Agents operational" value={`${health.agentsOperational}/4`} tone="bg-sky-50 text-sky-900" />
         <Stat label="Failing" value={summary.failed} tone="bg-red-50 text-red-900" />
-        <Stat label="Operational" value={summary.operational} tone="bg-emerald-50 text-emerald-900" />
-        <Stat label="Connected" value={summary.connected} tone="bg-emerald-50/60 text-emerald-900" />
-        <Stat label="Partially configured" value={summary.partial} tone="bg-amber-50 text-amber-900" />
+        <Stat label="Production activity" value={summary.operational} tone="bg-emerald-50 text-emerald-900" />
+        <Stat label="API operation OK" value={summary.connected} tone="bg-emerald-50/60 text-emerald-900" />
+        <Stat label="Incomplete / not verified" value={summary.partial} tone="bg-amber-50 text-amber-900" />
         <Stat label="Not configured" value={summary.notConfigured} tone="bg-gray-100 text-gray-800" />
       </div>
       <div className="mt-3 grid gap-2 text-sm text-navy-700 sm:grid-cols-2">
@@ -161,18 +169,48 @@ export default async function TestPage() {
                   <dt className="inline font-semibold">Last error ({when(card.lastErrorAt)}): </dt>
                   <dd className="inline break-words">{card.lastError}</dd>
                 </div>
-              ) : null}
+      ) : null}
             </dl>
             <p className="mt-3 rounded-lg bg-white/80 px-3 py-2 text-xs text-navy-800">
               <span className="font-semibold">Next action: </span>
               {card.nextAction}
             </p>
+            {card.issues.length ? (
+              <div className="mt-3 overflow-x-auto rounded-lg bg-white/80">
+                <table className="w-full min-w-[560px] text-left text-xs text-navy-800">
+                  <thead className="text-[10px] uppercase tracking-wide text-navy-500">
+                    <tr>
+                      <th className="px-3 py-2">Failing step</th>
+                      <th className="px-3 py-2">HTTP</th>
+                      <th className="px-3 py-2">Cause</th>
+                      <th className="px-3 py-2">Internal / external</th>
+                      <th className="px-3 py-2">Client needed</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {card.issues.map((issue) => (
+                      <tr key={`${issue.step}:${issue.detail}`} className="border-t border-[#eee] align-top">
+                        <td className="px-3 py-2">
+                          <span className="font-semibold">{issue.step}</span>
+                          <span className="block break-words text-navy-600">{issue.detail}</span>
+                          <span className="mt-1 block break-words text-navy-900">→ {issue.action}</span>
+                        </td>
+                        <td className="px-3 py-2 font-mono">{issue.http == null ? "—" : issue.http === 0 ? "no response" : issue.http}</td>
+                        <td className="px-3 py-2">{issue.cause}</td>
+                        <td className="px-3 py-2">{issue.owner === "internal" ? "Internal (code/config)" : "External (account/provider)"}</td>
+                        <td className="px-3 py-2">{issue.clientAction ? "Yes" : "No"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+          ) : null}
             {card.missing.length || card.invalid.length ? (
               <p className="mt-2 text-xs text-red-800">
                 {card.missing.length ? `Missing: ${card.missing.join(", ")}. ` : ""}
                 {card.invalid.length ? `Invalid: ${card.invalid.join("; ")}.` : ""}
               </p>
-            ) : null}
+          ) : null}
             <details className="mt-3 text-xs text-navy-700">
               <summary className="cursor-pointer font-semibold">Checks, real activity and variables</summary>
               <ul className="mt-2 space-y-1.5">
@@ -182,6 +220,7 @@ export default async function TestPage() {
                       {RESULT[step.result].icon} {step.label}
                     </span>{" "}
                     <span className="rounded bg-white/70 px-1.5 py-0.5 text-[10px] uppercase text-navy-600">{KIND[step.kind]}</span>
+                    {step.http != null ? <span className="ml-1 rounded bg-white/70 px-1.5 py-0.5 font-mono text-[10px] text-navy-600">HTTP {step.http || "—"}</span> : null}
                     <span className="block break-words pl-4 text-navy-700">{step.detail}</span>
                   </li>
                 ))}
@@ -218,7 +257,12 @@ export default async function TestPage() {
       <h2 className="mt-10 font-serif text-2xl text-navy-900">WhatsApp Business app coexistence</h2>
       <section className="mt-4 rounded-2xl border border-[#e6dfd2] bg-white p-5">
         <p className="text-sm text-navy-700">
-          Mode: <span className="font-semibold">{health.coexistence.mode.replace(/_/g, " ")}</span> · {health.coexistence.connected ? "Meta-confirmed (connected)" : "not active — Meta has not confirmed an onboarding"}
+          Mode: <span className="font-semibold">{health.coexistence.mode.replace(/_/g, " ")}</span> ·{" "}
+          {health.coexistence.mode === "not_applicable"
+            ? "WhatsApp runs in direct Cloud API mode; Embedded Signup and Coexistence are disabled"
+            : health.coexistence.connected
+              ? "Meta-confirmed (connected)"
+              : "not active — Meta has not confirmed an onboarding"}
         </p>
         <ul className="mt-3 space-y-2 text-sm">
           {health.coexistence.rows.map((row) => (
@@ -235,17 +279,17 @@ export default async function TestPage() {
             {health.coexistence.steps.map((st) => (
               <li key={st.label}>
                 <span className="font-semibold">{st.label}</span> — {st.state}: {st.detail}
-              </li>
+            </li>
             ))}
           </ol>
-        ) : null}
+      ) : null}
         {health.coexistence.approvals.length ? (
           <ul className="mt-4 list-disc space-y-1 pl-5 text-xs text-navy-700">
             {health.coexistence.approvals.map((a) => (
               <li key={a}>{a}</li>
-            ))}
-          </ul>
-        ) : null}
+          ))}
+        </ul>
+      ) : null}
       </section>
 
       {/* Environment */}
@@ -279,16 +323,40 @@ export default async function TestPage() {
       <h2 className="mt-10 font-serif text-2xl text-navy-900">Store services</h2>
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
         {[
-          { title: "PayPal", ok: paypal.ok, message: paypal.message, meta: `Mode ${paypal.mode} · webhook id ${paypal.webhookSet ? "set" : "missing"}` },
-          { title: "ShipGlobal", ok: shipping.ok, message: shipping.message, meta: `HTTP ${shipping.httpStatus ?? "—"} · service ${shipping.service} · no shipment created` },
+          {
+            title: "PayPal",
+            // Connection and safety are separate facts: live credentials outside production still connect,
+            // but checkout here would charge real cards — shown as a warning, never as "Not connected".
+            ok: paypal.ok,
+            warning:
+              paypal.mode === "live" && !health.environment.production
+                ? "Live mode outside production — a checkout here charges a real card. For development use PAYPAL_MODE=sandbox with sandbox credentials (needs approval to change)."
+                : "",
+            message: paypal.message,
+            meta: `Mode ${paypal.mode} · webhook id ${paypal.webhookSet ? "set" : "missing"} · token request only, no order`,
+          },
+          {
+            title: "ShipGlobal",
+            ok: shipping.ok,
+            warning: "",
+            message: shipping.message,
+            meta: `HTTP ${shipping.httpStatus ?? "—"}${shipping.failure ? ` · ${shipping.failure === "auth" ? "credentials rejected (external — client/ShipGlobal)" : shipping.failure === "temporary" ? "temporary" : "configuration"}` : ""}${shipping.fromCache ? " · not re-sent" : ""} · service ${shipping.service} · no shipment created`,
+          },
         ].map((svc) => (
-          <section key={svc.title} className={`rounded-2xl border px-5 py-4 ${svc.ok ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-red-200 bg-red-50 text-red-900"}`}>
-            <div className="flex items-center justify-between gap-3">
+          <section
+            key={svc.title}
+            className={`rounded-2xl border px-5 py-4 ${!svc.ok ? "border-red-200 bg-red-50 text-red-900" : svc.warning ? "border-amber-300 bg-amber-50 text-amber-950" : "border-emerald-200 bg-emerald-50 text-emerald-900"}`}
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <h3 className="font-semibold">{svc.title}</h3>
-              <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${svc.ok ? "bg-emerald-600 text-white" : "bg-red-600 text-white"}`}>{svc.ok ? "Connected" : "Not connected"}</span>
+              <div className="flex flex-wrap gap-1.5">
+                <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${svc.ok ? "bg-emerald-600 text-white" : "bg-red-600 text-white"}`}>{svc.ok ? "Connected" : "Not connected"}</span>
+                {svc.warning ? <span className="rounded-full bg-amber-500 px-2.5 py-0.5 text-xs font-semibold text-white">Unsafe for testing</span> : null}
+              </div>
             </div>
             <p className="mt-1 text-xs opacity-80">{svc.meta}</p>
             <p className="mt-2 whitespace-pre-wrap break-words text-sm">{svc.message}</p>
+            {svc.warning ? <p className="mt-2 rounded-lg bg-white/70 px-3 py-2 text-sm font-semibold">⚠ {svc.warning}</p> : null}
           </section>
         ))}
       </div>

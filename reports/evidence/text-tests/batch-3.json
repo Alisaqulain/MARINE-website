@@ -1,0 +1,10 @@
+{
+ "T12 Consent declined": ["I want 300 anchors. QA Tester, qa@example.com, in a month.", "No, I don't want to be contacted."],
+ "T13 Ambiguous consent": ["I'm interested in 100 ship wheels. QA Tester, qa@example.com.", "Hmm, I'm not sure, maybe."],
+ "T15 Delivery timeline": ["Can you guarantee delivery of the teak ship wheel by December 1st?"],
+ "T18 Product tool auth failure": { "turns": ["How much is the decorative brass anchor?"], "authFail": true },
+ "T19 Catalogue unavailable": { "turns": ["How much is the teak ship wheel?"], "failTool": "lookup_product" },
+ "T20 Enquiry tool failure": { "turns": ["I want 200 ship wheels wholesale. QA Tester, qa@example.com, two months.", "Yes, you can contact me."], "failTool": "record_enquiry" },
+ "T21 Ship wheel regression": ["How much is a ship wheel?"],
+ "T22 Shipping destination": ["Do you ship to Germany?"]
+}

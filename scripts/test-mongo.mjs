@@ -25,7 +25,7 @@ function loadCreds() {
   const raw = line.slice("MONGODB_URI=".length).trim();
   const m = raw.match(/mongodb\+srv:\/\/([^:]+):([^@]+)@([^/]+)/);
   if (!m) return null;
-  return { user: decodeURIComponent(m[1]), pass: decodeURIComponent(m[2]) };
+  return { user: decodeURIComponent(m[1]), pass: decodeURIComponent(m[2]), host: m[3].toLowerCase() };
 }
 
 function standardUri(creds) {
@@ -46,7 +46,8 @@ function directUri(creds) {
 
 const creds = loadCreds();
 const uris = [{ label: "mongodb+srv", uri: srvUri }];
-if (creds) {
+// The hard-coded shard hosts belong to one Atlas cluster; never send another cluster's credentials to them.
+if (creds && creds.host.endsWith(".a9zxbuj.mongodb.net")) {
   uris.push({ label: "mongodb standard (no SRV)", uri: standardUri(creds) });
   uris.push({ label: "direct single node", uri: directUri(creds) });
 }

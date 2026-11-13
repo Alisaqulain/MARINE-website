@@ -8,7 +8,7 @@ import { lookupProductsForAgent, recordLead, regionFromPhone, voiceStatus } from
 import { agentEnabled, agentInstructions } from "@/lib/ai/agents";
 import { geminiConfigured, parseJsonReply } from "@/lib/ai/gemini";
 import { generateFor } from "@/lib/ai/usage";
-import { isMissedCall, parseVapiMessage, vapiRequestAuthorized, type VapiMessage, type VapiToolCall } from "@/lib/ai/vapi";
+import { enquiryDecision, isMissedCall, parseVapiMessage, TOOL_FAILURE_RESULT, vapiRequestAuthorized, type VapiMessage, type VapiToolCall } from "@/lib/ai/vapi";
 import { exotelCallbackAuthorized, parseExotelCallback } from "@/lib/ai/exotel";
 import { queueFollowUp, recordConsent } from "@/lib/ai/followups";
 
@@ -180,10 +180,9 @@ async function runTool(call: VapiToolCall, message: VapiMessage) {
   }
   if (call.name === "record_enquiry") {
     const args = call.args;
-    const notes = [args.product, args.quantity ? `${args.quantity} units` : "", args.timeline, args.notes]
-      .filter((part) => typeof part === "string" || typeof part === "number")
-      .join(". ")
-      .slice(0, 1000);
+    const decision = enquiryDecision(args);
+    if (!decision.save) return decision.result;
+    const notes = decision.notes;
     const signals = signalsFromText(notes, 1, 0);
     if (typeof args.quantity === "number" && args.quantity > 0) signals.quantity = Math.round(args.quantity);
     const scored = scoreLead(signals);
@@ -204,10 +203,9 @@ async function runTool(call: VapiToolCall, message: VapiMessage) {
       },
       productInterest: typeof args.product === "string" ? [args.product.slice(0, 80)] : [],
     });
-    if (args.consentToContact === true) {
-      if (phone) await recordConsent({ channel: "call", address: phone, granted: true, source: "voice_enquiry", sessionId: message.callId });
-      if (email) await recordConsent({ channel: "email", address: email, granted: true, source: "voice_enquiry", sessionId: message.callId });
-    }
+    // enquiryDecision only saves with explicit consent, so it is recorded with the lead.
+    if (phone) await recordConsent({ channel: "call", address: phone, granted: true, source: "voice_enquiry", sessionId: message.callId });
+    if (email) await recordConsent({ channel: "email", address: email, granted: true, source: "voice_enquiry", sessionId: message.callId });
     return "Enquiry saved. Tell the caller the team will follow up.";
   }
   return "Unknown tool.";
@@ -238,7 +236,7 @@ export async function acceptVapiMessage(raw: string, headers: { get(name: string
     for (const call of message.toolCalls.slice(0, 5)) {
       const result = await runTool(call, message).catch((err) => {
         console.error("[vapi-tool]", call.name, err instanceof Error ? err.message : "failed");
-        return "The lookup failed. Tell the caller the team will follow up.";
+        return TOOL_FAILURE_RESULT[call.name] ?? "The tool failed. Tell the caller you can't help with that right now and offer a callback.";
       });
       results.push({ name: call.name, toolCallId: call.id, result });
     }

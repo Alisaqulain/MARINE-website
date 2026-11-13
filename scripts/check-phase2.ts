@@ -4,9 +4,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import { runPhase2SelfTest } from "../lib/ai/selftest.ts";
+import { runProviderSelfTest } from "../lib/ai/provider-selftest.ts";
 import { ENV_REGISTRY } from "../lib/ai/env-registry.ts";
 
-const results = runPhase2SelfTest();
+const results = [...runPhase2SelfTest(), ...(await runProviderSelfTest())];
 
 // ── Environment consistency (code ↔ registry ↔ .env.example) ──
 const section = "Environment consistency (files)";
@@ -29,7 +30,7 @@ results.push({ section, name: "Every variable the code reads is in the registry"
 const example = fs.readFileSync(".env.example", "utf8");
 const notInExample = ENV_REGISTRY.map((v) => v.name).filter((n) => !new RegExp(`^#? ?${n}=`, "m").test(example));
 results.push({ section, name: "Every registered variable is in .env.example (run npm run docs:env)", pass: !notInExample.length, detail: notInExample.join(", ") });
-const leaked = /^[A-Z0-9_]+=(?:AIza|EAA|sk-|re_)[A-Za-z0-9]/m.test(example) || /Admin@marinamuse/.test(example);
+const leaked = /^[A-Z0-9_]+=(?:AIza|AQ.|EAA|sk-|re_)[A-Za-z0-9]/m.test(example) || /Admin@marinamuse/.test(example);
 results.push({ section, name: ".env.example contains no real-looking secrets or the old sample password", pass: !leaked, detail: "" });
 const envDoc = fs.existsSync("docs/phase2/ENVIRONMENT_SETUP.md") ? fs.readFileSync("docs/phase2/ENVIRONMENT_SETUP.md", "utf8") : "";
 const notInDoc = ENV_REGISTRY.map((v) => v.name).filter((n) => !envDoc.includes(`\`${n}\``));

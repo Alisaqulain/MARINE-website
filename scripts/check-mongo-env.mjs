@@ -3,6 +3,8 @@
  * Usage: npm run check:mongo
  */
 import dns from "node:dns";
+import { createHash } from "node:crypto";
+import { devDatabaseBlockReason } from "../lib/env-mongo-uri.ts";
 import { existsSync, readFileSync } from "node:fs";
 import { MongoClient } from "mongodb";
 
@@ -65,8 +67,21 @@ async function main() {
     process.exit(1);
   }
 
+  // Development machine (has .env.local, no .env.production.local, NODE_ENV not production): apply the
+  // same remote-host guard as the app (lib/env-mongo-uri.ts), so this diagnostic can never connect a
+  // development checkout to the production cluster. The server (.env.production.local / .env) is unaffected.
+  const devMachine = existsSync(".env.local") && !existsSync(".env.production.local") && process.env.NODE_ENV !== "production";
+  if (devMachine) {
+    const block = devDatabaseBlockReason(uri);
+    if (block) {
+      console.error("REFUSED (development machine):", block);
+      process.exit(2);
+    }
+  }
+
   const c = credsFromUri(uri);
-  console.log("user:", c.user);
+  // Never print the user name itself: output of this script ends up in terminals, logs and AI transcripts.
+  console.log("user (sha256 fingerprint):", createHash("sha256").update(c.user).digest("hex").slice(0, 10), `(${c.user.length} chars)`);
   console.log("cluster:", c.host);
   console.log("password length in URI:", c.pass.length);
   if (process.env.MONGODB_URI_STANDARD) console.log("(using MONGODB_URI_STANDARD)");

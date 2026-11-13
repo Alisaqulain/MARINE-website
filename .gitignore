@@ -2,6 +2,10 @@ node_modules
 .next
 out
 .env.local
+# Any local env file, and the isolated-test credentials (fresh client-supplied keys); never commit
+.env*.local
+.env.isolated-test*
+!.env.isolated-test.example
 data/labels
 *.log
 .DS_Store

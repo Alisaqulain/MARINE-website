@@ -1,0 +1,11 @@
+fatal: not a git repository (or any of the parent directories): .git
+file:///E:/marina%20e-comm%20(2)/marina%20e-comm/reports/evidence/security/fingerprint-scan.mjs:124
+  if (code !== 0) throw new Error(`git cat-file exited ${code}`);
+                        ^
+
+Error: git cat-file exited 128
+    at scanGit (file:///E:/marina%20e-comm%20(2)/marina%20e-comm/reports/evidence/security/fingerprint-scan.mjs:124:25)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async file:///E:/marina%20e-comm%20(2)/marina%20e-comm/reports/evidence/security/fingerprint-scan.mjs:132:29
+
+Node.js v24.22.1

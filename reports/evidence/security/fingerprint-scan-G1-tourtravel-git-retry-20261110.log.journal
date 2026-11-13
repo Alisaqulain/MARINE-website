@@ -1,0 +1,4 @@
+{"ts":"2026-11-10T05:38:10.052Z","t":"start","pid":10592,"resumedUnits":0,"roots":["git:E:\\tourtravelwebiste"]}
+{"ts":"2026-11-10T05:46:18.118Z","t":"git-result","unit":"git:E:\\tourtravelwebiste","repo":"E:\\tourtravelwebiste","ok":true,"bytes":4456668832}
+{"ts":"2026-11-10T05:46:18.119Z","t":"done","unit":"git:E:\\tourtravelwebiste","root":"git:E:\\tourtravelwebiste","files":1,"bytes":4456668832,"unreadable":0,"empty":0,"links":0,"skippedExt":{}}
+{"ts":"2026-11-10T05:46:18.121Z","t":"complete","units":1,"files":1,"bytes":4456668832}

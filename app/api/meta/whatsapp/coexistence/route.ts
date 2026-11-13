@@ -2,6 +2,7 @@ import { requireAdminSession } from "@/lib/admin-auth";
 import { rateLimit } from "@/lib/ai/crm";
 import { originMatches, signupActorAllowed } from "@/lib/whatsapp/coexistence";
 import { requestSync, subscribeApp, verifyOnboardedNumber } from "@/lib/whatsapp/coexistence-actions";
+import { directModeRouteBlock } from "@/lib/whatsapp/mode";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -16,6 +17,9 @@ type Action = (typeof ACTIONS)[number];
  * which the admin screen sends only after showing exactly what will happen.
  */
 export async function POST(req: Request) {
+  // C7: closed in direct Cloud API mode — before authentication, parsing or any Meta call.
+  const closed = directModeRouteBlock();
+  if (closed) return NextResponse.json(closed.body, { status: closed.status });
   const auth = await requireAdminSession();
   if (auth.error) return auth.error;
   if (!signupActorAllowed(auth.session?.user?.role)) {

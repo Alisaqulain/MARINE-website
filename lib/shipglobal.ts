@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { company } from "@/lib/company";
@@ -12,6 +13,18 @@ const LOGIN_PATH = "/customers.php";
 const ORDER_PATH = "/addOrder.php";
 
 let cachedToken: { value: string; expires: number } | null = null;
+/**
+ * The last login ShipGlobal refused (400/401/403), keyed by a hash of the credentials. Health checks do not
+ * re-send the same rejected email/password for REJECTED_LOGIN_TTL_MS; new credentials are tried immediately.
+ */
+let rejectedLogin: { fingerprint: string; at: number; httpStatus: number; message: string } | null = null;
+const REJECTED_LOGIN_TTL_MS = 6 * 60 * 60 * 1000;
+
+function credentialFingerprint() {
+  return createHash("sha256")
+    .update(`${BASE}\n${process.env.SHIPGLOBAL_EMAIL?.trim() ?? ""}\n${process.env.SHIPGLOBAL_PASSWORD?.trim() ?? ""}`)
+    .digest("hex");
+}
 const inflight = new Map<string, Promise<void>>();
 
 export function shipGlobalConfigured() {
@@ -29,7 +42,17 @@ export type ShipGlobalConnection = {
   service: string;
   endpoint: string;
   message: string;
+  /** auth = credentials refused · config = request/URL problem · temporary = network/timeout/5xx */
+  failure?: "auth" | "config" | "temporary";
+  /** True when this result is the remembered rejection and nothing was sent to ShipGlobal. */
+  fromCache?: boolean;
 };
+
+function loginFailureClass(status: number | null): ShipGlobalConnection["failure"] {
+  if (status === 401 || status === 403) return "auth";
+  if (!status || status >= 500) return "temporary";
+  return "config";
+}
 
 function publicError(value: string) {
   return value
@@ -56,8 +79,20 @@ export async function pingShipGlobal(): Promise<ShipGlobalConnection> {
       message: "SHIPGLOBAL_EMAIL and SHIPGLOBAL_PASSWORD are not set. Shipping is not connected.",
     };
   }
-  cachedToken = null;
+  if (rejectedLogin && rejectedLogin.fingerprint === credentialFingerprint() && Date.now() - rejectedLogin.at < REJECTED_LOGIN_TTL_MS) {
+    return {
+      ok: false,
+      httpStatus: rejectedLogin.httpStatus,
+      tokenReceived: false,
+      service,
+      endpoint,
+      failure: loginFailureClass(rejectedLogin.httpStatus),
+      fromCache: true,
+      message: `${rejectedLogin.message} (Result from ${new Date(rejectedLogin.at).toISOString().slice(0, 16).replace("T", " ")} UTC — these same credentials are not re-sent until they change or 6 hours pass.)`,
+    };
+  }
   try {
+    // A still-valid token from an earlier successful login proves the connection without logging in again.
     const result = await accessToken();
     if (!result.tokenReceived) {
       return {
@@ -66,6 +101,7 @@ export async function pingShipGlobal(): Promise<ShipGlobalConnection> {
         tokenReceived: false,
         service,
         endpoint,
+        failure: loginFailureClass(result.httpStatus),
         message: result.message,
       };
     }
@@ -85,6 +121,7 @@ export async function pingShipGlobal(): Promise<ShipGlobalConnection> {
       tokenReceived: false,
       service,
       endpoint,
+      failure: "temporary",
       message: detail,
     };
   }
@@ -135,7 +172,9 @@ function tokenExpiry(expiresAt: unknown) {
 
 function loginFailureMessage(status: number, error: string) {
   if (status === 401 || /invalid credentials/i.test(error)) {
-    return "ShipGlobal label API returned HTTP 401 Invalid credentials. The saved email and password were sent as JSON to POST /customers.php and no token was returned. This account is not accepted by labels.shipglobal.in. Ask ShipGlobal to enable label-API access for this email, or confirm the label-portal password. The v2 dashboard at v2.app.shipglobal.in is a different login. No shipment was created.";
+    // Verified 2026-11-08 without real credentials: the endpoint answers {} with 400 "email and password are required",
+    // form-encoded bodies with 400 "Invalid JSON", and wrong credentials with 401 "Invalid credentials" — so the request is right.
+    return "ShipGlobal label API returned HTTP 401 Invalid credentials. The request format is correct (POST /customers.php, JSON {email, password} — the endpoint recognises both fields); ShipGlobal does not accept this email/password for the label API. Ask ShipGlobal to enable label-API access for this email, or confirm the label-portal password. The v2 dashboard at v2.app.shipglobal.in is a different login. No shipment was created.";
   }
   if (status === 404) {
     return "ShipGlobal login endpoint returned HTTP 404. Confirm POST /customers.php with ShipGlobal support before changing the API URL.";
@@ -166,8 +205,12 @@ async function accessToken() {
   if (!res.ok || !tokenReceived || !data.token) {
     cachedToken = null;
     const message = loginFailureMessage(res.status, String(data.error || ""));
+    if (res.status === 400 || res.status === 401 || res.status === 403) {
+      rejectedLogin = { fingerprint: credentialFingerprint(), at: Date.now(), httpStatus: res.status, message };
+    }
     return { token: "", httpStatus: res.status, tokenReceived: false, message };
   }
+  rejectedLogin = null;
   cachedToken = { value: data.token, expires: tokenExpiry(data.expires_at) };
   return { token: data.token, httpStatus: res.status, tokenReceived: true, message: "" };
 }
@@ -344,6 +387,10 @@ async function remember(order: OrderRecord) {
 
 export async function bookShipGlobalShipment(order: OrderRecord) {
   if (order.shipment?.waybill) return;
+  // A sandbox test order on a development server must never book a real, billable label.
+  if (process.env.NODE_ENV !== "production" && process.env.SHIPGLOBAL_ALLOW_OUTSIDE_PRODUCTION !== "1") {
+    throw new Error("ShipGlobal booking is disabled outside production.");
+  }
   const existing = inflight.get(order.id);
   if (existing) {
     await existing;

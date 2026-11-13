@@ -1,0 +1,14 @@
+{
+ "T8": { "title": "Wholesale enquiry with consent", "maxRequests": 5,
+   "turns": ["I run a gift shop and want ship wheels wholesale.", "Two hundred of the twelve inch ones within two months. I'm QA Tester, QA Gifts, qa@example.com.", "Yes, the team can contact me."],
+   "expect": { "noSaveBeforeLastTurn": true, "save": { "enquiryType": "wholesale", "consent": true } } },
+ "T9": { "title": "Bulk enquiry with consent", "maxRequests": 5,
+   "turns": ["I need 500 decorative brass anchors for an event.", "QA Tester, qa@example.com, needed in one month.", "Yes, please contact me."],
+   "expect": { "noSaveBeforeLastTurn": true, "save": { "enquiryType": "bulk", "consent": true } } },
+ "T10": { "title": "OEM enquiry with consent", "maxRequests": 5,
+   "turns": ["Can you manufacture brass compasses engraved with our logo? About 1000 pieces.", "QA Tester, Example Corp, qa@example.com, first quarter next year.", "Sure, contact me."],
+   "expect": { "noSaveBeforeLastTurn": true, "save": { "enquiryType": "oem", "consent": true } } },
+ "T12": { "title": "Consent declined", "maxRequests": 3,
+   "turns": ["I want 300 anchors. QA Tester, qa@example.com, in a month.", "No, I don't want to be contacted."],
+   "expect": { "save": false, "mustNotMatch": ["(has been|is|was) (saved|recorded)", "callback (is|has been) (arranged|scheduled)"] } }
+}

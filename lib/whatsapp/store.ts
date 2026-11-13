@@ -1,8 +1,90 @@
 import { getDb } from "@/lib/mongodb";
 import type { StoredCoexistence } from "@/lib/whatsapp/coexistence";
+import { INDEXES, claimEvent, completeEvent, failEvent, type ClaimCollection } from "@/lib/whatsapp/event-claims";
 
 const STATE = "wa_coexistence_state";
 const EVENTS = "wa_webhook_events";
+
+// ── C5: database-backed event claims ──
+
+/**
+ * The unique index on wa_webhook_events.key is REQUIRED for safe claims: if it cannot be confirmed, claiming throws
+ * (the webhook answers 500 and Meta redelivers) instead of processing without duplicate protection. A failed
+ * attempt is retried on the next request (the promise is reset), e.g. after the database recovers.
+ */
+let eventIndex: Promise<void> | null = null;
+function requireEventIndex() {
+  if (!eventIndex) {
+    eventIndex = getDb()
+      .then((db) => db.collection(INDEXES.events.collection).createIndex(INDEXES.events.spec, INDEXES.events.options))
+      .then(() => undefined)
+      .catch((err) => {
+        eventIndex = null;
+        throw err;
+      });
+  }
+  return eventIndex;
+}
+
+/**
+ * Partial unique indexes on ai_wa_messages (one inbound record per wamid, one reply per inbound wamid).
+ * Best-effort: creation can fail if existing data already holds duplicates (not inspected — no authorized database
+ * access). The state is kept for /test and the report; on failure, protection falls back to the event claim
+ * (one processor per event at a time) plus upserts. Retried after 10 minutes.
+ */
+export const messageIndexState: { ok: boolean | null; at: string | null; error: string | null } = { ok: null, at: null, error: null };
+let messageIndexes: Promise<void> | null = null;
+export function ensureMessageIndexes() {
+  if (!messageIndexes) {
+    messageIndexes = getDb()
+      .then(async (db) => {
+        const col = db.collection(INDEXES.inboundOnce.collection);
+        await col.createIndex(INDEXES.inboundOnce.spec, INDEXES.inboundOnce.options);
+        await col.createIndex(INDEXES.replyOnce.spec, INDEXES.replyOnce.options);
+        Object.assign(messageIndexState, { ok: true, at: new Date().toISOString(), error: null });
+      })
+      .catch((err) => {
+        const serverRefused = Boolean(err && typeof err === "object" && "codeName" in err);
+        Object.assign(messageIndexState, { ok: false, at: new Date().toISOString(), error: serverRefused ? String((err as { codeName: unknown }).codeName) : "database_unavailable" });
+        console.error("[whatsapp] message idempotency index unavailable");
+        // Database unreachable: retry on the next request. The server refused the index (e.g. existing duplicates): retry in 10 min.
+        if (!serverRefused) messageIndexes = null;
+        else setTimeout(() => (messageIndexes = null), 600_000).unref?.();
+      });
+  }
+  return messageIndexes;
+}
+
+async function eventsCollection() {
+  await requireEventIndex();
+  const db = await getDb();
+  return db.collection(EVENTS) as unknown as ClaimCollection;
+}
+
+export async function claimWebhookEvent(key: string, meta: { field: string; action: string; reason: string }) {
+  return claimEvent(await eventsCollection(), key, meta);
+}
+
+export async function completeWebhookEvent(key: string, token: string) {
+  return completeEvent(await eventsCollection(), key, token);
+}
+
+export async function failWebhookEvent(key: string, token: string, label: string) {
+  try {
+    return await failEvent(await eventsCollection(), key, token, label);
+  } catch {
+    return false;
+  }
+}
+
+/** Collection used for inbound records and reply reservations (indexes ensured first, best-effort). */
+export async function messagesCollection() {
+  await ensureMessageIndexes();
+  const db = await getDb();
+  return db.collection("ai_wa_messages") as unknown as ClaimCollection;
+}
+
+// ── pre-C5 helper, kept for compatibility (no longer used by the webhook route) ──
 
 let indexReady: Promise<void> | null = null;
 

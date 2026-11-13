@@ -4,6 +4,7 @@ import { getSiteOrigin } from "@/lib/auth-url";
 import { sendCustomerMail } from "@/lib/mail";
 import { readCoexistenceState } from "@/lib/whatsapp/store";
 import { postMessage, resolveCredentials, sendGate, templatePayload } from "@/lib/whatsapp/cloud";
+import { isDirectMode } from "@/lib/whatsapp/mode";
 
 /**
  * Permission-based follow-ups shared by all agents: consent, opt-outs, and a queue processed by the jobs cron.
@@ -161,7 +162,8 @@ async function send(row: FollowUp): Promise<{ status: FollowUp["status"]; error?
 
   const template = process.env.WHATSAPP_FOLLOWUP_TEMPLATE?.trim();
   if (!template) return { status: "skipped", error: "WHATSAPP_FOLLOWUP_TEMPLATE is not set" };
-  const creds = resolveCredentials(await readCoexistenceState());
+  // C2: direct mode reads no Coexistence state; resolveCredentials/sendGate apply the direct-mode rules.
+  const creds = resolveCredentials(isDirectMode() ? null : await readCoexistenceState());
   const gate = sendGate({ to: row.to, suppressed: false, template: true, windowOpen: false, consent: true, creds });
   if (!gate.allowed) return { status: "skipped", error: gate.reason };
   const res = await postMessage(creds, templatePayload(row.to, template, process.env.WHATSAPP_TEMPLATE_LANGUAGE?.trim() || "en", []));

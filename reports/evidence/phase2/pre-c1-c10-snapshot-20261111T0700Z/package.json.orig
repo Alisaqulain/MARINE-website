@@ -1,0 +1,41 @@
+{
+  "name": "marina-muse",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "next build && node scripts/verify-build-static.mjs",
+    "start": "next start -H 0.0.0.0",
+    "check:mongo": "node scripts/check-mongo-env.mjs",
+    "dev:db": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/dev-db.mjs",
+    "dev:scheduler": "node scripts/dev-scheduler.mjs",
+    "check:whatsapp": "node scripts/check-whatsapp-coexistence.ts",
+    "check:phase2": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-phase2.ts",
+    "docs:env": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/gen-env-docs.ts",
+    "check:routes": "node scripts/check-routes.mjs"
+  },
+  "dependencies": {
+    "autoprefixer": "^10.4.21",
+    "bcryptjs": "^3.0.3",
+    "lucide-react": "^0.544.0",
+    "mongodb": "^7.7.0",
+    "next": "^15.5.3",
+    "next-auth": "^5.0.0-beta.32",
+    "nodemailer": "^8.0.11",
+    "postcss": "^8.5.6",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "tailwindcss": "^3.4.17"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^20.19.13",
+    "@types/nodemailer": "^8.0.2",
+    "@types/react": "^19.1.13",
+    "@types/react-dom": "^19.1.9",
+    "typescript": "^5.9.2"
+  }
+}

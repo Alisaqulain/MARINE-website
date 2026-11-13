@@ -3,6 +3,7 @@
 import { ProductImage } from "@/components/ProductImage";
 import { uploadImageFile } from "@/components/AdminProductImageField";
 import { ChevronDown, ChevronRight } from "lucide-react";
+import { newlyAddedCategories, NEWLY_ADDED_DAYS } from "@/lib/listing-categories";
 import { useEffect, useMemo, useState } from "react";
 
 type CategoryNode = {
@@ -11,6 +12,7 @@ type CategoryNode = {
   slug: string;
   image?: string;
   builtin: boolean;
+  createdAt?: string;
   children: CategoryNode[];
 };
 
@@ -92,9 +94,21 @@ export function AdminCategoriesPanel() {
   const [image, setImage] = useState("");
 
   const parents = useMemo(() => flatten(tree), [tree]);
+  const recent = useMemo(() => newlyAddedCategories(tree), [tree]);
+  const addedOn = useMemo(() => {
+    const out = new Map<string, string>();
+    const walk = (nodes: CategoryNode[]) => {
+      for (const node of nodes) {
+        if (node.createdAt) out.set(node.slug, node.createdAt);
+        walk(node.children);
+      }
+    };
+    walk(tree);
+    return out;
+  }, [tree]);
 
   async function load() {
-    const res = await fetch("/api/categories");
+    const res = await fetch("/api/categories", { cache: "no-store" });
     const data = await res.json().catch(() => ({}));
     if (Array.isArray(data.tree)) setTree(data.tree);
   }
@@ -272,6 +286,23 @@ export function AdminCategoriesPanel() {
       </form>
 
       <div className="overflow-hidden rounded-xl border border-[#eee] bg-white shadow-sm">
+        <div className="border-b border-[#f0f0f0] bg-[#faf7f2] px-4 py-3">
+          <p className="text-[15px] font-medium text-[#b0893a]">Newly added</p>
+          {recent.length ? (
+            <ul className="mt-2 space-y-1">
+              {recent.map((item) => (
+                <li key={item.slug} className="flex items-baseline justify-between gap-3 text-sm text-[#222]">
+                  <span className="min-w-0">{item.name}</span>
+                  <span className="shrink-0 text-[11px] text-navy-500">
+                    {new Date(addedOn.get(item.slug) ?? "").toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-1 text-xs text-navy-500">No categories added in the last {NEWLY_ADDED_DAYS} days.</p>
+          )}
+        </div>
         <p className="border-b border-[#f0f0f0] px-4 py-3 text-[15px] font-medium text-[#b0893a]">Product categories</p>
         <div className="max-h-[70vh] overflow-y-auto">
           {tree.map((node) => renderRow(node, 0))}

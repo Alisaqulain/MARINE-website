@@ -6,7 +6,7 @@ import {
   graphVersion,
   numberDecision,
   onboardingSteps,
-  SUPPLIED_APP_ID,
+  metaAppIds,
   type OnboardingStep,
   type StoredCoexistence,
 } from "@/lib/whatsapp/coexistence";
@@ -165,8 +165,9 @@ async function done(action: string, actor: string, result: ActionResult) {
  * app token). Used by /test to verify history, smb_app_state_sync and smb_message_echoes are subscribed.
  */
 export async function appWebhookFields(): Promise<{ ok: boolean; fields: string[]; callbackUrl: string; detail: string }> {
-  const appId = process.env.META_APP_ID?.trim() || SUPPLIED_APP_ID;
+  const { appId } = metaAppIds();
   const secret = process.env.META_APP_SECRET?.trim();
+  if (!appId) return { ok: false, fields: [], callbackUrl: "", detail: "META_APP_ID is not set (isolated test mode: no fallback app). Meta was not called." };
   if (!secret) return { ok: false, fields: [], callbackUrl: "", detail: "META_APP_SECRET is not set." };
   const res = await graph<{ data?: { object?: string; callback_url?: string; active?: boolean; fields?: { name?: string }[] }[] }>(
     "GET",

@@ -9,16 +9,20 @@ import {
   rememberAuthorizationCode,
   redact,
   signupActorAllowed,
-  SUPPLIED_APP_ID,
+  metaAppIds,
   type SignupBody,
 } from "@/lib/whatsapp/coexistence";
 import { readCoexistenceState, startOnboarding, writeCoexistenceState } from "@/lib/whatsapp/store";
 import { verifyOnboardedNumber } from "@/lib/whatsapp/coexistence-actions";
+import { directModeRouteBlock } from "@/lib/whatsapp/mode";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
+  // C7: closed in direct Cloud API mode — before authentication, parsing or any Meta call.
+  const closed = directModeRouteBlock();
+  if (closed) return NextResponse.json(closed.body, { status: closed.status });
   const auth = await requireAdminSession();
   if (auth.error) return auth.error;
   if (!signupActorAllowed(auth.session?.user?.role)) {
@@ -77,9 +81,17 @@ export async function POST(req: Request) {
       { status: 409 }
     );
   }
+  const { appId } = metaAppIds();
+  if (!appId) {
+    // Isolated test environment without a configured test app: never fall back to the client's app.
+    return NextResponse.json(
+      { ok: false, calledMeta: false, stored: false, error: "META_APP_ID is not set (isolated test mode). Meta was not called." },
+      { status: 503 }
+    );
+  }
   const exchanged = await exchangeAuthorizationCode({
     code: decision.code || "",
-    appId: process.env.META_APP_ID?.trim() || SUPPLIED_APP_ID,
+    appId,
     appSecret: secret,
     version: graphVersion(process.env.META_GRAPH_API_VERSION),
     allowNetwork: true,

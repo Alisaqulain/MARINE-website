@@ -1,6 +1,6 @@
 import { getDb } from "@/lib/mongodb";
 import { getStorefrontProducts } from "@/lib/storefront-catalog";
-import { googleMerchantXml, type FeedItem } from "@/lib/ai/feed";
+import { feedIds, googleMerchantXml, type FeedItem } from "@/lib/ai/feed";
 import {
   averageOrderValue,
   conversionFunnel,
@@ -14,9 +14,10 @@ import { growthRecommendations, internalLinkSuggestions, journeyFunnel, lowConve
 
 export async function buildMerchantFeed() {
   const origin = getSiteOrigin();
-  const products = await getStorefrontProducts("retail");
-  const items: FeedItem[] = products.slice(0, 500).map((product) => ({
-    id: product.sku || product.slug,
+  const products = (await getStorefrontProducts("retail")).slice(0, 500);
+  const ids = feedIds(products);
+  const items: FeedItem[] = products.map((product, index) => ({
+    id: ids[index],
     title: product.name,
     description: (product.description || product.name).replace(/\s+/g, " ").trim(),
     link: `${origin}/product/${product.slug}`,

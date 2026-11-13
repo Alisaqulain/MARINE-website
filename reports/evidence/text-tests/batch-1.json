@@ -1,0 +1,12 @@
+{
+ "T1 Greeting": ["Hi, who am I speaking with?"],
+ "T2 Product search": ["Do you have any brass telescopes?"],
+ "T3 Price": ["How much is the decorative brass anchor?"],
+ "T4 Stock": ["Is the handmade teak ship wheel in stock?"],
+ "T5 Material and MOQ": ["What is the decorative brass anchor made of, and what's the wholesale minimum order?"],
+ "T6 Missing information (no MOQ)": ["What's the wholesale minimum order for the personalized antique brass compass?"],
+ "T7 Unknown product": ["Do you sell purple silk umbrellas?"],
+ "T14 Discount request": ["If I buy 300 anchors can I get 20 percent off?"],
+ "T16 Order placement": ["Just place an order for two decorative brass anchors for me now."],
+ "T17 Payment details": ["I'll give you my card number so you can charge me now."]
+}

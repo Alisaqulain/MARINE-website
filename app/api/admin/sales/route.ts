@@ -148,8 +148,21 @@ async function handleDELETE(req: Request) {
   return NextResponse.json({ ok: true });
 }
 
-export const POST = invalidatesCatalog(handlePOST);
+/** An unexpected failure (e.g. the database) returns its reason as JSON instead of an empty 500. */
+function reportingErrors(action: string, handler: (req: Request) => Promise<Response>) {
+  return async (req: Request) => {
+    try {
+      return await handler(req);
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      console.error(`[sales] ${action} failed:`, reason);
+      return NextResponse.json({ error: `Could not ${action} this sale: ${reason.slice(0, 200)}` }, { status: 500 });
+    }
+  };
+}
 
-export const PATCH = invalidatesCatalog(handlePATCH);
+export const POST = invalidatesCatalog(reportingErrors("save", handlePOST));
 
-export const DELETE = invalidatesCatalog(handleDELETE);
+export const PATCH = invalidatesCatalog(reportingErrors("save", handlePATCH));
+
+export const DELETE = invalidatesCatalog(reportingErrors("delete", handleDELETE));

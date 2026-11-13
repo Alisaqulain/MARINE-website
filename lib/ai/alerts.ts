@@ -52,9 +52,13 @@ export function shouldAlertOwner(input: {
   return input.score >= 81 && input.alertedScore < 81;
 }
 
+/** Whole amounts without cents ($18,500), others with two decimals ($412.50). */
 function money(n: number) {
-  return `$${n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+  const cents = Number.isInteger(n) ? 0 : 2;
+  return `$${n.toLocaleString("en-US", { minimumFractionDigits: cents, maximumFractionDigits: cents })}`;
 }
+
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 export function ownerAlertText(
   lead: AlertLead,
@@ -160,7 +164,7 @@ export function recommendedActions(input: DailyReportInput): string[] {
 }
 
 export function dailyReportText(input: DailyReportInput): { subject: string; text: string } {
-  const subject = `[Marina AI] Daily owner report — ${input.date} · ${input.orders} orders · ${money(input.revenue)}`;
+  const subject = `[Marina AI] Daily owner report — ${input.date} · ${plural(input.orders, "order")} · ${money(input.revenue)}`;
   const section = (title: string, rows: string[]) => [title, ...(rows.length ? rows : ["  —"]), ""];
   const text = [
     `Daily owner report for ${input.date}`,
@@ -190,7 +194,7 @@ export function dailyReportText(input: DailyReportInput): { subject: string; tex
     ),
     ...section(
       "REVENUE BY SOURCE",
-      input.revenueBySource.map((r) => `  • ${r.source}: ${r.orders} orders, ${money(r.revenue)}`)
+      input.revenueBySource.map((r) => `  • ${r.source}: ${plural(r.orders, "order")}, ${money(r.revenue)}`)
     ),
     ...section("SHOPPING FEED & SEARCH", [
       `  Feed items: ${input.feed.items} · with errors: ${input.feed.errors}`,

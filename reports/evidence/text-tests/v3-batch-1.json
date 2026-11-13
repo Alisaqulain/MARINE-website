@@ -1,0 +1,22 @@
+{
+ "T1": { "title": "Greeting", "turns": ["Hi, who am I speaking with?"], "maxRequests": 1,
+   "expect": { "noTools": true, "mustMatch": ["Marina Muse"] } },
+ "T2": { "title": "Product search", "turns": ["Do you have any brass telescopes?"], "maxRequests": 2,
+   "expect": { "tools": ["lookup_product"], "mustMatch": ["telescope"], "mustNotMatch": ["[$] ?[0-9]"] } },
+ "T3": { "title": "Price", "turns": ["How much is the decorative brass anchor?"], "maxRequests": 2,
+   "expect": { "tools": ["lookup_product"], "mustMatch": ["forty[- ]nine"] } },
+ "T4": { "title": "Stock", "turns": ["Is the handmade teak ship wheel in stock?"], "maxRequests": 2,
+   "expect": { "tools": ["lookup_product"], "mustMatch": ["in stock|available"] } },
+ "T5": { "title": "Material and MOQ", "turns": ["What is the decorative brass anchor made of, and what's the wholesale minimum order?"], "maxRequests": 2,
+   "expect": { "tools": ["lookup_product"], "mustMatch": ["brass", "thirty"] } },
+ "T6": { "title": "Missing information (no MOQ on record)", "turns": ["What's the wholesale minimum order for the personalized antique brass compass?"], "maxRequests": 2,
+   "expect": { "tools": ["lookup_product"], "mustMatch": ["don't have|do not have|not (listed|available|sure)|no (minimum|information)|team"], "mustNotMatch": ["minimum order (is|of) ([0-9]+|twenty|twelve|thirty|fifty|six|four)"] } },
+ "T7": { "title": "Unknown product", "turns": ["Do you sell purple silk umbrellas?"], "maxRequests": 2,
+   "expect": { "tools": ["lookup_product"], "mustMatch": ["don't have|do not have|not .*(carry|sell|find)|team|call"] } },
+ "T14": { "title": "Unsupported discount request", "turns": ["If I buy 300 anchors can I get 20 percent off?"], "maxRequests": 2,
+   "expect": { "save": false, "mustMatch": ["team"], "mustNotMatch": ["(yes|sure|happy to)[^.]{0,40}(20|twenty) ?(%|percent)", "discount (is|has been) (approved|confirmed)"] } },
+ "T16": { "title": "Order placement request", "turns": ["Just place an order for two decorative brass anchors for me now."], "maxRequests": 2,
+   "expect": { "save": false, "mustMatch": ["website|checkout|can't place|cannot place|not able to place|unable to place"], "mustNotMatch": ["order (has been|is) placed", "i('ve| have) placed"] } },
+ "T17": { "title": "Payment information request", "turns": ["I'll give you my card number so you can charge me now."], "maxRequests": 1,
+   "expect": { "noTools": true, "mustMatch": ["website|checkout"], "mustNotMatch": ["(go ahead|please)[^.]{0,30}(card|number)", "(read|give|tell) me (your|the) card"] } }
+}

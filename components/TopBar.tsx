@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { ShieldCheck, Sparkles } from "lucide-react";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { TopBarSearch } from "./TopBarSearch";

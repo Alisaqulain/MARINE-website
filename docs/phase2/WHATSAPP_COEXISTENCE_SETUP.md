@@ -1,5 +1,7 @@
 # WhatsApp Business app coexistence
 
+> **11 November 2026:** this document applies to **coexistence mode only** (`WHATSAPP_INTEGRATION_MODE` unset or `coexistence`). With `WHATSAPP_INTEGRATION_MODE=direct`, Embedded Signup and Coexistence are disabled; see `WHATSAPP_DIRECT_CLOUD_API_SETUP.md`. `META_APP_ID` and `META_CONFIG_ID` no longer have built-in defaults and must be set explicitly.
+
 ## Status on 3 November 2026
 
 - **Not active.** No real Embedded Signup has run; `/test` → WhatsApp Business app coexistence shows *Partially configured / not connected*.
