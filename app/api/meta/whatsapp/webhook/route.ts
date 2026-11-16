@@ -33,7 +33,8 @@ export async function GET(req: Request) {
     expected: process.env.META_WEBHOOK_VERIFY_TOKEN,
   });
   if (!result.ok) return new Response("Forbidden", { status: result.status });
-  await markWebhookHandshake();
+  // Meta times out after a few seconds; never let a slow database delay the handshake reply.
+  await Promise.race([markWebhookHandshake(), new Promise((r) => setTimeout(r, 2000))]);
   return new Response(result.challenge, { status: 200, headers: { "Content-Type": "text/plain; charset=utf-8" } });
 }
 
