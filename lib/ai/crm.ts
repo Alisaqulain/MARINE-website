@@ -493,3 +493,13 @@ export async function decideApproval(input: { id: string; status: "approved" | "
   });
   return { ok: true as const };
 }
+
+/**
+ * Admin test only (/test-agents): the exact reply path a customer would get, with no session, no lead, no message
+ * saved and nothing sent. Works even while the agent switch is OFF, because nothing reaches a customer.
+ */
+export async function dryRunReply(agent: AgentId, message: string) {
+  const found = await lookupProductsForAgent(message.slice(0, 300));
+  const reply = await groundedReply({ agent, message: message.slice(0, 500), history: [], products: found.products, grounded: found.text });
+  return { ...reply, products: found.products.map((p) => p.name).slice(0, 5) };
+}
