@@ -490,11 +490,18 @@ export function AdminDashboard() {
   }
 
   async function deleteProduct(p: Record<string, unknown>) {
+    if (!canDelete) return;
     if (String(p.source) !== "mongodb") {
-      window.alert("Catalog items cannot be deleted. Edit and save to override, or remove the MongoDB copy only.");
+      if (!window.confirm(`Delete “${p.name}”? It will be removed from the shop and from this list.`)) return;
+      const res = await fetch("/api/admin/products/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete", ids: [String(p.id)] }),
+      });
+      if (!res.ok) window.alert("This product could not be deleted.");
+      void load();
       return;
     }
-    if (!canDelete) return;
     if (!window.confirm(`Delete “${p.name}” from the database?`)) return;
     await fetch(`/api/admin/products/${p.id}`, { method: "DELETE" });
     if (editing?.mongoId === String(p.id)) {
@@ -507,17 +514,18 @@ export function AdminDashboard() {
   async function deleteProducts(ids: string[]) {
     const chosen = products.filter((product) => ids.includes(String(product.id)));
     const mongoIds = chosen.filter((product) => product.source === "mongodb").map((product) => String(product.id));
-    const catalogCount = chosen.length - mongoIds.length;
+    const catalogIds = chosen.filter((product) => product.source !== "mongodb").map((product) => String(product.id));
     if (!canDelete || !chosen.length) return;
-    if (!mongoIds.length) {
-      window.alert("These are built-in catalogue items. Edit and save one first, then you can delete that saved copy.");
-      return;
+    if (!window.confirm(`Delete ${chosen.length} product${chosen.length === 1 ? "" : "s"}? They will be removed from the shop and from this list.`)) return;
+    let failed = mongoIds.length ? await deleteUrls(mongoIds.map((id) => `/api/admin/products/${id}`)) : 0;
+    if (catalogIds.length) {
+      const res = await fetch("/api/admin/products/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete", ids: catalogIds }),
+      });
+      if (!res.ok) failed += catalogIds.length;
     }
-    const note = catalogCount
-      ? ` ${catalogCount} catalogue item${catalogCount === 1 ? "" : "s"} will stay.`
-      : "";
-    if (!window.confirm(`Delete ${mongoIds.length} saved product${mongoIds.length === 1 ? "" : "s"}?${note}`)) return;
-    const failed = await deleteUrls(mongoIds.map((id) => `/api/admin/products/${id}`));
     if (failed) window.alert(`${failed} product${failed === 1 ? "" : "s"} could not be deleted.`);
     productPick.clear();
     void load();

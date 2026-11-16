@@ -6,7 +6,9 @@ import { classifyHttp, looksLikePlaceholder } from "@/lib/ai/http";
 import { exotelCallbackAuthorized, exotelConfig, pingExotel } from "@/lib/ai/exotel";
 import { pingWhatsAppCloud, resolveCredentials } from "@/lib/whatsapp/cloud";
 import { readFlags, shouldSendWhatsApp, verifyHandshake, verifySignature } from "@/lib/whatsapp/coexistence";
-import { readCoexistenceState } from "@/lib/whatsapp/store";
+import { ensureMessageIndexes, messageIndexState, messagesCollection, readCoexistenceState } from "@/lib/whatsapp/store";
+import { listRecoverable } from "@/lib/whatsapp/recovery";
+import { runtimeFingerprintCheck } from "@/lib/whatsapp/fingerprints";
 import { isDirectMode, testConfigMatches } from "@/lib/whatsapp/mode";
 import { measurementProtocolConfigured, pingGa4, validateMeasurementProtocol } from "@/lib/google/analytics";
 import { pingSearchConsole } from "@/lib/google/search-console";
@@ -376,6 +378,30 @@ async function checkWhatsApp(): Promise<IntegrationReport> {
       "config"
     )
   );
+  // Phase 2 E/F health: idempotency indexes, fingerprint protection, reply-recovery queue (no message text).
+  await ensureMessageIndexes().catch(() => undefined);
+  steps.push(
+    s(
+      "Duplicate-protection indexes",
+      messageIndexState.ok === true ? "pass" : messageIndexState.ok === false ? "fail" : "warn",
+      messageIndexState.ok === true ? `Unique inbound/reply indexes and recovery indexes present (checked ${String(messageIndexState.at).slice(0, 16)}).` : messageIndexState.ok === false ? `Index creation failed (${messageIndexState.error}). Duplicate protection falls back to event claims only.` : "Not checked yet.",
+      "config"
+    )
+  );
+  const fp = process.env.NODE_ENV === "production" ? null : runtimeFingerprintCheck(process.env);
+  steps.push(
+    s(
+      "Production-identifier fingerprints",
+      fp === null ? "skip" : fp.ok ? "pass" : "warn",
+      fp === null ? "Not enforced in production by design." : fp.ok ? "Configuration valid; no configured identifier matches a production fingerprint." : `Meta identifiers refused outside production: ${fp.problems.join("; ")}.`,
+      "config"
+    )
+  );
+  const recovery = await messagesCollection().then((col) => listRecoverable(col)).catch(() => null);
+  if (recovery) {
+    const open = Object.entries(recovery.counts).map(([k, n]) => `${k} ${n}`).join(", ");
+    steps.push(s("Reply recovery queue", recovery.counts.resend_claimed ? "warn" : "pass", open ? `Needs review: ${open}. Nothing is resent automatically.` : "No stale, unknown or failed replies.", "config"));
+  }
   const sent = await lastActivity({ direction: "out", status: { $in: ["sent", "delivered", "read"] } }, "ai_wa_messages", "at");
   const inbound = await lastActivity({ direction: "in" }, "ai_wa_messages", "at");
   return {

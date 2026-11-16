@@ -32,7 +32,9 @@ const T = {
   PORT: ["core", "OPTIONAL", "YES", "Port `next start` listens on (Next.js default 3000; the PM2 example uses 3002 for marina-muse behind nginx). Read by Next.js, not by app code."],
   NEXT_PUBLIC_SITE_URL: ["core", "REQUIRED", "YES", "Public https site URL for absolute links, feed, sitemap and webhook URLs. Compiled into the client at build time: set BEFORE `npm run build`. Server code falls back to AUTH_URL (lib/auth-url.ts:50)."],
   NEXT_PUBLIC_SHOP_UTC_OFFSET: ["core", "OPTIONAL", "NO", "Shop time zone for sale dates; default +05:30. Build-time."],
-  AI_AGENTS_DISABLED: ["core", "OPTIONAL", "YES", "Comma list of agents to switch off without a deploy (chat, voice, growth, whatsapp). RECOMMENDED for initial launch: switch off every agent that is not approved (see audit section 4)."],
+  AI_AGENTS_DISABLED: ["core", "OPTIONAL", "YES", "Kill switch: comma list of agents forced off (chat, voice, growth, whatsapp); always wins. Set to all four at launch."],
+  AI_AGENTS_ENABLED: ["core", "OPTIONAL", "NO", "FAIL-CLOSED allow-list (lib/ai/agents.ts). Leave EMPTY at launch: empty = every agent off; any unknown value = every agent off."],
+  AI_AGENTS_PRODUCTION_APPROVED: ["core", "OPTIONAL", "NO", "Production written-approval key per agent. Leave EMPTY until an individual agent activation is approved in writing."],
   KVM2_UPLOAD_URL: ["other", "CONDITIONAL", "IF-ENABLED", "Image-upload endpoint used by the admin media upload (lib/kvm-upload.ts)."],
   KVM2_UPLOAD_TOKEN: ["other", "CONDITIONAL", "IF-ENABLED", "Bearer token for KVM2_UPLOAD_URL."],
   KVM2_UPLOAD_SKIP: ["other", "DEV-ONLY", "NO", "Skips the remote upload (development). Must be unset in production."],
@@ -202,7 +204,8 @@ for (const sec of order) {
     L.push(`#   ${note}  ·  evidence: ${evid(n).join(", ")}`);
     if (n === "PAYPAL_MODE") L.push("#   (placeholder guidance: the value must be the word live)");
     if (n === "NODE_ENV") L.push("#   (placeholder guidance: the value must be the word production; usually set by PM2, not here)");
-    L.push(`${n}=`);
+    // Phase 2 v1.1 §7: the single documented non-secret value: all four agents disabled at launch.
+    L.push(n === "AI_AGENTS_DISABLED" ? `${n}=chat,voice,growth,whatsapp` : `${n}=`);
   }
 }
 L.push("", "# ─── Development-only: MUST remain unset in production ───────────────────────────────");
@@ -216,7 +219,7 @@ fs.writeFileSync(tplPath, L.join("\n") + "\n");
 // ---- validation of the written template ----
 const tpl = fs.readFileSync(tplPath, "utf8");
 const active = tpl.split("\n").filter((l) => /^[A-Z][A-Z0-9_]*=/.test(l));
-const nonBlank = active.filter((l) => !/^[A-Z][A-Z0-9_]*=$/.test(l));
+const nonBlank = active.filter((l) => !/^[A-Z][A-Z0-9_]*=$/.test(l) && l !== "AI_AGENTS_DISABLED=chat,voice,growth,whatsapp"); // the documented launch value is not a secret
 const names = tpl.split("\n").map((l) => (l.match(/^#?\s?([A-Z][A-Z0-9_]*)=/) || [])[1]).filter(Boolean);
 const dups = names.filter((n, i) => names.indexOf(n) !== i);
 const risky = [

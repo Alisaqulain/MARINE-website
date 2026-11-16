@@ -41,6 +41,14 @@ The coexistence variables (`META_CONFIG_ID`, `WHATSAPP_COEXISTENCE_*`, `WHATSAPP
 
 **Number plan:** a decision is still open (Audit §3). The current Business-app number stays blocked in code.
 
+## Delivery, recovery and fingerprint protection (Phase 2 D/E/F)
+
+- **One attempt per message.** `POST /messages` is sent with `retries: 0`; no layer (HTTP wrapper, cron, webhook redelivery) resends. Outcomes: `sent`, `failed` (any 4xx, or a proven pre-transmission network error), `unknown` (timeout, reset, 5xx, missing message id). Neither `failed` nor `unknown` is resent automatically.
+- **Two clocks.** The reply window uses the customer's inbound Meta timestamp (`inboundAt`). Recovery expiry is 24 hours after the record first became stale, unknown or failed (`firstProblemAt`). Pending replies become stale after 10 minutes (15-minute sweep in `/api/ai/jobs`).
+- **Manual recovery only.** Admin → Marina AI → WhatsApp → Reply recovery: masked list, "Show message" (main admin), "Mark resolved", and "Resend once" (main admin, duplicate-risk acknowledgement, audited). A crashed resend leaves `resend_claimed`, which only an admin can reconcile.
+- **Fingerprints.** `config/whatsapp-production-fingerprints.json` holds SHA-256 of `"<kind>:<id>"` for production identifiers and, separately, protected recipient numbers. Outside production, any Meta-related run is refused while the required lists are empty or the file is missing or invalid; matching identifiers are refused. Gemini-only runs need only a valid file. Production is unaffected. Fingerprints are an accidental-misconfiguration guard, not a secret.
+
+
 ## Webhook behaviour
 
 | Situation | Response |

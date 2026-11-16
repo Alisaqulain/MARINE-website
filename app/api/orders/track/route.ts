@@ -8,7 +8,8 @@ export async function GET(req: Request) {
   if (!orderId.trim() || !email.includes("@")) {
     return NextResponse.json({ error: "Order number and email are required." }, { status: 400 });
   }
-  const order = trackOrderByEmail(orderId, email);
+  // Phase 2 commerce 2: order number AND matching email required; database-backed.
+  const order = await trackOrderByEmail(orderId, email);
   if (!order) {
     return NextResponse.json({ error: "No matching order found." }, { status: 404 });
   }

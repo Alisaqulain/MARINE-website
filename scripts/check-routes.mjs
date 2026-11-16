@@ -101,11 +101,25 @@ for (const path of ["/api/admin/ai", "/api/meta/whatsapp/status"]) {
     return "401";
   });
 }
-for (const path of ["/api/admin/ai/actions", "/api/meta/whatsapp/coexistence", "/api/meta/whatsapp/signup/exchange"]) {
-  await check(`POST ${path} requires an admin`, async () => {
+await check("POST /api/admin/ai/actions requires an admin", async () => {
+  const r = await post("/api/admin/ai/actions", { action: "verify_number" });
+  expect(r.status === 401, `status ${r.status}`);
+  return "401";
+});
+// Embedded Signup / Coexistence routes: coexistence mode → 401 for anonymous callers; direct mode (C7) → 410 before any
+// parsing, auth or Meta call. Either way an anonymous caller is refused and Meta is never called.
+for (const path of ["/api/meta/whatsapp/coexistence", "/api/meta/whatsapp/signup/exchange"]) {
+  await check(`POST ${path} refuses anonymous callers (401, or 410 in direct mode)`, async () => {
     const r = await post(path, { action: "verify_number" });
-    expect(r.status === 401, `status ${r.status}`);
-    return "401";
+    const body = (() => {
+      try {
+        return JSON.parse(r.text);
+      } catch {
+        return {};
+      }
+    })();
+    expect(r.status === 401 || (r.status === 410 && body.calledMeta === false), `status ${r.status}`);
+    return String(r.status);
   });
 }
 

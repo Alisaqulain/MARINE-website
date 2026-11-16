@@ -618,6 +618,8 @@ export type WaEvent = {
   /** Sender's WhatsApp number (digits) and profile name, inbound messages only. */
   from?: string;
   profileName?: string;
+  /** Phase 2 E: the customer's inbound message timestamp from Meta (epoch seconds), inbound messages only. */
+  inboundAt?: number;
 };
 
 export type WaPlan = WaEvent & { action: "ignore" | "draft"; reason: string; send: false };
@@ -720,6 +722,7 @@ export function normaliseWebhook(body: unknown): WaEvent[] {
             from: digits(message.from) || undefined,
             profileName:
               value.contacts?.find((contact) => digits(contact.wa_id) === digits(message.from))?.profile?.name?.slice(0, 80) || undefined,
+            ...(/^\d{9,11}$/.test(String(message.timestamp ?? "")) ? { inboundAt: Number(message.timestamp) } : {}),
           });
         }
         continue;

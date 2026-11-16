@@ -25,7 +25,7 @@ import {
   type LeadStage,
   type ScoreResult,
 } from "@/lib/ai/scoring";
-import { agentInstructions, factsBlock, replyIsGrounded, type AgentId } from "@/lib/ai/agents";
+import { agentEnabled, agentInstructions, factsBlock, replyIsGrounded, type AgentId } from "@/lib/ai/agents";
 import { geminiConfigured, geminiModel, type GeminiTurn } from "@/lib/ai/gemini";
 import { generateFor } from "@/lib/ai/usage";
 import { vapiStatus } from "@/lib/ai/vapi";
@@ -269,7 +269,8 @@ export async function recordLead(input: {
     alertedScore: existing?.alertedScore ?? null,
     approvalRequested: Boolean(input.requestedDecision),
   });
-  if (alert) {
+  // Fail-closed: owner alerts are an agent action; none unless the lead's agent is explicitly enabled.
+  if (alert && agentEnabled(input.channel)) {
     // Do not hold up the customer's reply on SMTP.
     void alertOwner(lead, input.requestedDecision ?? "None yet — review the lead and decide whether to step in.").catch(
       (err) => console.error("[ai-alert]", err instanceof Error ? err.message : "failed")
@@ -440,7 +441,11 @@ export async function listAiAdmin() {
     calls: calls.map((doc) => strip(doc as Record<string, unknown>)),
     followUps: followUps.map((doc) => strip(doc as Record<string, unknown>)),
     content: content.map((doc) => strip(doc as Record<string, unknown>)),
-    whatsapp: whatsapp.map((doc) => strip(doc as Record<string, unknown>)),
+    // Phase 2 E: message text is hidden by default; the main admin expands a reply individually (audited).
+    whatsapp: whatsapp.map((doc) => {
+      const { text: _text, sendToken: _token, resendClaim: _claim, ...rest } = strip(doc as Record<string, unknown>);
+      return { ...rest, hasText: typeof _text === "string" && _text.length > 0 };
+    }),
     voice: voiceStatus(),
     chatModel: geminiConfigured() ? `gemini:${geminiModel()}` : "catalogue-only",
   };

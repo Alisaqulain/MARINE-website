@@ -24,6 +24,7 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const { ENV_REGISTRY } = await import(new URL("../lib/ai/env-registry.ts", import.meta.url).href);
+const { checkFingerprints, fingerprintFile, loadFingerprintFile } = await import(new URL("../lib/whatsapp/fingerprints.ts", import.meta.url).href);
 
 // Inherited from .env.local (development-only values created on 9 Nov during isolation, or non-secret).
 const INHERIT = new Set([
@@ -116,6 +117,14 @@ export function isolatedEnv(base = process.env) {
     }
     for (const p of validateWhatsAppTestCreds(creds)) { problems.push(p); fatal.push(p); }
   }
+  // Phase 2 F (v1.1 §5.3): fingerprint configuration, fail closed on EVERY run. A structurally valid file is always
+  // required; Meta-related runs (any Meta/WhatsApp identifier, token or recipient supplied) also need the required
+  // production lists populated. No bypass flag. Problems name variables only.
+  {
+    const supplied = Object.fromEntries(Object.entries(creds).filter(([k]) => ALLOWED.has(k)));
+    const decision = checkFingerprints(supplied, loadFingerprintFile(fingerprintFile(base, root)));
+    for (const p of decision.problems) { problems.push(p); fatal.push(p); }
+  }
   // generated once per test session (never existed before; never printed). Kept in a git-ignored
   // session file so a test server and its test client share the same synthetic secrets; a new
   // session is generated after 24 h or when the file is deleted.
@@ -180,6 +189,12 @@ if (isMain) {
     process.exit(2);
   }
   const [cmd, ...args] = process.argv.slice(sep + 1);
+  // Next.js inlines every defined NEXT_PUBLIC_* variable at build time; an empty NEXT_PUBLIC_SITE_URL breaks
+  // `next build` (minifier error). Unset empty public variables instead: for the app, unset and empty both mean "not configured".
+  for (const k of Object.keys(env)) if (k.startsWith("NEXT_PUBLIC_") && env[k] === "") delete env[k];
+  // `next build` does not support NODE_ENV=development (prerendering fails). For build commands only, let
+  // Next.js set it; every other forced switch and blanked credential stays in place.
+  if (/(^|\s)(next build|npm run (-s )?build)(\s|$)/.test([cmd, ...args].join(" "))) delete env.NODE_ENV;
   console.error(`[isolated-env] running "${[cmd, ...args].join(" ")}" with ${Object.values(report.source).filter((s) => s === "blank").length} integration variables blanked; fresh credentials: ${report.suppliedNames.join(", ") || "none"}`);
   const child = spawn(cmd, args, { env, stdio: "inherit", shell: process.platform === "win32" });
   child.on("exit", (code) => process.exit(code ?? 1));

@@ -18,6 +18,7 @@ export const KNOWN_PRODUCTION_CONFIG_ID = "1760993601871515";
 
 export type IntegrationMode = "direct" | "coexistence";
 type Env = NodeJS.ProcessEnv | Record<string, string | undefined>;
+import { runtimeFingerprintCheck } from "./fingerprints.ts";
 
 const val = (env: Env, name: string) => (env[name] ?? "").trim();
 const on = (env: Env, name: string) => val(env, name).toLowerCase() === "true";
@@ -41,7 +42,11 @@ export function directConfig(env: Env = process.env) {
     ...(phoneNumberId ? [] : ["WHATSAPP_PHONE_NUMBER_ID"]),
     ...(wabaId ? [] : ["WHATSAPP_BUSINESS_ACCOUNT_ID"]),
   ];
-  return { token, phoneNumberId, wabaId, missing, complete: missing.length === 0 };
+  // Phase 2 F: outside production, configured identifiers are refused unless the fingerprint configuration is valid,
+  // populated and contains none of them (fail closed; no bypass). Production ignores the list by design.
+  const fingerprint = val(env, "NODE_ENV") === "production" || !(token || phoneNumberId || wabaId) ? { ok: true, problems: [] as string[] } : runtimeFingerprintCheck(env);
+  if (!fingerprint.ok) missing.push("fingerprint check");
+  return { token, phoneNumberId, wabaId, missing, complete: missing.length === 0, fingerprintProblems: fingerprint.problems };
 }
 
 /**
@@ -100,6 +105,7 @@ export function sendEnvironmentDecision(env: Env, phoneNumberId: string): Decisi
     testConfigMatches(env) &&
     Boolean(phoneNumberId) &&
     phoneNumberId === val(env, "WHATSAPP_TEST_PHONE_NUMBER_ID");
+  if (isolatedTest && !runtimeFingerprintCheck(env).ok) return { ok: false, reason: "Fingerprint protection failed: configuration missing, invalid, empty or matching a production identifier." };
   return isolatedTest
     ? { ok: true, reason: "isolated test environment, approved test number" }
     : { ok: false, reason: "WhatsApp messages are never sent outside production (only the isolated test launcher with the approved test number may)." };

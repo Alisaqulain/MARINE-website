@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { fulfillPaidOrder, getOrderDurable, sendOrderConfirmation } from "@/lib/orders";
+import { fulfillPaidOrder, getOrderDurable, markPaidOnce, sendOrderConfirmation } from "@/lib/orders";
 import { captureMatches, getPayPalOrder, paypalAccessToken, paypalBaseUrl, paypalConfigured } from "@/lib/paypal";
 
 export async function POST(req: Request) {
@@ -60,14 +60,15 @@ export async function POST(req: Request) {
   if (!check.paid || !check.amountOk) {
     return NextResponse.json({ ok: true });
   }
-  order.status = "paid";
-  order.paypalCaptureId = check.captureId || resource?.id;
-  order.paidAt = new Date().toISOString();
-  await fulfillPaidOrder(order);
-  try {
-    await sendOrderConfirmation(order);
-  } catch (err) {
-    console.error("Order email failed", err);
+  // Phase 2 commerce 1: only the caller that wins the conditional paid transition fulfils and emails.
+  const won = await markPaidOnce(order, { paypalCaptureId: check.captureId || resource?.id, paidAt: new Date().toISOString() });
+  if (won) {
+    await fulfillPaidOrder(order);
+    try {
+      await sendOrderConfirmation(order);
+    } catch {
+      console.error("[order-email] confirmation not sent", { orderId: order.id });
+    }
   }
   return NextResponse.json({ ok: true });
 }

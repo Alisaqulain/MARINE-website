@@ -40,6 +40,10 @@ export const INDEXES = {
     spec: { inReplyTo: 1 },
     options: { name: "wa_reply_once", unique: true, partialFilterExpression: { inReplyTo: { $type: "string" } } },
   },
+  /** Phase 2 E: non-unique scan index for the recovery sweep and admin list. */
+  recoveryScan: { collection: "ai_wa_messages", spec: { status: 1, at: 1 }, options: { name: "wa_status_at" } },
+  /** Phase 2 E: append-only delivery evidence, one row per (reservation, send token). */
+  deliveryEvents: { collection: "ai_wa_delivery_events", spec: { inReplyTo: 1, token: 1 }, options: { name: "wa_delivery_event_once", unique: true } },
 } as const;
 
 export function isDuplicateKeyError(err: unknown) {

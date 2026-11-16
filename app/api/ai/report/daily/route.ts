@@ -3,6 +3,7 @@ import { requireAdminSession } from "@/lib/admin-auth";
 import { cronAllowed } from "@/lib/ai/cron";
 import { buildDailyReport, sendDailyReport } from "@/lib/ai/daily-report";
 import { recordJobRun } from "@/lib/ai/followups";
+import { agentEnabled } from "@/lib/ai/agents";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -23,6 +24,11 @@ export async function GET(req: Request) {
     if (dry) {
       const report = await buildDailyReport();
       return new NextResponse(`${report.subject}\n\n${report.text}`, { headers: { "Content-Type": "text/plain; charset=utf-8" } });
+    }
+    // Fail-closed: the scheduled report is a growth-agent action; skipped (not failed) while the agent is off.
+    if (!agentEnabled("growth")) {
+      await recordJobRun("daily_report", true, { skipped: "growth agent not enabled" });
+      return NextResponse.json({ ok: true, skipped: "growth agent not enabled" });
     }
     const report = await sendDailyReport();
     await recordJobRun("daily_report", true, { subject: report.subject });

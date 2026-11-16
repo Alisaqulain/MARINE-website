@@ -32,8 +32,9 @@ check("A0", "Admin session for the isolated server", session, session ? "session
 
 const st = await fetch(`${base}/api/meta/whatsapp/status`, { headers: { cookie: cookies } });
 const status = await st.json().catch(() => ({}));
-check("WA1", "Status: no Meta app id exposed in isolated mode", st.status === 200 && status.appId === "", `HTTP ${st.status}, appId=${JSON.stringify(status.appId)}, configId=${JSON.stringify(status.configId)}`);
-check("WA2", "Status: production signup not allowed, live number untouched", status.signupAllowed === false && status.liveNumberTouched === false, `signupAllowed=${status.signupAllowed}, liveNumberTouched=${status.liveNumberTouched}`);
+// The isolated launcher forces direct mode (C10), so the status route returns the C8 direct-mode shape.
+check("WA1", "Status (direct mode): no Meta app id, WABA or phone id exposed in isolated mode", st.status === 200 && status.integrationMode === "direct" && status.appIdConfigured === false && status.wabaIdMasked === null && status.phoneNumberIdMasked === null && !("appId" in status), `HTTP ${st.status}, mode=${status.integrationMode}, appIdConfigured=${status.appIdConfigured}, waba=${status.wabaIdMasked}, phone=${status.phoneNumberIdMasked}`);
+check("WA2", "Status (direct mode): Embedded Signup disabled, live number blocked, no sending possible", status.embeddedSignup === "disabled" && status.liveNumberBlocked === true && status.outbound?.possible === false && status.outbound?.nonProductionBlocked === true, `embeddedSignup=${status.embeddedSignup}, liveNumberBlocked=${status.liveNumberBlocked}, outboundPossible=${status.outbound?.possible}`);
 
 const ex = await fetch(`${base}/api/meta/whatsapp/signup/exchange`, {
   method: "POST",

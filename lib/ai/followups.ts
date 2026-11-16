@@ -5,6 +5,12 @@ import { sendCustomerMail } from "@/lib/mail";
 import { readCoexistenceState } from "@/lib/whatsapp/store";
 import { postMessage, resolveCredentials, sendGate, templatePayload } from "@/lib/whatsapp/cloud";
 import { isDirectMode } from "@/lib/whatsapp/mode";
+import { agentEnabled, type AgentId } from "@/lib/ai/agents";
+
+/** Which agent owns a follow-up channel (fail-closed agent switch, lib/ai/agents.ts). */
+export function followUpAgent(channel: ConsentChannel): AgentId {
+  return channel === "whatsapp" ? "whatsapp" : channel === "call" ? "voice" : "chat";
+}
 
 /**
  * Permission-based follow-ups shared by all agents: consent, opt-outs, and a queue processed by the jobs cron.
@@ -19,7 +25,7 @@ export type FollowUp = {
   channel: ConsentChannel;
   to: string;
   reason: FollowUpReason;
-  status: "pending" | "needs_approval" | "sent" | "skipped" | "failed";
+  status: "pending" | "needs_approval" | "sent" | "skipped" | "failed" | "unknown";
   leadId?: string;
   sessionId?: string;
   orderId?: string;
@@ -166,10 +172,26 @@ async function send(row: FollowUp): Promise<{ status: FollowUp["status"]; error?
   const creds = resolveCredentials(isDirectMode() ? null : await readCoexistenceState());
   const gate = sendGate({ to: row.to, suppressed: false, template: true, windowOpen: false, consent: true, creds });
   if (!gate.allowed) return { status: "skipped", error: gate.reason };
+  // Phase 2 D: one attempt only. failed and unknown are both terminal for WhatsApp; runFollowUps never retries them.
   const res = await postMessage(creds, templatePayload(row.to, template, process.env.WHATSAPP_TEMPLATE_LANGUAGE?.trim() || "en", []));
-  if (!res.ok) return { status: "failed", error: res.error };
-  await db.collection("ai_wa_messages").insertOne({ wamid: res.wamid, to: row.to, kind: "template", template, status: "sent", followUpId: row.id, at: new Date().toISOString() });
+  await db.collection("ai_wa_messages").insertOne({
+    ...(res.ok ? { wamid: res.wamid } : {}),
+    to: row.to,
+    kind: "template",
+    template,
+    status: res.delivery,
+    deliveryState: res.delivery,
+    followUpId: row.id,
+    at: new Date().toISOString(),
+    ...(res.ok ? {} : { reason: res.error.slice(0, 300) }),
+  });
+  if (!res.ok) return { status: res.delivery, error: res.error };
   return { status: "sent" };
+}
+
+/** Phase 2 D: only a failed email follow-up is re-queued (max 3 attempts). WhatsApp is never re-sent automatically. */
+export function shouldRetryFollowUp(row: Pick<FollowUp, "channel" | "attempts">, status: FollowUp["status"]) {
+  return row.channel === "email" && status === "failed" && row.attempts + 1 < 3;
 }
 
 /** Finds abandoned checkouts and cooling enquiries with consent, then sends what is due. Called by the jobs cron. */
@@ -177,8 +199,11 @@ export async function runFollowUps(now = new Date()) {
   const db = await getDb();
   const iso = (hours: number) => new Date(now.getTime() - hours * 3_600_000).toISOString();
   let queued = 0;
+  // Fail-closed: nothing is queued or sent for an agent that is not explicitly enabled.
+  const chatOn = agentEnabled("chat");
+  const whatsappOn = agentEnabled("whatsapp");
 
-  const abandoned = await db
+  const abandoned = !chatOn ? [] : await db
     .collection("orders")
     .find({ status: "pending", createdAt: { $gte: iso(72), $lte: iso(2) }, email: { $exists: true, $ne: "" } })
     .limit(100)
@@ -190,7 +215,7 @@ export async function runFollowUps(now = new Date()) {
     if (await queueFollowUp({ channel: "email", to: email, reason: "checkout_recovery", orderId: String(order.id), sessionId: order.sessionId, dueAt: now.toISOString() })) queued += 1;
   }
 
-  const cooling = await db
+  const cooling = !chatOn && !whatsappOn ? [] : await db
     .collection("ai_leads")
     .find({ stage: { $in: ["warm", "hot", "high-value"] }, updatedAt: { $gte: iso(24 * 7), $lte: iso(24) } })
     .limit(100)
@@ -201,7 +226,7 @@ export async function runFollowUps(now = new Date()) {
     const phone = String(lead.phone || "");
     const email = String(lead.email || "");
     const channel: ConsentChannel | null =
-      phone && process.env.WHATSAPP_FOLLOWUP_TEMPLATE?.trim() && (await hasConsent("whatsapp", phone)) ? "whatsapp" : email && (await hasConsent("email", email)) ? "email" : null;
+      whatsappOn && phone && process.env.WHATSAPP_FOLLOWUP_TEMPLATE?.trim() && (await hasConsent("whatsapp", phone)) ? "whatsapp" : chatOn && email && (await hasConsent("email", email)) ? "email" : null;
     if (!channel) continue;
     if (await queueFollowUp({ channel, to: channel === "email" ? email : phone, reason: "enquiry_recovery", leadId: String(lead.id), sessionId: String(lead.sessionId || ""), dueAt: now.toISOString() })) queued += 1;
   }
@@ -211,13 +236,20 @@ export async function runFollowUps(now = new Date()) {
     .find({ status: "pending", dueAt: { $lte: now.toISOString() }, attempts: { $lt: 3 } })
     .limit(25)
     .toArray();
-  const counts = { sent: 0, skipped: 0, failed: 0 };
+  const counts = { sent: 0, skipped: 0, failed: 0, unknown: 0, agentOff: 0 };
   for (const row of due) {
+    // Fail-closed: a row whose agent is off is left untouched (not sent, not consumed).
+    if (!agentEnabled(followUpAgent(row.channel))) {
+      counts.agentOff += 1;
+      continue;
+    }
     const result = await send(row);
     if (result.status === "sent") counts.sent += 1;
     else if (result.status === "skipped") counts.skipped += 1;
     else if (result.status === "failed") counts.failed += 1;
-    const retry = result.status === "failed" && row.attempts + 1 < 3;
+    else if (result.status === "unknown") counts.unknown += 1;
+    // Phase 2 D: the bounded retry applies to EMAIL only. A WhatsApp row is terminal after its single attempt.
+    const retry = shouldRetryFollowUp(row, result.status);
     await db.collection("ai_followups").updateOne(
       { id: row.id },
       {

@@ -1,0 +1,57 @@
+ M .env.example
+ M MARINA_MUSE_PRODUCTION_ENV_TEMPLATE_SANITIZED.env
+ M app/account/orders/page.tsx
+ M app/api/admin/ai/actions/route.ts
+ M app/api/admin/ai/route.ts
+ M app/api/ai/jobs/route.ts
+ M app/api/orders/route.ts
+ M app/api/orders/track/route.ts
+ M app/api/paypal/capture/route.ts
+ M app/api/paypal/webhook/route.ts
+ M app/checkout/page.tsx
+ M components/AdminAiPanel.tsx
+ M docs/phase2/DATABASE_MIGRATIONS.md
+ M docs/phase2/ENVIRONMENT_SETUP.md
+ M docs/phase2/IMPLEMENTATION_STATUS.md
+ M docs/phase2/SECURITY.md
+ M docs/phase2/WHATSAPP_DIRECT_CLOUD_API_SETUP.md
+ M lib/ai/crm.ts
+ M lib/ai/env-registry.ts
+ M lib/ai/followups.ts
+ M lib/ai/http.ts
+ M lib/ai/integrations.ts
+ M lib/orders.ts
+ M lib/whatsapp/cloud.ts
+ M lib/whatsapp/coexistence.ts
+ M lib/whatsapp/event-claims.ts
+ M lib/whatsapp/inbound.ts
+ M lib/whatsapp/mode.ts
+ M lib/whatsapp/store.ts
+ M package-lock.json
+ M reports/MARINA_MUSE_PRODUCTION_ENV_TEMPLATE.env
+ M reports/evidence/phase2/webhook-tests.mjs
+ M reports/evidence/phase2/whatsapp-isolation-tests.mjs
+ M reports/evidence/security/gen-sanitized-env-template.mjs
+ M scripts/check-routes.mjs
+ M scripts/check-whatsapp-direct.ts
+ M scripts/gen-env-docs.ts
+ M scripts/isolated-env.mjs
+ M tsconfig.tsbuildinfo
+?? components/AdminWhatsAppRecovery.tsx
+?? config/
+?? lib/ai/job-lease.ts
+?? lib/whatsapp/fingerprints.ts
+?? lib/whatsapp/recovery.ts
+?? reports/evidence/phase2/final/
+?? reports/evidence/phase2/g3-local-tests.mjs
+?? reports/evidence/phase2/g4-provider-checks.mjs
+?? reports/evidence/phase2/ui-review-recovery.mjs
+?? reports/phase2/AHMAD_TECHNICAL_EVIDENCE_HANDOVER.md
+?? reports/phase2/FINAL_PHASE2_G1_G6_COMPLETION_REPORT.md
+?? reports/phase2/G1_AHMAD_EVIDENCE_REVIEW_PACKAGE.md
+?? reports/phase2/G1_EXECUTION_EVIDENCE.md
+?? reports/phase2/G1_MONGODB_AUTH_DIAGNOSTIC.md
+?? reports/phase2/MASTER_PHASE2_COMPLETION_REPORT.md
+?? reports/phase2/PHASE2_GATE_ACCEPTANCE_CHECKLIST.md
+?? reports/phase2/PHASE2_REMAINING_IMPLEMENTATION_PLAN.md
+?? reports/phase2/evidence-20261115/

@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "note": "SHA-256 of '<kind>:<id>' for PRODUCTION Meta identifiers (ids) and protected recipient numbers (recipients). Values are never stored. Empty required lists block every Meta-related test run until the client supplies the hashes (Phase 2 v1.1 section 5).",
+  "ids": { "waba": [], "phone_number_id": [], "app_id": [], "config_id": [] },
+  "recipients": []
+}

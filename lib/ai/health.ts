@@ -2,7 +2,7 @@ import { getDb, pingDatabase } from "@/lib/mongodb";
 import { verifyOwnerMail } from "@/lib/mail";
 import { getStorefrontProducts } from "@/lib/storefront-catalog";
 import { APPROVED_POLICIES } from "@/lib/ai/answer";
-import { AGENTS, agentEnabled, type AgentId } from "@/lib/ai/agents";
+import { AGENTS, agentActivation, type AgentId } from "@/lib/ai/agents";
 import { SCHEDULED_JOBS } from "@/lib/ai/cron";
 import { envReport } from "@/lib/ai/env-registry";
 import { buildMerchantFeed } from "@/lib/ai/growth";
@@ -432,8 +432,9 @@ async function agentHealth(cards: HealthCard[], usage: UsageSummary[]): Promise<
   const build = (id: AgentId, checks: AgentCheck[]): AgentHealth => {
     const t = testsFor(id);
     checks.push(c("Automated logic tests", t.failed === 0 && t.passed > 0, "critical", `${t.passed} passed · ${t.failed} failed${t.failures.length ? ` (${t.failures.slice(0, 3).join("; ")})` : ""}`));
-    const enabled = agentEnabled(id);
-    checks.unshift(c("Agent enabled", enabled, "info", enabled ? "On." : "Switched off with AI_AGENTS_DISABLED."));
+    const activation = agentActivation(id);
+    const enabled = activation.enabled;
+    checks.unshift(c("Agent enabled", enabled, "info", activation.reason));
     return {
       id,
       name: AGENTS[id].name,

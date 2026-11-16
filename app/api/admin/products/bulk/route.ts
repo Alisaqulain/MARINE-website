@@ -6,10 +6,11 @@ import type { AdminProduct, CatalogOverride } from "@/lib/db/types";
 import { getDb } from "@/lib/mongodb";
 
 async function handlePOST(req: Request) {
-  const { error } = await requireAdminSession("addProduct");
-  if (error) return error;
   const body = await req.json().catch(() => null);
   const action = String(body?.action ?? "");
+  // Deleting needs the delete permission, as for saved products (DELETE /api/admin/products/[id]).
+  const { error } = await requireAdminSession(action === "delete" ? "delete" : "addProduct");
+  if (error) return error;
   const rawIds: string[] = Array.isArray(body?.ids) ? body.ids.map(String) : [];
   const ids = rawIds.filter((id) => ObjectId.isValid(id));
   // Built-in catalogue items have no Mongo doc; their listing state lives in catalog_overrides.
@@ -19,6 +20,18 @@ async function handlePOST(req: Request) {
   }
 
   const now = new Date();
+  if (action === "delete") {
+    // Built-in catalogue items live in code, so "delete" records a permanent hide in catalog_overrides.
+    // Saved (MongoDB) products are deleted through DELETE /api/admin/products/[id] instead.
+    if (!catalogSlugs.length) return NextResponse.json({ error: "Select built-in catalogue items." }, { status: 400 });
+    const db = await getDb();
+    const result = await db.collection<CatalogOverride>("catalog_overrides").bulkWrite(
+      catalogSlugs.map((slug) => ({
+        updateOne: { filter: { slug }, update: { $set: { slug, active: false, deleted: true, updatedAt: now } }, upsert: true },
+      }))
+    );
+    return NextResponse.json({ ok: true, updated: result.matchedCount + result.upsertedCount });
+  }
   const set: Partial<AdminProduct> = { updatedAt: now };
   if (action === "deactivate") set.active = false;
   else if (action === "activate") set.active = true;

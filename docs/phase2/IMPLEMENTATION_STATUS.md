@@ -45,9 +45,9 @@ Updated 3 November 2026. *Code* = implemented and covered by automated tests. *L
 | Cloud API inbound/outbound, Gemini replies, CRM, history | ✅ | ⏳ no token/IDs |
 | Signature + verify token, duplicate prevention, statuses | ✅ | ✅ route refuses forged/wrong requests |
 | 24-hour window, opt-in/out (STOP/START), templates with consent, owner approval flags | ✅ | ⏳ |
-| Retry: one retry on 5xx/timeout, failures stored | ✅ | ⏳ |
+| Delivery: one attempt per message, never retried automatically (Phase 2 D); outcomes sent / failed / unknown stored with evidence | ✅ | ⏳ |
 | Coexistence (featureType, waba-only finish, server exchange, test-number gating, subscribe, one-time syncs, history/contacts/echoes, human takeover) | ✅ | ⏳ not onboarded |
 
 ## Shared
 
-Gemini service with grounding guard ✅ · shared catalogue & CRM ✅ · lead scoring ✅ · owner notifications ✅ · approval gateway ✅ · audit log (`ai_audit`) ✅ · **Gemini usage/error monitoring** (`ai_usage`) ✅ · **agent switches** (`AI_AGENTS_DISABLED`) ✅ · **central env registry** ✅ · `/test` health dashboard with history ✅.
+Gemini service with grounding guard ✅ · shared catalogue & CRM ✅ · lead scoring ✅ · owner notifications ✅ · approval gateway ✅ · audit log (`ai_audit`) ✅ · **Gemini usage/error monitoring** (`ai_usage`) ✅ · **fail-closed agent switches** (`AI_AGENTS_ENABLED` allow-list, `AI_AGENTS_DISABLED` kill switch, `AI_AGENTS_PRODUCTION_APPROVED` in production; all agents off by default) ✅ · **central env registry** ✅ · `/test` health dashboard with history ✅.

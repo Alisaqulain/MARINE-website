@@ -146,18 +146,64 @@ export async function getOrderDurable(id: string) {
   }
 }
 
-export function getOrdersByEmail(email: string) {
+const escapeRegex = (v: string) => v.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** Phase 2 commerce 2: database-backed (survives restarts and multiple instances). Callers must authorise first. */
+export async function getOrdersByEmail(email: string): Promise<OrderRecord[]> {
   const q = email.trim().toLowerCase();
-  return [...store().values()]
-    .filter((o) => o.email.toLowerCase() === q && o.status === "paid")
-    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  if (!q) return [];
+  const { getDb } = await import("@/lib/mongodb");
+  const db = await getDb();
+  const docs = await db
+    .collection<OrderRecord>("orders")
+    .find({ email: { $regex: `^${escapeRegex(q)}$`, $options: "i" }, status: "paid" })
+    .sort({ createdAt: -1 })
+    .limit(100)
+    .toArray();
+  return docs.map((doc) => {
+    const { _id: _ignored, ...order } = doc as OrderRecord & { _id?: unknown };
+    return order;
+  });
 }
 
-export function trackOrderByEmail(orderId: string, email: string) {
-  const order = getOrder(orderId.trim());
+/** Phase 2 commerce 2: needs both the order number and the matching email; reads the database. */
+export async function trackOrderByEmail(orderId: string, email: string) {
+  const order = await getOrderDurable(orderId.trim());
   if (!order || order.status !== "paid") return null;
   if (order.email.trim().toLowerCase() !== email.trim().toLowerCase()) return null;
   return order;
+}
+
+/**
+ * Phase 2 commerce 1: the single paid transition. One conditional database update decides the winner between the
+ * PayPal capture route and the PayPal webhook; only the winner may fulfil the order and send the confirmation.
+ * Throws on database errors (capture answers 502, webhook 500, so PayPal retries).
+ */
+let orderIndex: Promise<unknown> | null = null;
+export async function markPaidOnce(order: OrderRecord, fields: { paypalCaptureId?: string; paidAt: string }) {
+  const { getDb } = await import("@/lib/mongodb");
+  const db = await getDb();
+  const orders = db.collection<OrderRecord>("orders");
+  if (!orderIndex) orderIndex = orders.createIndex({ id: 1 }, { unique: true, name: "order_id_once" }).catch(() => (orderIndex = null));
+  await orderIndex;
+  // Make sure the order exists, without overwriting anything a concurrent caller already wrote.
+  const { status: _status, ...rest } = order;
+  await orders.updateOne({ id: order.id }, { $setOnInsert: { ...rest, status: "pending" as const } }, { upsert: true }).catch((err) => {
+    if (!(err && typeof err === "object" && "code" in err && (err as { code: unknown }).code === 11000)) throw err;
+  });
+  const res = await orders.updateOne({ id: order.id, status: { $ne: "paid" } }, { $set: { status: "paid", ...fields } });
+  const won = res.modifiedCount === 1;
+  if (won) {
+    Object.assign(order, { status: "paid" as const, ...fields });
+  } else {
+    const current = await orders.findOne({ id: order.id });
+    if (current) {
+      const { _id: _ignored, ...fresh } = current as OrderRecord & { _id?: unknown };
+      Object.assign(order, fresh);
+    }
+  }
+  store().set(order.id, order);
+  return won;
 }
 
 export async function pricedItemsAsync(
@@ -282,28 +328,24 @@ export async function sendOrderConfirmation(order: OrderRecord) {
     `Customer Support: ${support}`,
   ].join("\n\n");
 
-  const key = process.env.RESEND_API_KEY;
-  if (key) {
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${key}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from: process.env.ORDER_EMAIL_FROM ?? `${company.name} <noreply@${company.email.split("@")[1] ?? "example.com"}>`,
-        to: [order.email],
-        subject: `Order ${order.id} confirmed — ${company.name}`,
-        text,
-      }),
-    });
-    if (!res.ok) throw new Error("Email send failed");
-  } else {
-    console.info("[order-email]", { to: order.email, orderId: order.id, text });
+  // Phase 2 commerce 3: SMTP (lib/mail.ts) is the delivery path. The order body is never logged. emailSent is set only
+  // after the mail server accepted the message. Outside production nothing is sent (development side-effect guard).
+  if (process.env.NODE_ENV !== "production") {
+    console.info("[order-email] not sent outside production", { orderId: order.id });
+    return { sent: false as const, reason: "development" };
   }
-
+  const { sendCustomerMail } = await import("@/lib/mail");
+  try {
+    await sendCustomerMail(order.email, `Order ${order.id} confirmed — ${company.name}`, text);
+  } catch (err) {
+    order.emailSent = false;
+    saveOrder(order);
+    console.error("[order-email] failed", { orderId: order.id, error: err instanceof Error ? err.message.slice(0, 120) : "error" });
+    throw new Error("Order confirmation email failed.");
+  }
   order.emailSent = true;
   saveOrder(order);
+  return { sent: true as const };
 }
 
 export function whatsappConfirmUrl(order: OrderRecord) {

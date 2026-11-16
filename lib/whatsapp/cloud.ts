@@ -4,7 +4,7 @@
  * Relative imports only, so the pure parts run under `npm run check:phase2`.
  */
 import { BLOCKED_LIVE_NUMBER, decryptToken, graphVersion, outboundAllowed, type StoredCoexistence } from "./coexistence.ts";
-import { env, looksLikePlaceholder, requestJson } from "../ai/http.ts";
+import { deliveryStateFromHttp, env, looksLikePlaceholder, requestJson, type DeliveryState } from "../ai/http.ts";
 import { directConfig, directOutboundDecision, isDirectMode, sendEnvironmentDecision } from "./mode.ts";
 
 export type WaCredentials = { token: string; phoneNumberId: string; wabaId: string; source: "env" | "signup" | "none" };
@@ -159,20 +159,33 @@ export function sendGate(input: { to: string; suppressed: boolean; template: boo
  * C6: outside production it refuses, fail-closed, BEFORE any network request; the live business number is refused
  * as a recipient here too, independent of sendGate.
  */
-export async function postMessage(creds: WaCredentials, payload: Record<string, unknown>) {
+export type PostResult =
+  | { ok: true; delivery: "sent"; wamid: string }
+  | { ok: false; delivery: Exclude<DeliveryState, "sent">; error: string; wamid?: undefined };
+
+/**
+ * Phase 2 D: exactly ONE HTTP attempt per call (retries: 0, retryTimeouts: false). Never retried here, by the HTTP
+ * wrapper, by cron or by a fallback. Refusals before any request are "failed" (nothing was sent); ambiguous outcomes
+ * are "unknown" (see deliveryStateFromHttp).
+ */
+export async function postMessage(creds: WaCredentials, payload: Record<string, unknown>): Promise<PostResult> {
   const where = sendEnvironmentDecision(process.env, creds.phoneNumberId);
-  if (!where.ok) return { ok: false as const, error: where.reason };
-  if (String(payload.to ?? "").replace(/\D/g, "") === BLOCKED_LIVE_NUMBER) return { ok: false as const, error: "The business's own number cannot be messaged." };
-  if (!creds.token || !creds.phoneNumberId) return { ok: false as const, error: "WhatsApp Cloud API credentials are missing." };
+  if (!where.ok) return { ok: false, delivery: "failed", error: where.reason };
+  if (String(payload.to ?? "").replace(/\D/g, "") === BLOCKED_LIVE_NUMBER) return { ok: false, delivery: "failed", error: "The business's own number cannot be messaged." };
+  if (!creds.token || !creds.phoneNumberId) return { ok: false, delivery: "failed", error: "WhatsApp Cloud API credentials are missing." };
   const res = await requestJson<{ messages?: { id?: string }[] }>(graphUrl(`/${encodeURIComponent(creds.phoneNumberId)}/messages`), {
     method: "POST",
     headers: { Authorization: `Bearer ${creds.token}`, "Content-Type": "application/json" },
     body: JSON.stringify({ messaging_product: "whatsapp", recipient_type: "individual", ...payload }),
     timeoutMs: 12_000,
-    retries: 1,
+    retries: 0,
+    retryTimeouts: false,
     secrets: [creds.token],
   });
-  return res.ok ? { ok: true as const, wamid: res.data?.messages?.[0]?.id || "" } : { ok: false as const, error: res.error || "Meta did not accept the message." };
+  const wamid = res.data?.messages?.[0]?.id || "";
+  const delivery = deliveryStateFromHttp(res, Boolean(wamid));
+  if (delivery === "sent") return { ok: true, delivery, wamid };
+  return { ok: false, delivery, error: res.ok ? "Meta answered without a message id; delivery is unknown." : res.error || "Meta did not accept the message." };
 }
 
 export function textPayload(to: string, body: string) {

@@ -152,5 +152,7 @@ export type CatalogOverride = {
   active?: boolean;
   featured?: boolean;
   renewsAt?: string;
+  /** Built-in catalogue item deleted by an admin: hidden from the shop and from the admin list. */
+  deleted?: boolean;
   updatedAt?: Date;
 };

@@ -4,7 +4,8 @@ import { agentEnabled } from "@/lib/ai/agents";
 import { isSuppressed, recordConsent } from "@/lib/ai/followups";
 import { HUMAN_TAKEOVER_HOURS, type CoexistenceUpdates, type WaPlan } from "@/lib/whatsapp/coexistence";
 import { isOptOut, postMessage, resolveCredentials, sendGate, textPayload, type WaStatusUpdate } from "@/lib/whatsapp/cloud";
-import { readCoexistenceState, updateOnboardingFields, messagesCollection } from "@/lib/whatsapp/store";
+import { readCoexistenceState, updateOnboardingFields, messagesCollection, deliveryEventsCollection } from "@/lib/whatsapp/store";
+import { finishOriginal, newToken, withholdOriginal } from "@/lib/whatsapp/recovery";
 import { isDirectMode } from "@/lib/whatsapp/mode";
 import { isDuplicateKeyError, recordInboundOnce, reserveReply } from "@/lib/whatsapp/event-claims";
 
@@ -16,13 +17,22 @@ const OPT_IN = /^\s*(start|subscribe|yes,? (?:send|keep) me updates)\s*[.!]?\s*$
  * a retry that finds the reservation does nothing. Database errors propagate (the webhook answers 500).
  * C2: in direct mode no Coexistence state is read; the mode-aware sendGate decides.
  */
-async function deliver(to: string, body: string, sessionId: string, inReplyTo: string, options: { system?: boolean } = {}) {
+async function deliver(to: string, body: string, sessionId: string, inReplyTo: string, options: { system?: boolean; inboundAt?: number } = {}) {
   const db = await getDb();
   const messages = await messagesCollection();
   const at = new Date().toISOString();
-  const reservation = await reserveReply(messages, inReplyTo, { direction: "out", to, sessionId, text: body, at });
+  // Phase 2 E: sendToken fences this worker; inboundAt (Meta timestamp) is the only reply-window clock.
+  const sendToken = newToken();
+  const reservation = await reserveReply(messages, inReplyTo, {
+    direction: "out",
+    to,
+    sessionId,
+    text: body,
+    at,
+    sendToken,
+    ...(typeof options.inboundAt === "number" ? { inboundAt: options.inboundAt } : {}),
+  });
   if (!reservation.reserved) return { sent: false as const, drafted: false as const, reason: "already handled" };
-  const finish = (fields: Record<string, unknown>) => messages.updateOne({ inReplyTo }, { $set: fields });
 
   const state = isDirectMode() ? null : await readCoexistenceState();
   const creds = resolveCredentials(state);
@@ -30,7 +40,7 @@ async function deliver(to: string, body: string, sessionId: string, inReplyTo: s
   const session = options.system ? null : await db.collection("ai_sessions").findOne({ id: sessionId }, { projection: { humanTakeoverUntil: 1 } });
   if (typeof session?.humanTakeoverUntil === "string" && session.humanTakeoverUntil > at) {
     const reason = "The business is replying from the WhatsApp Business app, so the AI reply was held.";
-    await finish({ status: "withheld", reason });
+    await withholdOriginal(messages, inReplyTo, sendToken, reason);
     return { sent: false as const, drafted: true as const, reason };
   }
   const gate = sendGate({
@@ -43,12 +53,21 @@ async function deliver(to: string, body: string, sessionId: string, inReplyTo: s
     ...(state ? { businessNumber: state.displayNumber } : {}),
   });
   if (!gate.allowed) {
-    await finish({ status: "withheld", reason: gate.reason });
+    await withholdOriginal(messages, inReplyTo, sendToken, gate.reason);
     return { sent: false as const, drafted: true as const, reason: gate.reason };
   }
+  // Phase 2 D: one attempt, never retried. Evidence is written before the guarded status change (finishOriginal).
+  // If the status write fails after a successful send, the reservation stays "pending" → the sweep marks it stale →
+  // an admin decides; nothing is ever resent automatically.
   const res = await postMessage(creds, textPayload(to, body));
-  // If this write fails after a successful send, the reservation stays "pending" and a retry still sends nothing.
-  await finish({ wamid: res.ok ? res.wamid : "", status: res.ok ? "sent" : "failed", ...(res.ok ? {} : { reason: res.error }) });
+  const events = await deliveryEventsCollection();
+  await finishOriginal(messages, events, {
+    inReplyTo,
+    sendToken,
+    result: res.delivery,
+    wamid: res.ok ? res.wamid : undefined,
+    error: res.ok ? undefined : res.error,
+  });
   return res.ok ? { sent: true as const, drafted: false as const } : { sent: false as const, drafted: true as const, reason: res.error };
 }
 
@@ -72,15 +91,18 @@ export async function draftInbound(plan: WaPlan) {
 
     if (isOptOut(plan.text)) {
       await recordConsent({ channel: "whatsapp", address: from, granted: false, source: "whatsapp_stop", sessionId });
-      return deliver(from, "You're unsubscribed and won't receive follow-up messages from Marina Muse. Reply START any time to opt back in.", sessionId, wamid, { system: true });
+      // Consent is always recorded; the confirmation is a send, so it needs the WhatsApp agent (fail-closed).
+      if (!agentEnabled("whatsapp")) return { sent: false as const, drafted: false as const };
+      return deliver(from, "You're unsubscribed and won't receive follow-up messages from Marina Muse. Reply START any time to opt back in.", sessionId, wamid, { system: true, inboundAt: plan.inboundAt });
     }
     if (OPT_IN.test(plan.text)) {
       await db.collection("ai_suppression").deleteOne({ phone: from });
       await recordConsent({ channel: "whatsapp", address: from, granted: true, source: "whatsapp_start", sessionId });
-      return deliver(from, "Thank you — you'll receive order and enquiry updates from Marina Muse on WhatsApp. Reply STOP any time to opt out.", sessionId, wamid, { system: true });
+      if (!agentEnabled("whatsapp")) return { sent: false as const, drafted: false as const };
+      return deliver(from, "Thank you — you'll receive order and enquiry updates from Marina Muse on WhatsApp. Reply STOP any time to opt out.", sessionId, wamid, { system: true, inboundAt: plan.inboundAt });
     }
 
-    // Agent switched off (AI_AGENTS_DISABLED): the message is kept for the team, no AI reply is drafted.
+    // Agent not enabled (fail-closed switch, lib/ai/agents.ts): the message is kept for the team, no AI reply is drafted.
     if (!agentEnabled("whatsapp")) return { sent: false as const, drafted: false as const };
 
     const result = await handleCustomerMessage({
@@ -91,7 +113,7 @@ export async function draftInbound(plan: WaPlan) {
       knownContact: { phone: `+${from}`, ...(plan.profileName ? { name: plan.profileName } : {}) },
     });
     if ("error" in result || !result.reply) return { sent: false as const, drafted: false as const };
-    return deliver(from, result.reply, sessionId, wamid);
+    return deliver(from, result.reply, sessionId, wamid, { inboundAt: plan.inboundAt });
   } catch (err) {
     // Fixed label only (no message text, numbers or error details); the error goes up so the event is retried.
     console.error("[whatsapp] inbound failed");
@@ -205,12 +227,21 @@ export async function applyStatusUpdates(updates: WaStatusUpdate[]) {
   for (const update of updates) {
     const current = await db.collection("ai_wa_messages").findOne({ wamid: update.wamid });
     if (!current) continue;
+    // Phase 2 E: matched by wamid only. Receipts update the provider delivery status; they change the record's
+    // `status` only while it is in the plain sent → delivered → read flow, never a recovery lifecycle state
+    // (sent_late, resolved, expired, resent, …), so a receipt can never reopen or close a recovery record.
+    await db.collection("ai_wa_delivery_events").updateMany({ wamid: update.wamid }, { $set: { deliveryStatus: update.status, deliveryStatusAt: update.at } });
     const before = order.indexOf(String(current.status));
     const after = order.indexOf(update.status);
+    if (before < 0) {
+      await db.collection("ai_wa_messages").updateOne({ wamid: update.wamid }, { $set: { deliveryStatus: update.status, statusAt: update.at, ...(update.error ? { deliveryError: update.error } : {}) } });
+      applied += 1;
+      continue;
+    }
     if (update.status !== "failed" && after <= before) continue;
     await db.collection("ai_wa_messages").updateOne(
       { wamid: update.wamid },
-      { $set: { status: update.status, statusAt: update.at, ...(update.error ? { reason: update.error } : {}) } }
+      { $set: { status: update.status, deliveryStatus: update.status, statusAt: update.at, ...(update.error ? { reason: update.error } : {}) } }
     );
     applied += 1;
   }

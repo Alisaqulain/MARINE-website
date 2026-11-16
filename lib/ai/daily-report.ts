@@ -19,7 +19,8 @@ export async function buildDailyReport(now = new Date()) {
       .sort({ createdAt: -1 })
       .limit(20)
       .toArray(),
-    externalGrowthData(7),
+    // Fail-closed: no Google reads for the report unless the growth agent is explicitly enabled.
+    agentEnabled("growth") ? externalGrowthData(7) : Promise.resolve({ ga4: { configured: false as const }, searchConsole: { configured: false as const } }),
     db.collection("ai_followups").countDocuments({ status: "sent", updatedAt: { $gte: since } }),
     db.collection("ai_followups").countDocuments({ status: "needs_approval" }),
   ]);
@@ -78,6 +79,8 @@ export async function buildDailyReport(now = new Date()) {
 }
 
 export async function sendDailyReport() {
+  // Fail-closed: the report email is a growth-agent action.
+  if (!agentEnabled("growth")) throw new Error("The growth agent is not enabled (AI_AGENTS_ENABLED); no report was built or sent.");
   // Refuse before building, so a blocked send spends no AI quota.
   assertOwnerMailAllowed();
   const report = await buildDailyReport();

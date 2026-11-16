@@ -114,7 +114,8 @@ export async function acceptVoiceEvent(raw: string, signature: string | null) {
 /** Gemini reads the transcript and returns structured insight; falls back to the rule-based summary. */
 async function analyseCall(transcript: string) {
   const rules = summarizeCall(transcript);
-  if (!transcript.trim() || !geminiConfigured()) return { insight: null, rules };
+  // Fail-closed: no Gemini analysis unless the voice agent is explicitly enabled (rule-based summary only).
+  if (!transcript.trim() || !geminiConfigured() || !agentEnabled("voice")) return { insight: null, rules };
   const result = await generateFor("voice", "call_summary", {
     system: `${agentInstructions("voice")}\n\nYou are now analysing a finished call for the sales team. Use only what was said in the transcript.`,
     turns: [
@@ -133,6 +134,12 @@ async function analyseCall(transcript: string) {
 
 async function alertMissedCall(input: { from: string; source: string; reason: string }) {
   const at = new Date().toISOString();
+  // Fail-closed: no owner email from the voice agent unless it is explicitly enabled (the callback task is still stored).
+  if (!agentEnabled("voice")) {
+    const db = await getDb();
+    await db.collection("ai_audit").insertOne({ at, action: "missed_call_alert", source: input.source, delivered: false, error: "voice agent not enabled" });
+    return;
+  }
   let delivered = false;
   let error: string | undefined;
   try {

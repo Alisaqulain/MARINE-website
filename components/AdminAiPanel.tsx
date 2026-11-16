@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { AdminWhatsAppRecovery, type RecoveryRow } from "@/components/AdminWhatsAppRecovery";
 
 type Board = {
   sessions?: number;
@@ -51,7 +52,8 @@ type Board = {
   };
   followUps?: { id: string; channel: string; to: string; reason: string; status: string; note?: string; lastError?: string; createdAt: string }[];
   content?: { id: string; kind: string; topic: string; status: string; body: unknown; sources?: { title: string; uri: string }[]; groundingIssues?: string[]; createdAt: string }[];
-  whatsapp?: { to: string; text?: string; status: string; reason?: string; at: string }[];
+  whatsapp?: { to: string; text?: string; hasText?: boolean; inReplyTo?: string; status: string; reason?: string; at: string }[];
+  whatsappRecovery?: { counts: Record<string, number>; rows: RecoveryRow[] } | null;
   journey?: {
     funnel: { visitors: number; cartSessions: number; checkoutsStarted: number; paidOrders: number; enquiries: number; calls: number; quotes: number; visitToCart: number | null; cartToCheckout: number | null; checkoutToPaid: number | null; checkoutAbandonment: number | null };
     recommendations: { area: string; text: string; basis: "data" | "estimate" | "ai" }[];
@@ -188,6 +190,9 @@ export function AdminAiPanel() {
           {!data?.followUps?.length ? <p className="text-sm text-navy-600">No follow-ups. Missed calls, abandoned checkouts and cooling enquiries (with consent) appear here.</p> : null}
         </div>
       ) : null}
+      {section === "WhatsApp" && data?.whatsappRecovery ? (
+        <AdminWhatsAppRecovery rows={data.whatsappRecovery.rows} counts={data.whatsappRecovery.counts} onChange={load} />
+      ) : null}
       {section === "WhatsApp" ? (
         <ul className="space-y-2">
           {(data?.whatsapp || []).map((row, i) => (
@@ -195,7 +200,27 @@ export function AdminAiPanel() {
               <p className="font-medium">
                 To {maskTo(row.to)} · {row.status} · {new Date(row.at).toLocaleString()}
               </p>
-              <p className="mt-1 whitespace-pre-wrap text-navy-700">{row.text}</p>
+              {row.text ? (
+                <p className="mt-1 whitespace-pre-wrap text-navy-700">{row.text}</p>
+              ) : row.hasText ? (
+                row.inReplyTo ? (
+                  <button
+                    type="button"
+                    disabled={Boolean(busy)}
+                    className="mt-1 rounded-full border px-3 py-1 text-xs"
+                    onClick={async () => {
+                      const res = await fetch("/api/admin/ai/actions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "wa_expand_message", id: row.inReplyTo }) });
+                      const json = await res.json().catch(() => ({}));
+                      if (res.ok) setData((d) => (d ? { ...d, whatsapp: (d.whatsapp || []).map((w, j) => (j === i ? { ...w, text: String(json.text || "") } : w)) } : d));
+                      else setError(typeof json.error === "string" ? json.error : "Not allowed.");
+                    }}
+                  >
+                    Show message
+                  </button>
+                ) : (
+                  <p className="mt-1 text-xs text-navy-500">Message text hidden.</p>
+                )
+              ) : null}
               {row.reason ? <p className="mt-1 text-xs text-amber-800">{row.reason}</p> : null}
             </li>
           ))}

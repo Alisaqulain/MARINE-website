@@ -453,10 +453,31 @@ export function runPhase2SelfTest(): SelfTestResult[] {
   check("All dependencies OK → Operational", agentStatus(true, [ac(true, "critical"), ac(true, "required"), ac(false, "info")]) === "operational");
   check("Switched off → Disabled", agentStatus(false, [ac(true, "critical")]) === "disabled");
   check("Agent score counts critical + required only", agentScore([ac(true, "critical"), ac(false, "required"), ac(false, "info")]) === 50);
+  // Fail-closed agent switch (lib/ai/agents.ts): off unless explicitly enabled; any malformed value → all off.
+  section = "Agent switch · fail-closed";
+  const ALL = ["chat", "voice", "growth", "whatsapp"] as const;
+  const allOff = (env: Record<string, string | undefined>) => ALL.every((a) => !agentEnabled(a, env));
+  check("Missing AI_AGENTS_ENABLED → all four agents off", allOff({}));
+  check("Empty AI_AGENTS_ENABLED → all four agents off", allOff({ AI_AGENTS_ENABLED: "" }) && allOff({ AI_AGENTS_ENABLED: "   " }));
+  check("Empty AI_AGENTS_DISABLED alone never enables an agent (old opt-out default removed)", allOff({ AI_AGENTS_DISABLED: "" }));
   check(
-    "AI_AGENTS_DISABLED switches single agents off",
-    !agentEnabled("voice", { AI_AGENTS_DISABLED: "voice, growth" }) && agentEnabled("chat", { AI_AGENTS_DISABLED: "voice, growth" }) && agentEnabled("whatsapp", {})
+    "Invalid AI_AGENTS_ENABLED values → all four agents off",
+    ["all", "*", "true", "1", "yes", "chat,unknown", "chat;voice", "chats", "chat voice", "CHAT,", ",", "chat,,voice"].every((v) => allOff({ AI_AGENTS_ENABLED: v }))
   );
+  check("Invalid AI_AGENTS_DISABLED → all four agents off even when enabled", allOff({ AI_AGENTS_ENABLED: "chat,voice,growth,whatsapp", AI_AGENTS_DISABLED: "nonsense" }));
+  check(
+    "Explicit enable turns on only the listed agents (development)",
+    agentEnabled("chat", { AI_AGENTS_ENABLED: " Chat " }) && !agentEnabled("voice", { AI_AGENTS_ENABLED: "chat" }) && !agentEnabled("growth", { AI_AGENTS_ENABLED: "chat" }) && !agentEnabled("whatsapp", { AI_AGENTS_ENABLED: "chat" })
+  );
+  check("AI_AGENTS_DISABLED always wins over AI_AGENTS_ENABLED", !agentEnabled("voice", { AI_AGENTS_ENABLED: "chat,voice", AI_AGENTS_DISABLED: "voice" }) && agentEnabled("chat", { AI_AGENTS_ENABLED: "chat,voice", AI_AGENTS_DISABLED: "voice" }));
+  check("Production: AI_AGENTS_ENABLED alone does not activate (development value copied to a server)", allOff({ NODE_ENV: "production", AI_AGENTS_ENABLED: "chat,voice,growth,whatsapp" }));
+  check(
+    "Production: needs AI_AGENTS_ENABLED AND AI_AGENTS_PRODUCTION_APPROVED; invalid approval → all off",
+    agentEnabled("chat", { NODE_ENV: "production", AI_AGENTS_ENABLED: "chat", AI_AGENTS_PRODUCTION_APPROVED: "chat" }) &&
+      !agentEnabled("chat", { NODE_ENV: "production", AI_AGENTS_PRODUCTION_APPROVED: "chat" }) &&
+      allOff({ NODE_ENV: "production", AI_AGENTS_ENABLED: "chat", AI_AGENTS_PRODUCTION_APPROVED: "all" })
+  );
+  check("Production templates' launch values keep every agent off", allOff({ NODE_ENV: "production", AI_AGENTS_DISABLED: "chat,voice,growth,whatsapp", AI_AGENTS_ENABLED: "", AI_AGENTS_PRODUCTION_APPROVED: "" }));
 
   section = "Environment registry";
   const names = ENV_REGISTRY.map((v) => v.name);

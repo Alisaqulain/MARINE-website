@@ -23,6 +23,7 @@ export default function AccountOrdersPage() {
   const [orders, setOrders] = useState<OrderView[]>([]);
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(true);
+  const [notice, setNotice] = useState("");
 
   useEffect(() => {
     async function load() {
@@ -46,9 +47,11 @@ export default function AccountOrdersPage() {
 
   async function lookup(e: React.FormEvent) {
     e.preventDefault();
+    setNotice("");
     const res = await fetch(`/api/orders?email=${encodeURIComponent(email)}`);
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     if (res.ok) setOrders(data.orders ?? []);
+    else setNotice(res.status === 401 ? "Please sign in with the email used at checkout to see your orders." : data.error || "No orders found for this email.");
   }
 
   return (
@@ -70,6 +73,7 @@ export default function AccountOrdersPage() {
           Find orders
         </button>
       </form>
+      {notice ? <p className="mt-3 text-sm text-navy-600" role="status">{notice}</p> : null}
 
       {loading ? (
         <p className="mt-8 text-sm text-navy-600">Loading…</p>

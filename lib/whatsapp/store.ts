@@ -1,6 +1,7 @@
 import { getDb } from "@/lib/mongodb";
 import type { StoredCoexistence } from "@/lib/whatsapp/coexistence";
 import { INDEXES, claimEvent, completeEvent, failEvent, type ClaimCollection } from "@/lib/whatsapp/event-claims";
+import type { RecoveryCollection } from "@/lib/whatsapp/recovery";
 
 const STATE = "wa_coexistence_state";
 const EVENTS = "wa_webhook_events";
@@ -41,6 +42,9 @@ export function ensureMessageIndexes() {
         const col = db.collection(INDEXES.inboundOnce.collection);
         await col.createIndex(INDEXES.inboundOnce.spec, INDEXES.inboundOnce.options);
         await col.createIndex(INDEXES.replyOnce.spec, INDEXES.replyOnce.options);
+        // Phase 2 E: recovery sweep / admin list query, and append-only delivery evidence (one row per token).
+        await col.createIndex(INDEXES.recoveryScan.spec, INDEXES.recoveryScan.options);
+        await db.collection(INDEXES.deliveryEvents.collection).createIndex(INDEXES.deliveryEvents.spec, INDEXES.deliveryEvents.options);
         Object.assign(messageIndexState, { ok: true, at: new Date().toISOString(), error: null });
       })
       .catch((err) => {
@@ -81,7 +85,14 @@ export async function failWebhookEvent(key: string, token: string, label: string
 export async function messagesCollection() {
   await ensureMessageIndexes();
   const db = await getDb();
-  return db.collection("ai_wa_messages") as unknown as ClaimCollection;
+  return db.collection("ai_wa_messages") as unknown as ClaimCollection & RecoveryCollection;
+}
+
+/** Phase 2 E: append-only delivery evidence. */
+export async function deliveryEventsCollection() {
+  await ensureMessageIndexes();
+  const db = await getDb();
+  return db.collection(INDEXES.deliveryEvents.collection) as unknown as RecoveryCollection;
 }
 
 // ── pre-C5 helper, kept for compatibility (no longer used by the webhook route) ──

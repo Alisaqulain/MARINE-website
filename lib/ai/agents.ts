@@ -14,10 +14,42 @@ export const AGENTS: Record<AgentId, { name: string; purpose: string }> = {
   whatsapp: { name: "Marina AI WhatsApp Sales & Support Agent", purpose: "WhatsApp Cloud API conversations, enquiries and follow-ups" },
 };
 
-/** AI_AGENTS_DISABLED="voice,growth" switches agents off without a deploy. Empty = all four on. */
+export const AGENT_IDS: AgentId[] = ["chat", "voice", "growth", "whatsapp"];
+
+/** Strict list parser: empty → valid empty list; any token that is not an exact agent id → invalid (fail closed). */
+function parseAgentList(raw: string | undefined): { ok: boolean; ids: Set<AgentId> } {
+  const value = (raw ?? "").trim();
+  if (!value) return { ok: true, ids: new Set() };
+  const tokens = value.split(",").map((s) => s.trim().toLowerCase());
+  if (tokens.some((t) => !(AGENT_IDS as string[]).includes(t))) return { ok: false, ids: new Set() };
+  return { ok: true, ids: new Set(tokens as AgentId[]) };
+}
+
+/**
+ * FAIL-CLOSED agent switch. An agent runs only when ALL of these hold:
+ *  1. AI_AGENTS_ENABLED lists it explicitly (missing or empty → every agent off);
+ *  2. AI_AGENTS_DISABLED does not list it (a kill switch that always wins);
+ *  3. in production (NODE_ENV=production) AI_AGENTS_PRODUCTION_APPROVED also lists it, a separate written-approval
+ *     key, so a development AI_AGENTS_ENABLED value copied to a server cannot activate an agent by itself.
+ * Any malformed value in any of the three variables (unknown name, typo, "all", "*", "true") switches EVERY agent off.
+ */
+export function agentActivation(agent: AgentId, source: Record<string, string | undefined> = process.env): { enabled: boolean; reason: string } {
+  const enabled = parseAgentList(source.AI_AGENTS_ENABLED);
+  const disabled = parseAgentList(source.AI_AGENTS_DISABLED);
+  if (!enabled.ok) return { enabled: false, reason: "AI_AGENTS_ENABLED is invalid, so every agent is off." };
+  if (!disabled.ok) return { enabled: false, reason: "AI_AGENTS_DISABLED is invalid, so every agent is off." };
+  if (!enabled.ids.has(agent)) return { enabled: false, reason: "Off by default: not listed in AI_AGENTS_ENABLED." };
+  if (disabled.ids.has(agent)) return { enabled: false, reason: "Switched off with AI_AGENTS_DISABLED." };
+  if ((source.NODE_ENV ?? "").trim() === "production") {
+    const approved = parseAgentList(source.AI_AGENTS_PRODUCTION_APPROVED);
+    if (!approved.ok) return { enabled: false, reason: "AI_AGENTS_PRODUCTION_APPROVED is invalid, so every agent is off." };
+    if (!approved.ids.has(agent)) return { enabled: false, reason: "Production activation needs AI_AGENTS_PRODUCTION_APPROVED (written approval)." };
+  }
+  return { enabled: true, reason: "On." };
+}
+
 export function agentEnabled(agent: AgentId, source: Record<string, string | undefined> = process.env) {
-  const off = (source.AI_AGENTS_DISABLED || "").split(",").map((s) => s.trim().toLowerCase());
-  return !off.includes(agent);
+  return agentActivation(agent, source).enabled;
 }
 
 const SHARED_RULES = `You represent Marina Muse International, a maker and exporter of handcrafted brass and nautical decor (retail, wholesale, B2B, bulk and OEM/custom manufacturing).

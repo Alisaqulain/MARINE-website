@@ -16,7 +16,38 @@ export type HttpResult<T> = {
   timedOut?: boolean;
   /** Provider's requested wait before retrying (Retry-After header or Google RetryInfo), in ms. */
   retryAfterMs?: number;
+  /** Network error code when the request failed without an HTTP answer (e.g. ECONNREFUSED, ECONNRESET). */
+  errorCode?: string;
 };
+
+/**
+ * Phase 2 D: delivery state of a one-shot provider send (WhatsApp POST /messages).
+ * - sent:    2xx with a provider message id
+ * - failed:  definitive rejection (any 4xx) or a failure PROVEN to happen before transmission
+ * - unknown: anything that might have reached the provider (timeout, reset, 5xx/408, 2xx without an id)
+ * `reached:false` alone never proves non-delivery: only the pre-transmission error codes below do.
+ * Neither failed nor unknown may ever trigger an automatic resend.
+ */
+export type DeliveryState = "sent" | "failed" | "unknown";
+export const PRE_TRANSMISSION_ERRORS = new Set([
+  "ENOTFOUND",
+  "EAI_AGAIN",
+  "ECONNREFUSED",
+  "ERR_TLS_CERT_ALTNAME_INVALID",
+  "UNABLE_TO_VERIFY_LEAF_SIGNATURE",
+  "CERT_HAS_EXPIRED",
+]);
+
+export function deliveryStateFromHttp(res: Pick<HttpResult<unknown>, "ok" | "status" | "reached" | "timedOut" | "errorCode">, hasProviderId: boolean): DeliveryState {
+  if (res.ok) return hasProviderId ? "sent" : "unknown";
+  if (res.reached && res.status > 0) {
+    if (res.status === 408 || res.status >= 500) return "unknown";
+    if (res.status >= 400) return "failed";
+    return "unknown";
+  }
+  if (res.timedOut) return "unknown";
+  return res.errorCode && PRE_TRANSMISSION_ERRORS.has(res.errorCode) ? "failed" : "unknown";
+}
 
 const RETRYABLE = new Set([408, 429, 500, 502, 503, 504]);
 /** Never sleep longer than this inside a request; a longer Retry-After is reported instead of waited for. */
@@ -145,7 +176,11 @@ export async function requestJson<T = unknown>(
       const name = err instanceof Error ? err.name : "";
       const timedOut = name === "TimeoutError";
       const message = timedOut ? `Timed out after ${timeoutMs / 1000}s` : err instanceof Error ? err.message : "Network error";
-      last = { ok: false, status: 0, data: null, reached: false, timedOut, error: redactSecrets(message, secrets).slice(0, 300) };
+      // undici wraps socket errors as TypeError("fetch failed") with the system error in `cause`.
+      const anyErr = err as { code?: unknown; cause?: { code?: unknown } } | null;
+      const rawCode = anyErr?.cause?.code ?? anyErr?.code;
+      const errorCode = typeof rawCode === "string" ? rawCode : undefined;
+      last = { ok: false, status: 0, data: null, reached: false, timedOut, errorCode, error: redactSecrets(message, secrets).slice(0, 300) };
       if (timedOut && !retryTimeouts) return last;
     }
     if (attempt < retries) await new Promise((resolve) => setTimeout(resolve, wait));

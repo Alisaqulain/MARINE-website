@@ -103,7 +103,9 @@ Put values in `.env.local` (development) or `.env.production.local` (server), re
 | `GEMINI_FALLBACK_MODEL` | Optional | chat, voice, growth, whatsapp | both | ai.google.dev/gemini-api/docs/models | Model(s) tried when GEMINI_MODEL times out, is overloaded, returns 404 or a long 429. Comma-separated; default gemini-3.5-flash, gemini-3.5-flash-lite. |
 | `GEMINI_TEST_API_KEY` 🔒 | Optional | chat, voice | development | aistudio.google.com/apikey, in the separate project marina-muse-gemini-testing | Test-only key for the conversation test harness (reports/evidence/text-tests). Must belong to a Google Cloud project the website does not use: quota is per project, so a second key in the website project is not isolation. The app never reads it; never put the production key here. |
 | `GEMINI_TEST_PROJECT_CONFIRMED` | Optional | chat, voice | development | Google AI Studio → API keys (shows each key project) | Set to marina-muse-gemini-testing only after checking that GEMINI_TEST_API_KEY belongs to that project. The test harness refuses to run without it. |
-| `AI_AGENTS_DISABLED` | Optional | chat, voice, growth, whatsapp | both | .env | Comma-separated agents to switch off: chat, voice, growth, whatsapp. Empty = all on. |
+| `AI_AGENTS_ENABLED` | Optional | chat, voice, growth, whatsapp | both | .env | FAIL-CLOSED: comma-separated agents allowed to run (chat, voice, growth, whatsapp). Missing or empty = every agent OFF. Any unknown value = every agent OFF. |
+| `AI_AGENTS_PRODUCTION_APPROVED` | Optional | chat, voice, growth, whatsapp | production | server .env.production.local only | Production only: an agent also needs to be listed here (separate written-approval key), so a development AI_AGENTS_ENABLED value copied to the server cannot activate it. Empty = no agent runs in production. |
+| `AI_AGENTS_DISABLED` | Optional | chat, voice, growth, whatsapp | both | .env | Kill switch: comma-separated agents to force off; always wins over AI_AGENTS_ENABLED. Any unknown value = every agent OFF. Agents are off by default anyway (see AI_AGENTS_ENABLED). |
 
 ## Scheduled jobs
 
@@ -159,6 +161,7 @@ Put values in `.env.local` (development) or `.env.production.local` (server), re
 | `WHATSAPP_TEST_PHONE_NUMBER_ID` | Optional | whatsapp | development | Test app → WhatsApp → API Setup (test number's Phone number ID) | Direct-mode test configuration: must equal WHATSAPP_PHONE_NUMBER_ID exactly. Meta-provided TEST number only. |
 | `WHATSAPP_TEST_BUSINESS_ACCOUNT_ID` | Optional | whatsapp | development | Test app → WhatsApp → API Setup (test WhatsApp Business Account ID) | Direct-mode test configuration: must equal WHATSAPP_BUSINESS_ACCOUNT_ID exactly. |
 | `WHATSAPP_TEST_RECIPIENTS` | Optional | whatsapp | development | .env.isolated-test.local | Comma-separated tester numbers (digits with country code) allowed in test mode. The business number is never accepted. |
+| `WHATSAPP_FINGERPRINT_FILE` | Optional | whatsapp | development | repository config/ | Optional path to the production-identifier fingerprint file (default config/whatsapp-production-fingerprints.json). The same fail-closed validation applies to any path; there is no bypass (Phase 2 F). |
 
 ## WhatsApp coexistence
 

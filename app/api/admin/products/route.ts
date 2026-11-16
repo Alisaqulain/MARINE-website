@@ -39,7 +39,9 @@ export async function GET(req: Request) {
   const db = await getDb();
   const overrides = await db.collection<CatalogOverride>("catalog_overrides").find({}).toArray();
   const overrideBySlug = new Map(overrides.map((o) => [o.slug, o]));
-  const catalog = catalogProductsForAdmin(channel).map((row) => {
+  const catalog = catalogProductsForAdmin(channel)
+    .filter((row) => !overrideBySlug.get(row.slug)?.deleted)
+    .map((row) => {
     const o = overrideBySlug.get(row.slug);
     if (!o) return row;
     return {
