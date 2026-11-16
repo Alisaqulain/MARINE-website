@@ -147,7 +147,7 @@ function CheckoutForm() {
           {items.map(({ product, qty, personalisation, message, unitPrice }) => (
             <li key={`${product.slug}-${personalisation ?? ""}-${message ?? ""}`} className="flex justify-between gap-3 py-3 text-sm first:pt-0">
               <span className="min-w-0 text-navy-800">
-                {product.name} × {qty}
+                {product.name} × {qty}      
                 {personalisation === "yes" ? (
                   <span className="mt-0.5 block text-xs text-navy-500">
                     Personalisation {formatPrice(Math.max(0, unitPrice - product.price))}

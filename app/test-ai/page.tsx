@@ -153,7 +153,7 @@ export default async function Phase2StatusPage({ searchParams }: { searchParams:
           <Row title="Payment mode" detail={(env.PAYPAL_MODE || "sandbox") === "live" && env.NODE_ENV !== "production" ? "Live PayPal on a non-production server: test orders would charge real cards." : "No live-payment risk on this server."} tone={(env.PAYPAL_MODE || "sandbox") === "live" && env.NODE_ENV !== "production" ? "blocked" : "done"} label={(env.PAYPAL_MODE || "sandbox") === "live" ? "Live" : "Sandbox"} />
         </Card>
 
-        <Card title="Live API check (right now)" subtitle={`Keys from this server's env, checked read-only on every page load · ${new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}`}>
+        <Card title="Live API check (right now)" subtitle={`Keys from this server's env, checked read-only only when opened with ?live=1 · ${new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}`}>
           {!runLive ? <Row title="Not run" detail="This page makes no external API call by default. Open /test-ai?live=1 to run read-only provider checks (Gemini uses a few tokens)." tone="off" label="Off" /> : null}
           {live.map((r) => {
             const bad = r.steps.find((x) => x.result === "fail") || r.steps.find((x) => x.result === "warn");
