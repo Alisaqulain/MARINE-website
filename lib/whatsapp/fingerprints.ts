@@ -19,7 +19,7 @@ export type MetaKind = (typeof META_KINDS)[number];
 export type FingerprintKind = MetaKind | "recipient";
 export const DEFAULT_FINGERPRINT_FILE = "config/whatsapp-production-fingerprints.json";
 
-export type FingerprintConfig = { version: 1; ids: Record<MetaKind, string[]>; recipients: string[] };
+export type FingerprintConfig = { version: 1; ids: Record<MetaKind, string[]>; recipients: string[]; liveNumberNotOnCloudApi?: boolean };
 export type LoadResult = { ok: true; config: FingerprintConfig } | { ok: false; reason: string };
 
 const HASH = /^[a-f0-9]{64}$/;
@@ -41,7 +41,7 @@ export function fingerprint(kind: FingerprintKind, value: unknown): string | nul
 export function parseFingerprintConfig(raw: unknown): LoadResult {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { ok: false, reason: "not a JSON object" };
   const o = raw as Record<string, unknown>;
-  const allowedTop = new Set(["version", "note", "ids", "recipients"]);
+  const allowedTop = new Set(["version", "note", "ids", "recipients", "liveNumberNotOnCloudApi"]);
   const unknownTop = Object.keys(o).filter((k) => !allowedTop.has(k));
   if (unknownTop.length) return { ok: false, reason: "unknown top-level key" };
   if (o.version !== 1) return { ok: false, reason: "version must be 1" };
@@ -58,7 +58,13 @@ export function parseFingerprintConfig(raw: unknown): LoadResult {
   if (!Array.isArray(o.recipients) || !o.recipients.every((h) => typeof h === "string" && HASH.test(h))) {
     return { ok: false, reason: "recipients must be an array of hashes" };
   }
-  return { ok: true, config: { version: 1, ids: lists, recipients: o.recipients as string[] } };
+  // Recorded owner decision (16 Nov 2026): the live business number has no Cloud API WABA / phone-number id yet, so
+  // those two lists cannot be populated. Must name who decided and when; app_id and the protected recipients stay required.
+  const d = o.liveNumberNotOnCloudApi as Record<string, unknown> | undefined;
+  if (d !== undefined && (!d || typeof d !== "object" || typeof d.decidedBy !== "string" || !d.decidedBy.trim() || typeof d.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(d.date))) {
+    return { ok: false, reason: "liveNumberNotOnCloudApi must have decidedBy and date (YYYY-MM-DD)" };
+  }
+  return { ok: true, config: { version: 1, ids: lists, recipients: o.recipients as string[], liveNumberNotOnCloudApi: d !== undefined } };
 }
 
 export function loadFingerprintFile(file: string): LoadResult {
@@ -125,9 +131,12 @@ export function checkFingerprints(env: Env, loaded: LoadResult): FingerprintDeci
   const problems: string[] = [];
   const metaRelated = isMetaRelated(env);
   if (metaRelated) {
-    const required: MetaKind[] = ["waba", "phone_number_id", "app_id", ...(val(env, "META_CONFIG_ID") ? (["config_id"] as MetaKind[]) : [])];
+    const liveIdKinds: MetaKind[] = cfg.liveNumberNotOnCloudApi ? [] : ["waba", "phone_number_id"];
+    const required: MetaKind[] = [...liveIdKinds, "app_id", ...(val(env, "META_CONFIG_ID") ? (["config_id"] as MetaKind[]) : [])];
     for (const kind of required) if (!cfg.ids[kind].length) problems.push(`required fingerprint list ids.${kind} is empty`);
     if (val(env, "WHATSAPP_TEST_RECIPIENTS") && !cfg.recipients.length) problems.push("recipients fingerprint list is empty while WHATSAPP_TEST_RECIPIENTS is set");
+    // With the live-number decision recorded, the live business number itself must be in the protected recipients.
+    if (cfg.liveNumberNotOnCloudApi && !cfg.recipients.length) problems.push("recipients fingerprint list must protect the live business number");
   }
   for (const { name, kind } of IDENTIFIER_VARS) {
     const v = val(env, name);
