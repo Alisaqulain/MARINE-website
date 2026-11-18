@@ -138,12 +138,19 @@ export const COEXISTENCE_FEATURE_TYPE = "whatsapp_business_app_onboarding";
  * FB.login options. Code flow only (the token is exchanged on the server). Extras follow Meta's
  * "Onboarding WhatsApp Business app users" sample: setup {}, featureType, sessionInfoVersion "3".
  */
-export function embeddedSignupLaunch(configId: string) {
+export function embeddedSignupLaunch(configId: string, env: NodeJS.ProcessEnv = process.env) {
+  // META_ES_EXTRAS_VERSION (e.g. "v3", as Meta's Integration Helper launch JSON uses) adds extras.version; unset = unchanged.
+  const version = env.META_ES_EXTRAS_VERSION?.trim();
   return {
     config_id: configId,
     response_type: "code" as const,
     override_default_response_type: true,
-    extras: { setup: {} as Record<string, never>, featureType: COEXISTENCE_FEATURE_TYPE, sessionInfoVersion: "3" },
+    extras: {
+      ...(version && /^v\d+$/.test(version) ? { version } : {}),
+      setup: {} as Record<string, never>,
+      featureType: COEXISTENCE_FEATURE_TYPE,
+      sessionInfoVersion: "3",
+    },
   };
 }
 
