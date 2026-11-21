@@ -64,7 +64,7 @@ export async function loadMongoStorefrontProducts(
     const filter: Record<string, unknown> = { active: { $ne: false } };
     if (channel === "retail") filter.channel = { $in: ["retail", "both"] };
     if (channel === "wholesale") filter.channel = { $in: ["wholesale", "both"] };
-    const docs = await db.collection<AdminProduct>("products").find(filter).limit(500).toArray();
+    const docs = await db.collection<AdminProduct>("products").find(filter).sort({ createdAt: -1, _id: -1 }).limit(500).toArray();
     return docs.map(adminToProduct);
   } catch {
     return [];
@@ -76,12 +76,14 @@ export function mergeStorefrontProducts(
   mongo: Product[],
   channel?: "retail" | "wholesale"
 ): Product[] {
+  // Admin listings first, newest first (the shop's "Newest first" keeps this order), then the built-in catalogue.
   const bySlug = new Map<string, Product>();
-  for (const p of catalog) {
-    if (channel === "wholesale" && !(p.wholesaleFrom ?? p.moq)) continue;
+  for (const p of mongo) {
     bySlug.set(p.slug, p);
   }
-  for (const p of mongo) {
+  for (const p of catalog) {
+    if (bySlug.has(p.slug)) continue;
+    if (channel === "wholesale" && !(p.wholesaleFrom ?? p.moq)) continue;
     bySlug.set(p.slug, p);
   }
   return [...bySlug.values()];
