@@ -7,6 +7,7 @@ export type PageViewRecord = {
   at: string;
   userAgent?: string;
   visitorId?: string;
+  country?: string;
 };
 
 export type WebsiteVisitor = {
@@ -17,6 +18,8 @@ export type WebsiteVisitor = {
   pages: number;
   lastPath: string;
   device: string;
+  /** ISO country code of the latest visit, when known. */
+  country?: string;
 };
 
 export type VisitorSummary = {
@@ -86,6 +89,7 @@ function groupRecords(list: PageViewRecord[]) {
         pages: 1,
         lastPath: row.path,
         device: deviceLabel(row.userAgent),
+        country: row.country,
         today: seenToday,
         week: seenWeek,
       });
@@ -95,6 +99,7 @@ function groupRecords(list: PageViewRecord[]) {
     existing.visits += 1;
     existing.lastPath = row.path;
     existing.device = deviceLabel(row.userAgent);
+    if (row.country) existing.country = row.country;
     existing.today = existing.today || seenToday;
     existing.week = existing.week || seenWeek;
   }
@@ -111,12 +116,13 @@ function groupRecords(list: PageViewRecord[]) {
   return [...map.values()].sort((a, b) => b.lastAt.localeCompare(a.lastAt));
 }
 
-export async function recordPageView(path: string, userAgent?: string, visitorId?: string) {
+export async function recordPageView(path: string, userAgent?: string, visitorId?: string, country?: string) {
   const doc: PageViewRecord = {
     path: path.slice(0, 512),
     at: new Date().toISOString(),
     userAgent: userAgent?.slice(0, 512),
     visitorId: visitorId?.slice(0, 64),
+    country: country && /^[A-Z]{2}$/.test(country) ? country : undefined,
   };
   try {
     const db = await getDb();
@@ -125,6 +131,7 @@ export async function recordPageView(path: string, userAgent?: string, visitorId
       at: doc.at,
       userAgent: doc.userAgent,
       visitorId: doc.visitorId,
+      ...(doc.country ? { country: doc.country } : {}),
     });
   } catch {
     const list = memoryStore();
@@ -155,6 +162,7 @@ export async function listWebsiteVisitors(page: number, pageSize: number) {
         visits: number;
         lastPath: string;
         userAgent?: string;
+        country?: string | null;
         pages: string[];
         seenToday: number;
         seenWeek: number;
@@ -168,6 +176,7 @@ export async function listWebsiteVisitors(page: number, pageSize: number) {
             visits: { $sum: 1 },
             lastPath: { $last: "$path" },
             userAgent: { $last: "$userAgent" },
+            country: { $max: "$country" },
             pages: { $addToSet: "$path" },
             seenToday: { $max: { $cond: [{ $gte: ["$at", todayIso] }, 1, 0] } },
             seenWeek: { $max: { $cond: [{ $gte: ["$at", weekIso] }, 1, 0] } },
@@ -193,6 +202,7 @@ export async function listWebsiteVisitors(page: number, pageSize: number) {
         pages: row.pages?.length ?? 0,
         lastPath: row.lastPath,
         device: deviceLabel(row.userAgent),
+        country: row.country ?? undefined,
       })),
       pagination: {
         page,
@@ -323,5 +333,52 @@ export async function deleteWebsiteVisitor(id: string) {
     list.length = 0;
     list.push(...kept);
     return true;
+  }
+}
+
+export type CountryCount = { country: string; visitors: number; views: number };
+
+/** Visitors and page views per country (ISO code; "" = unknown) since `sinceIso`, or all time. */
+export async function visitorCountries(sinceIso?: string): Promise<CountryCount[]> {
+  const visitorKeyOf = (row: PageViewRecord) => visitorKey(row);
+  try {
+    const db = await getDb();
+    const rows = await db
+      .collection("page_views")
+      .aggregate<{ _id: string | null; views: number; visitors: string[] }>([
+        ...(sinceIso ? [{ $match: { at: { $gte: sinceIso } } }] : []),
+        {
+          $group: {
+            _id: { $ifNull: ["$country", ""] },
+            views: { $sum: 1 },
+            visitors: {
+              $addToSet: {
+                $cond: [
+                  { $gt: [{ $strLenCP: { $ifNull: ["$visitorId", ""] } }, 0] },
+                  "$visitorId",
+                  { $ifNull: ["$userAgent", "unknown"] },
+                ],
+              },
+            },
+          },
+        },
+      ])
+      .toArray();
+    return rows
+      .map((r) => ({ country: String(r._id ?? ""), views: r.views, visitors: r.visitors.length }))
+      .sort((a, b) => b.visitors - a.visitors || b.views - a.views);
+  } catch {
+    const map = new Map<string, { views: number; ids: Set<string> }>();
+    for (const row of memoryStore()) {
+      if (sinceIso && row.at < sinceIso) continue;
+      const key = row.country ?? "";
+      const entry = map.get(key) ?? { views: 0, ids: new Set<string>() };
+      entry.views += 1;
+      entry.ids.add(visitorKeyOf(row));
+      map.set(key, entry);
+    }
+    return [...map.entries()]
+      .map(([country, e]) => ({ country, views: e.views, visitors: e.ids.size }))
+      .sort((a, b) => b.visitors - a.visitors || b.views - a.views);
   }
 }

@@ -9,3 +9,6 @@ out
 data/labels
 *.log
 .DS_Store
+
+.env*.live-backup
+*.bak-*

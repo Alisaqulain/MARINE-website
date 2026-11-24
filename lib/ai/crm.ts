@@ -83,7 +83,7 @@ export function rateLimit(key: string, limit = 20, windowMs = 60_000) {
 
 async function facts(region: PriceRegion): Promise<CatalogueFact[]> {
   const products = await getStorefrontProducts();
-  return products.slice(0, 400).map((product) => ({
+  return products.slice(0, 5000).map((product) => ({
     slug: product.slug,
     name: product.name,
     sku: product.sku,

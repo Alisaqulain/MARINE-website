@@ -61,3 +61,29 @@ export async function detectRegion(req: Request): Promise<PriceRegion> {
   return cookieRegion(req) ?? "other";
 }
 
+
+const COUNTRY_TTL_MS = 24 * 60 * 60 * 1000;
+type CountryCache = typeof globalThis & { __marinaCountryCache?: Map<string, { code: string | null; at: number }> };
+
+/**
+ * Country for analytics (page views). Uses CDN headers or the mm_country cookie when present;
+ * otherwise one lookup per IP per day, cached in memory so page views do not hit the free API each time.
+ */
+export async function cachedCountry(req: Request): Promise<string | null> {
+  for (const name of COUNTRY_HEADERS) {
+    const code = req.headers.get(name)?.trim().toUpperCase();
+    if (code && /^[A-Z]{2}$/.test(code) && code !== "XX") return code;
+  }
+  const cookie = /(?:^|;\s*)mm_country=([A-Za-z]{2})(?:;|$)/.exec(req.headers.get("cookie") ?? "");
+  if (cookie) return cookie[1].toUpperCase();
+  const ip = clientIp(req);
+  if (!ip) return null;
+  const g = globalThis as CountryCache;
+  const cache = (g.__marinaCountryCache ??= new Map());
+  const hit = cache.get(ip);
+  if (hit && Date.now() - hit.at < COUNTRY_TTL_MS) return hit.code;
+  const code = await lookupCountry(ip);
+  cache.set(ip, { code, at: Date.now() });
+  if (cache.size > 5000) cache.delete(cache.keys().next().value as string);
+  return code;
+}

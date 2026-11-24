@@ -16,7 +16,7 @@ export const company = {
   email: "info@marinamuseinternational.com",
   phone: "+91 74570 99540",
   phoneTel: "+917457099540",
-  whatsapp: "917457099540",
+  whatsapp: "919068349540",
   instagram: "https://www.instagram.com/marinamusestore1/",
   youtube: "https://www.youtube.com/@MuhammadMuaaz-k2n",
   facebook: "https://www.facebook.com/profile.php?id=61584041445930",
@@ -25,6 +25,11 @@ export const company = {
 export const companyMailto = `mailto:${company.email}`;
 export const companyTel = `tel:${company.phoneTel}`;
 export const companyWhatsApp = `https://wa.me/${company.whatsapp}`;
+
+/** Click-to-chat link that opens WhatsApp with the message already typed (no WhatsApp API needed). */
+export function whatsAppChat(message: string) {
+  return `${companyWhatsApp}?text=${encodeURIComponent(message)}`;
+}
 
 export const companyAddress = company.address.join(", ");
 export const companyMapSrc = `https://maps.google.com/maps?q=${company.mapLat},${company.mapLng}&ll=${company.mapLat},${company.mapLng}&z=17&hl=en&output=embed&iwloc=`;

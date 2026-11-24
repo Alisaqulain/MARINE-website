@@ -18,7 +18,7 @@ import {
 import { BannerHero } from "@/components/BannerHero";
 import { CustomFaq } from "@/components/CustomFaq";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
-import { companyWhatsApp } from "@/lib/company";
+import { whatsAppChat } from "@/lib/company";
 
 export const metadata: Metadata = {
   title: "Custom Manufacturing",
@@ -26,7 +26,7 @@ export const metadata: Metadata = {
     "Custom brass telescopes and binoculars manufactured in our own factory. Size, lens, finish, tripod, private label and wholesale programmes.",
 };
 
-const WHATSAPP = companyWhatsApp;
+const WHATSAPP = whatsAppChat("Hello Marina Muse, I would like to discuss a custom manufacturing order (product, quantity and branding).");
 
 const reasons = [
   { icon: Factory, title: "Own Factory Manufacturing", body: "Direct from our factory to you — no middlemen." },

@@ -1,6 +1,6 @@
 "use client";
 
-import { companyWhatsApp } from "@/lib/company";
+import { whatsAppChat } from "@/lib/company";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { formatPrice, products } from "@/lib/products";
 import { MessageCircle, Send, X } from "lucide-react";
@@ -10,6 +10,7 @@ import { useEffect, useMemo, useState } from "react";
 import { WholesaleNavLink } from "@/components/WholesaleNavLink";
 import { useRegion } from "@/lib/region-context";
 import { aiSessionId } from "@/lib/ai/session-client";
+import { ScrollProgressButton } from "@/components/ScrollProgressButton";
 
 type Msg = {
   from: "bot" | "you";
@@ -103,7 +104,7 @@ export function ChatWidget() {
     <>
       <div className="fixed bottom-[env(safe-area-inset-bottom)] right-3 z-30 flex items-center gap-2 sm:right-6">
         <a
-          href={companyWhatsApp}
+          href={whatsAppChat("Hello Marina Muse, I would like some help with a product or order.")}
           target="_blank"
           rel="noreferrer"
           aria-label="Chat on WhatsApp"
@@ -120,6 +121,7 @@ export function ChatWidget() {
           <MessageCircle className="h-5 w-5 text-[#C9A84C]" />
           <span>Ask Marina</span>
         </button>
+        <ScrollProgressButton />
       </div>
 
       {open && (

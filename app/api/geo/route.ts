@@ -12,6 +12,8 @@ export async function GET(req: Request) {
   // Only remember a real result, so a failed lookup is retried on the next visit.
   if (country) {
     res.cookies.set(REGION_COOKIE, region, { path: "/", maxAge: 60 * 60 * 24, sameSite: "lax" });
+    // Lets page-view analytics record the country without another lookup.
+    res.cookies.set("mm_country", country, { path: "/", maxAge: 60 * 60 * 24, sameSite: "lax" });
   }
   return res;
 }

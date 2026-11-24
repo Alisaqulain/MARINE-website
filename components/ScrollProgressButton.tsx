@@ -7,7 +7,7 @@ const RADIUS = 21;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
 /**
- * Floating scroll button above the chat buttons. The ring shows how far down the page you are;
+ * Scroll button in the same bottom-right row as the WhatsApp and Ask Marina buttons (rendered by ChatWidget). The ring shows how far down the page you are;
  * in the top half it jumps to the bottom, past halfway it returns to the top.
  */
 export function ScrollProgressButton() {
@@ -48,8 +48,8 @@ export function ScrollProgressButton() {
       onClick={jump}
       aria-label={goingUp ? "Scroll to top" : "Scroll to bottom"}
       title={goingUp ? "Scroll to top" : "Scroll to bottom"}
-      className={`fixed bottom-[calc(env(safe-area-inset-bottom)+3.75rem)] right-3 z-30 grid h-12 w-12 place-items-center rounded-full bg-white shadow-[0_4px_14px_rgba(0,0,0,0.25)] transition duration-300 hover:scale-105 sm:right-6 ${
-        visible ? "opacity-100" : "pointer-events-none translate-y-2 opacity-0"
+      className={`relative h-12 w-12 shrink-0 place-items-center rounded-full bg-white shadow-[0_4px_14px_rgba(0,0,0,0.25)] transition duration-300 hover:scale-105 ${
+        visible ? "grid" : "hidden"
       }`}
     >
       <svg className="absolute inset-0 h-12 w-12 -rotate-90" viewBox="0 0 48 48" aria-hidden="true">

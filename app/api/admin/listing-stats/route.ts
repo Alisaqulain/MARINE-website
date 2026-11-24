@@ -3,6 +3,7 @@ import { requireAdminSession } from "@/lib/admin-auth";
 import {
   LISTING_STAT_CHANNELS,
   LISTING_STAT_RANGES,
+  listingDailyStats,
   listingStats,
   type ListingStatChannel,
   type ListingStatRange,
@@ -21,8 +22,8 @@ export async function GET(req: Request) {
     ? (channelParam as ListingStatChannel)
     : "retail";
   try {
-    const items = await listingStats(range, channel);
-    return NextResponse.json({ range, channel, items, updatedAt: new Date().toISOString() });
+    const [items, daily] = await Promise.all([listingStats(range, channel), listingDailyStats(range, channel)]);
+    return NextResponse.json({ range, channel, items, daily, updatedAt: new Date().toISOString() });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Could not load listing stats.";
     return NextResponse.json({ range, channel, items: [], error: message }, { status: 500 });

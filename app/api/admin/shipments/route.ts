@@ -18,13 +18,17 @@ function view(order: Awaited<ReturnType<typeof listRecentOrders>>[number]) {
     trackingUrl: order.tracking?.trackingUrl ?? "",
     shipmentError: order.shipment?.error ?? "",
     bookedAt: order.shipment?.bookedAt ?? "",
+    stage: order.tracking?.stage ?? "",
+    stageUpdatedAt: order.tracking?.updatedAt ?? "",
+    items: Array.isArray(order.items) ? order.items.reduce((n, i) => n + (Number(i.qty) || 0), 0) : 0,
+    paidAt: order.paidAt ?? "",
   };
 }
 
 export async function GET() {
   const { error } = await requireAdminSession("view");
   if (error) return error;
-  const orders = await listRecentOrders(50);
+  const orders = await listRecentOrders(200);
   const connection = await pingShipGlobal();
   return NextResponse.json({
     configured: shipGlobalConfigured(),

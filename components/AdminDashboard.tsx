@@ -34,6 +34,8 @@ import { AdminShipmentsPanel } from "@/components/AdminShipmentsPanel";
 import { AdminAiPanel } from "@/components/AdminAiPanel";
 import { AdminWhatsAppPanel } from "@/components/AdminWhatsAppPanel";
 import { AdminTeamPanel } from "@/components/AdminTeamPanel";
+import { VisitorCountries, flagEmoji } from "@/components/AdminVisitorCountries";
+import { countryName } from "@/lib/countries";
 import { BulkActions, deleteUrls, useRowSelection } from "@/components/AdminSelection";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { AdminProductImagesField } from "@/components/AdminProductImageField";
@@ -233,6 +235,7 @@ export function AdminDashboard() {
   const [visitors, setVisitors] = useState<Record<string, unknown>[]>([]);
   const [visitorPage, setVisitorPage] = useState(1);
   const [visitorSummary, setVisitorSummary] = useState({ totalVisitors: 0, today: 0, last7Days: 0 });
+  const [visitorCountryList, setVisitorCountryList] = useState<{ country: string; visitors: number; views: number }[]>([]);
   const [listingViews, setListingViews] = useState<{ totalViews: number; listings: { slug: string; views: number }[] }>({
     totalViews: 0,
     listings: [],
@@ -287,6 +290,7 @@ export function AdminDashboard() {
     setVisitorSummary(data.summary ?? { totalVisitors: 0, today: 0, last7Days: 0 });
     setVisitorPagination(data.pagination ?? { total: 0, totalPages: 1, pageSize: 25 });
     setListingViews(data.listingViews ?? { totalViews: 0, listings: [] });
+    setVisitorCountryList(Array.isArray(data.countries) ? data.countries : []);
   }, [visitorPage]);
 
   useEffect(() => {
@@ -335,7 +339,7 @@ export function AdminDashboard() {
           { id: "quotes", label: "Bulk quotes", icon: FileText },
           { id: "applications", label: "Trade accounts", icon: Users },
           { id: "contacts", label: "Contact", icon: MessageSquare },
-          { id: "shipments", label: "ShipGlobal", icon: Truck },
+          { id: "shipments", label: "Shipping", icon: Truck },
           { id: "ai", label: "Marina AI", icon: Sparkles },
           { id: "whatsapp", label: "WhatsApp", icon: MessageCircle },
           { id: "testimonials", label: "Reviews", icon: Star },
@@ -356,7 +360,7 @@ export function AdminDashboard() {
           { id: "users", label: "Customers", icon: Users },
           { id: "contacts", label: "Contact", icon: MessageSquare },
           { id: "returns", label: "Returns", icon: RotateCcw },
-          { id: "shipments", label: "ShipGlobal", icon: Truck },
+          { id: "shipments", label: "Shipping", icon: Truck },
           { id: "ai", label: "Marina AI", icon: Sparkles },
           { id: "whatsapp", label: "WhatsApp", icon: MessageCircle },
           { id: "testimonials", label: "Reviews", icon: Star },
@@ -670,6 +674,7 @@ export function AdminDashboard() {
 
         <main className="flex-1 p-4 lg:p-8">
           {tab === "overview" ? (
+          <div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {panel === "wholesale" ? (
                 <>
@@ -695,6 +700,12 @@ export function AdminDashboard() {
                 </>
               )}
             </div>
+            {panel !== "wholesale" ? (
+              <div className="mt-4">
+                <VisitorCountries rows={visitorCountryList} limit={8} onMore={() => setTab("visitors")} />
+              </div>
+            ) : null}
+          </div>
           ) : null}
 
           {tab === "products" ? (
@@ -1341,6 +1352,7 @@ export function AdminDashboard() {
                 <Stat label="Last 7 days" value={String(visitorSummary.last7Days)} />
                 <Stat label="Listing views" value={String(listingViews.totalViews)} />
               </div>
+              <VisitorCountries rows={visitorCountryList} />
               <div className="overflow-x-auto rounded-xl bg-white shadow-sm">
                 <div className="border-b bg-[#FAF7F2] px-4 py-3 text-xs text-navy-600">
                   Each row is one website visitor. Repeat page opens from the same browser are counted together.
@@ -1370,6 +1382,7 @@ export function AdminDashboard() {
                       <th className="px-4 py-3">First visit</th>
                       <th className="px-4 py-3">Visits</th>
                       <th className="px-4 py-3">Pages</th>
+                      <th className="px-4 py-3">Country</th>
                       <th className="px-4 py-3">Last page</th>
                       <th className="px-4 py-3">Device</th>
                       <th className="px-4 py-3">Actions</th>
@@ -1378,7 +1391,7 @@ export function AdminDashboard() {
                   <tbody>
                     {visitors.length === 0 ? (
                       <tr>
-                        <td colSpan={canDelete ? 8 : 7} className="px-4 py-8 text-center text-navy-600">
+                        <td colSpan={canDelete ? 9 : 8} className="px-4 py-8 text-center text-navy-600">
                           No website visitors recorded yet.
                         </td>
                       </tr>
@@ -1399,6 +1412,7 @@ export function AdminDashboard() {
                           <td className="whitespace-nowrap px-4 py-3 text-navy-600">{formatVisit(v.firstAt)}</td>
                           <td className="px-4 py-3 font-medium">{String(v.visits ?? 0)}</td>
                           <td className="px-4 py-3">{String(v.pages ?? 0)}</td>
+                          <td className="whitespace-nowrap px-4 py-3">{v.country ? `${flagEmoji(String(v.country))} ${countryName(String(v.country))}` : "Unknown"}</td>
                           <td className="max-w-[220px] truncate px-4 py-3">{String(v.lastPath ?? "—")}</td>
                           <td className="whitespace-nowrap px-4 py-3 text-navy-600">{String(v.device ?? "Unknown")}</td>
                           <td className="px-4 py-3">

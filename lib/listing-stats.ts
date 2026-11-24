@@ -161,3 +161,59 @@ export async function listingStats(range: ListingStatRange, channel: ListingStat
     revenue: Number(r.revenue.toFixed(2)),
   }));
 }
+
+export type ListingDayPoint = { day: string; views: number; orders: number };
+
+/** Days drawn in the graph: the range itself, at least 7 days, at most the last 90 for "this year" / "all time". */
+function chartDays(range: ListingStatRange, now = new Date()): string[] {
+  const start = rangeStart(range, now);
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+  let count = start ? Math.round((today.getTime() - new Date(start).getTime()) / 86_400_000) + 1 : 90;
+  count = Math.min(90, Math.max(7, count));
+  const days: string[] = [];
+  for (let i = count - 1; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    days.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
+  }
+  return days;
+}
+
+/** Listing views and paid orders per day for one side (retail or wholesale), for the Listing stats graph. */
+export async function listingDailyStats(
+  range: ListingStatRange,
+  channel: ListingStatChannel = "retail"
+): Promise<ListingDayPoint[]> {
+  const days = chartDays(range);
+  const first = new Date(`${days[0]}T00:00:00`).toISOString();
+  const db = await getDb();
+  const wholesale = channel === "wholesale";
+  const [views, orders] = await Promise.all([
+    db
+      .collection("page_views")
+      .find({ at: { $gte: first }, ...viewPathMatch(channel) }, { projection: { at: 1 } })
+      .toArray(),
+    db
+      .collection("orders")
+      .find({ status: "paid", createdAt: { $gte: first } }, { projection: { createdAt: 1, items: 1 } })
+      .toArray(),
+  ]);
+  const local = (iso: unknown) => {
+    const d = new Date(String(iso));
+    if (Number.isNaN(d.getTime())) return "";
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+  const map = new Map(days.map((day) => [day, { day, views: 0, orders: 0 }]));
+  for (const v of views) {
+    const p = map.get(local(v.at));
+    if (p) p.views += 1;
+  }
+  for (const o of orders) {
+    const items = (Array.isArray(o.items) ? o.items : []) as { b2b?: boolean }[];
+    if (!items.some((i) => Boolean(i.b2b) === wholesale)) continue;
+    const p = map.get(local(o.createdAt));
+    if (p) p.orders += 1;
+  }
+  return days.map((d) => map.get(d)!);
+}

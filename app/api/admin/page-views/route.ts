@@ -5,6 +5,7 @@ import {
   deleteWebsiteVisitor,
   listingViewStats,
   listWebsiteVisitors,
+  visitorCountries,
 } from "@/lib/page-views";
 
 export async function GET(req: Request) {
@@ -14,8 +15,12 @@ export async function GET(req: Request) {
   const page = Math.max(1, Number(searchParams.get("page")) || 1);
   const pageSize = Math.min(100, Math.max(5, Number(searchParams.get("pageSize")) || 25));
   try {
-    const [data, listings] = await Promise.all([listWebsiteVisitors(page, pageSize), listingViewStats()]);
-    return NextResponse.json({ ...data, listingViews: listings });
+    const [data, listings, countries] = await Promise.all([
+      listWebsiteVisitors(page, pageSize),
+      listingViewStats(),
+      visitorCountries(),
+    ]);
+    return NextResponse.json({ ...data, listingViews: listings, countries });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not load visitors.";
     return NextResponse.json({ error: message }, { status: 500 });

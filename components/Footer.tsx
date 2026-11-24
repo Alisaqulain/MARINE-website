@@ -261,6 +261,33 @@ export function Footer() {
               <p className="mt-0.5 max-w-xl text-[11px] leading-snug text-cream-100/65 sm:text-sm sm:leading-relaxed">
                 {company.address[0]}, {company.address[1]}, {company.address[2]}
               </p>
+            <div className="mt-3 flex flex-wrap gap-1.5 sm:gap-2.5">
+              {socials.map(({ label, Icon, href }) =>
+                href ? (
+                  <a
+                    key={label}
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={label}
+                    title={label}
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#C9A84C] text-[#031D38] sm:h-10 sm:w-10"
+                  >
+                    <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  </a>
+                ) : (
+                  <span
+                    key={label}
+                    aria-label={label}
+                    aria-disabled="true"
+                    title={label}
+                    className="inline-flex h-7 w-7 cursor-default items-center justify-center rounded-full bg-[#C9A84C] text-[#031D38] sm:h-10 sm:w-10"
+                  >
+                    <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  </span>
+                )
+              )}
+            </div>
             </div>
           </div>
           <div className="flex min-w-0 gap-2 sm:gap-3 lg:max-w-md">
@@ -277,33 +304,6 @@ export function Footer() {
                 {company.phone}
               </a>
             </div>
-          </div>
-          <div className="flex shrink-0 flex-wrap justify-end gap-1.5 sm:gap-2.5">
-            {socials.map(({ label, Icon, href }) =>
-              href ? (
-                <a
-                  key={label}
-                  href={href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label={label}
-                  title={label}
-                  className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#C9A84C] text-[#031D38] sm:h-10 sm:w-10"
-                >
-                  <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                </a>
-              ) : (
-                <span
-                  key={label}
-                  aria-label={label}
-                  aria-disabled="true"
-                  title={label}
-                  className="inline-flex h-7 w-7 cursor-default items-center justify-center rounded-full bg-[#C9A84C] text-[#031D38] sm:h-10 sm:w-10"
-                >
-                  <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                </span>
-              )
-            )}
           </div>
         </div>
       </div>

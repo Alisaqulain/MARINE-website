@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminListPagination } from "@/components/AdminListPagination";
 import { ProductImage } from "@/components/ProductImage";
-import type { ListingStatChannel, ListingStatRange, ListingStatRow } from "@/lib/listing-stats";
+import type { ListingDayPoint, ListingStatChannel, ListingStatRange, ListingStatRow } from "@/lib/listing-stats";
+import { AdminBarChart } from "@/components/AdminBarChart";
 
 const RANGES: { value: ListingStatRange; label: string }[] = [
   { value: "today", label: "Today" },
@@ -39,6 +40,8 @@ function money(n: number) {
 export function AdminListingStats({ channel = "retail" }: { channel?: ListingStatChannel }) {
   const [range, setRange] = useState<ListingStatRange>("this-month");
   const [rows, setRows] = useState<ListingStatRow[]>([]);
+  const [daily, setDaily] = useState<ListingDayPoint[]>([]);
+  const [metric, setMetric] = useState<"views" | "orders">("views");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [updatedAt, setUpdatedAt] = useState("");
@@ -55,6 +58,7 @@ export function AdminListingStats({ channel = "retail" }: { channel?: ListingSta
       .then((res) => res.json())
       .catch(() => ({ error: "Could not load listing stats." }));
     setRows(Array.isArray(data.items) ? data.items : []);
+    setDaily(Array.isArray(data.daily) ? data.daily : []);
     setUpdatedAt(typeof data.updatedAt === "string" ? data.updatedAt : "");
     if (data.error) setError(String(data.error));
     setLoading(false);
@@ -139,6 +143,43 @@ export function AdminListingStats({ channel = "retail" }: { channel?: ListingSta
             <p className="mt-1 font-serif text-2xl text-navy-900">{loading ? "…" : value}</p>
           </div>
         ))}
+      </div>
+
+      <div className="rounded-xl bg-white p-4 shadow-sm">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="font-serif text-lg text-navy-900">
+            {metric === "views" ? "Listing views" : "Paid orders"} per day
+          </h3>
+          <div className="flex gap-1.5">
+            {(["views", "orders"] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setMetric(m)}
+                className={`rounded-full px-3 py-1 text-xs font-bold ${
+                  metric === m ? "bg-[#031D38] text-white" : "bg-white text-[#031D38] ring-1 ring-[#e6dfd2] hover:ring-[#C9A84C]"
+                }`}
+              >
+                {m === "views" ? "Views" : "Orders"}
+              </button>
+            ))}
+          </div>
+        </div>
+        {loading ? (
+          <p className="py-10 text-center text-sm text-navy-600">Loading graph…</p>
+        ) : daily.length ? (
+          <AdminBarChart
+            unit={metric}
+            data={daily.map((d) => ({
+              day: d.day,
+              value: metric === "views" ? d.views : d.orders,
+              detail: metric === "views" ? `${d.orders} orders` : `${d.views} views`,
+            }))}
+          />
+        ) : (
+          <p className="py-10 text-center text-sm text-navy-600">No data for this period yet.</p>
+        )}
+        <p className="mt-2 text-xs text-navy-500">Use the date range below to change the period (graph shows up to the last 90 days).</p>
       </div>
 
       <div className="overflow-hidden rounded-xl bg-[#FAF8F4] shadow-sm">

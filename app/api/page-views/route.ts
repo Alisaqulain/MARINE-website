@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { recordPageView } from "@/lib/page-views";
+import { cachedCountry } from "@/lib/geo";
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
@@ -13,6 +14,7 @@ export async function POST(req: Request) {
   const ua = req.headers.get("user-agent") ?? undefined;
   const visitorId =
     typeof body?.visitorId === "string" && /^[a-zA-Z0-9-]{8,64}$/.test(body.visitorId) ? body.visitorId : undefined;
-  await recordPageView(path, ua, visitorId);
+  const country = (await cachedCountry(req).catch(() => null)) ?? undefined;
+  await recordPageView(path, ua, visitorId, country);
   return NextResponse.json({ ok: true });
 }

@@ -39,7 +39,7 @@ import { ShopTabs, type ShopTab } from "@/components/ShopTabs";
 import { useProductReviews } from "@/components/ProductReviews";
 import { WholesaleNavLink } from "@/components/WholesaleNavLink";
 import { ProductShareButtons } from "@/components/ProductShare";
-import { companyWhatsApp } from "@/lib/company";
+import { whatsAppChat } from "@/lib/company";
 import { FreeShippingTag } from "@/components/FreeShippingTag";
 import { PriceRow } from "@/components/PriceRow";
 import { SaleEndsIn } from "@/components/SaleEndsIn";
@@ -542,7 +542,15 @@ export default function ProductPage() {
                 <span className="whitespace-nowrap">Ask Marina About This Product</span>
               </button>
               <a
-                href={companyWhatsApp}
+                href={whatsAppChat(
+                  `Hello Marina Muse, I am interested in this product:
+${product.name} (SKU ${product.sku})
+Price: ${formatPrice(displayPrice)}${b2b ? `
+Wholesale quantity: ${orderQty}` : ""}
+https://marinamuseinternational.com/product/${product.slug}`
+                )}
+                target="_blank"
+                rel="noreferrer"
                 className="inline-flex h-11 w-full min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full bg-[#25D366] px-3 text-[11px] font-semibold uppercase tracking-[0.04em] text-white sm:h-12 sm:gap-2 sm:px-4 sm:text-[11px] sm:tracking-[0.14em]"
               >
                 <MessageCircle className="h-3.5 w-3.5 shrink-0 sm:h-3.5 sm:w-3.5" />

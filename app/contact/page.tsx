@@ -2,7 +2,7 @@ import { ExternalLink, Mail, MapPin, MessageCircle, Phone } from "lucide-react";
 import { BannerHero } from "@/components/BannerHero";
 import { ContactForm } from "@/components/ContactForm";
 import { WholesaleNavLink } from "@/components/WholesaleNavLink";
-import { company, companyDirections, companyMapSrc, companyTel, companyWhatsApp } from "@/lib/company";
+import { company, companyDirections, companyMapSrc, companyTel, whatsAppChat } from "@/lib/company";
 import { getContactEmails } from "@/lib/contact-emails";
 
 const desks = [
@@ -67,7 +67,7 @@ export default function ContactPage() {
               </li>
             </ul>
             <a
-              href={companyWhatsApp}
+              href={whatsAppChat("Hello Marina Muse, I have a question.")}
               target="_blank"
               rel="noreferrer"
               className="btn-gold mt-8 flex w-full justify-center gap-2 sm:inline-flex sm:w-auto"
