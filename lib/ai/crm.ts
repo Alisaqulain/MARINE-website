@@ -421,7 +421,7 @@ export async function handleCustomerMessage(input: {
 
 export async function listAiAdmin() {
   const db = await getDb();
-  const [leads, approvals, calls, sessions, followUps, content, whatsapp] = await Promise.all([
+  const [leads, approvals, calls, sessions, followUps, content, whatsapp, inbox] = await Promise.all([
     db.collection("ai_leads").find({}).sort({ updatedAt: -1 }).limit(40).toArray(),
     db.collection("ai_approvals").find({}).sort({ createdAt: -1 }).limit(40).toArray(),
     db.collection("ai_calls").find({}).sort({ createdAt: -1 }).limit(40).toArray(),
@@ -429,6 +429,7 @@ export async function listAiAdmin() {
     db.collection("ai_followups").find({}).sort({ createdAt: -1 }).limit(40).toArray(),
     db.collection("ai_content").find({}).sort({ createdAt: -1 }).limit(20).toArray(),
     db.collection("ai_wa_messages").find({ direction: "out" }).sort({ at: -1 }).limit(30).toArray(),
+    db.collection("ai_wa_messages").find({ direction: "in" }).sort({ at: -1 }).limit(50).toArray(),
   ]);
   const strip = (doc: Record<string, unknown>) => {
     const { _id: _ignored, ...rest } = doc;
@@ -446,6 +447,14 @@ export async function listAiAdmin() {
       const { text: _text, sendToken: _token, resendClaim: _claim, ...rest } = strip(doc as Record<string, unknown>);
       return { ...rest, hasText: typeof _text === "string" && _text.length > 0 };
     }),
+    // Incoming customer messages: sender masked and text hidden until the admin opens one (audited).
+    whatsappInbox: inbox.map((doc) => ({
+      wamid: String(doc.wamid ?? ""),
+      from: String(doc.from ?? ""),
+      at: String(doc.at ?? ""),
+      hasText: typeof doc.text === "string" && doc.text.length > 0,
+      replied: Boolean(whatsapp.some((out) => out.inReplyTo === doc.wamid)),
+    })),
     voice: voiceStatus(),
     chatModel: geminiConfigured() ? `gemini:${geminiModel()}` : "catalogue-only",
   };

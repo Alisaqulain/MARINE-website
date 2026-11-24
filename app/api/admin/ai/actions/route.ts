@@ -45,6 +45,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, text: String(doc.text || "") });
     }
 
+    if (action === "wa_expand_inbound") {
+      const doc = await messages.findOne({ wamid: id, direction: "in" });
+      if (!doc) return NextResponse.json({ error: "Not found." }, { status: 404 });
+      await audit({ inbound: id.slice(-6) });
+      return NextResponse.json({ ok: true, text: String(doc.text || ""), from: String(doc.from || "") });
+    }
+
     if (action === "wa_mark_resolved") {
       const ok = await markResolved(messages, { inReplyTo: id, actor, note: typeof body?.note === "string" ? body.note : "" });
       await audit({ reservation: id.slice(-6), ok });

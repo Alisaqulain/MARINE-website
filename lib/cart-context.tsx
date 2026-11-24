@@ -90,13 +90,14 @@ function quoteKey(line: { slug: string; b2b?: boolean; personalisation?: string 
   return `${line.slug}|${line.b2b ? 1 : 0}|${line.personalisation ?? ""}`;
 }
 
-function toItems(lines: CartLine[], region: PriceRegion, live: Record<string, number>): CartItem[] {
+function toItems(lines: CartLine[], region: PriceRegion, live: Record<string, number>, free: Record<string, boolean>): CartItem[] {
   const items: CartItem[] = [];
   for (const l of lines) {
     const found = productFromLine(l);
     if (!found) continue;
     // Price for the visitor's location (India, United States or everywhere else).
-    const product = { ...found, price: regionalPrice(found, region) };
+    // Free shipping comes from the live listing (server quote); until it arrives, do not promise it.
+    const product = { ...found, price: regionalPrice(found, region), freeShipping: free[l.slug] ?? false };
     // The server quote (live listing, wholesale price, active sale) wins over anything stored in the browser.
     const quoted = live[quoteKey(l)];
     items.push({
@@ -172,6 +173,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [buyNowLine, setBuyNowLine] = useState<CartLine | null>(null);
   const [ready, setReady] = useState(false);
   const [live, setLive] = useState<Record<string, number>>({});
+  const [free, setFree] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     try {
@@ -221,11 +223,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
         signal: controller.signal,
       })
         .then((res) => (res.ok ? res.json() : null))
-        .then((data: { items?: { slug: string; b2b: boolean; personalisation?: string; unitPrice: number | null }[] } | null) => {
+        .then((data: { items?: { slug: string; b2b: boolean; personalisation?: string; unitPrice: number | null; freeShipping?: boolean }[] } | null) => {
           if (!data?.items) return;
           const next: Record<string, number> = {};
-          for (const item of data.items) if (item.unitPrice != null) next[quoteKey(item)] = item.unitPrice;
+          const nextFree: Record<string, boolean> = {};
+          for (const item of data.items) {
+            if (item.unitPrice != null) next[quoteKey(item)] = item.unitPrice;
+            nextFree[item.slug] = item.freeShipping === true;
+          }
           setLive(next);
+          setFree(nextFree);
         })
         .catch(() => {});
     }, 250);
@@ -236,9 +243,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, [quoteLines, ready, region]);
 
   const value = useMemo<CartContextValue>(() => {
-    const items = toItems(lines, region, live);
+    const items = toItems(lines, region, live, free);
     const buyNowLines = buyNowLine ? [buyNowLine] : [];
-    const buyNowItems = toItems(buyNowLines, region, live);
+    const buyNowItems = toItems(buyNowLines, region, live, free);
     return {
       lines,
       add: (slug, qty = 1, opts) => {
@@ -277,7 +284,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       items,
       subtotal: items.reduce((n, i) => n + i.unitPrice * i.qty, 0),
     };
-  }, [lines, buyNowLine, region, live]);
+  }, [lines, buyNowLine, region, live, free]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }

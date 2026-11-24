@@ -17,7 +17,10 @@ export const company = {
   phone: "+91 74570 99540",
   phoneTel: "+917457099540",
   whatsapp: "919068349540",
-  instagram: "https://www.instagram.com/marinamusestore1/",
+  instagram: "https://www.instagram.com/marinamuseinternational/",
+  etsy: "https://marinamusestore.etsy.com",
+  /** Address shown to visitors (footer, Contact page, map). The ShipGlobal pickup address above is separate. */
+  displayAddress: "Roorkee-247667, Uttarakhand, India",
   youtube: "https://www.youtube.com/@MuhammadMuaaz-k2n",
   facebook: "https://www.facebook.com/profile.php?id=61584041445930",
 } as const;
@@ -32,5 +35,6 @@ export function whatsAppChat(message: string) {
 }
 
 export const companyAddress = company.address.join(", ");
-export const companyMapSrc = `https://maps.google.com/maps?q=${company.mapLat},${company.mapLng}&ll=${company.mapLat},${company.mapLng}&z=17&hl=en&output=embed&iwloc=`;
-export const companyDirections = `https://www.google.com/maps/dir/?api=1&destination=${company.mapLat},${company.mapLng}`;
+const mapQuery = encodeURIComponent(company.displayAddress);
+export const companyMapSrc = `https://maps.google.com/maps?q=${mapQuery}&z=13&hl=en&output=embed&iwloc=`;
+export const companyDirections = `https://www.google.com/maps/dir/?api=1&destination=${mapQuery}`;

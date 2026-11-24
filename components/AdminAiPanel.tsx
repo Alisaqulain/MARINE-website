@@ -53,6 +53,7 @@ type Board = {
   followUps?: { id: string; channel: string; to: string; reason: string; status: string; note?: string; lastError?: string; createdAt: string }[];
   content?: { id: string; kind: string; topic: string; status: string; body: unknown; sources?: { title: string; uri: string }[]; groundingIssues?: string[]; createdAt: string }[];
   whatsapp?: { to: string; text?: string; hasText?: boolean; inReplyTo?: string; status: string; reason?: string; at: string }[];
+  whatsappInbox?: { wamid: string; from: string; at: string; hasText: boolean; replied: boolean; text?: string; fullFrom?: string }[];
   whatsappRecovery?: { counts: Record<string, number>; rows: RecoveryRow[] } | null;
   journey?: {
     funnel: { visitors: number; cartSessions: number; checkoutsStarted: number; paidOrders: number; enquiries: number; calls: number; quotes: number; visitToCart: number | null; cartToCheckout: number | null; checkoutToPaid: number | null; checkoutAbandonment: number | null };
@@ -192,6 +193,52 @@ export function AdminAiPanel() {
       ) : null}
       {section === "WhatsApp" && data?.whatsappRecovery ? (
         <AdminWhatsAppRecovery rows={data.whatsappRecovery.rows} counts={data.whatsappRecovery.counts} onChange={load} />
+      ) : null}
+      {section === "WhatsApp" ? (
+        <div className="mb-4">
+          <h3 className="mb-2 font-serif text-base text-navy-900">Incoming messages</h3>
+          <ul className="space-y-2">
+            {(data?.whatsappInbox || []).map((row, i) => (
+              <li key={row.wamid || i} className="rounded-xl bg-white p-4 text-sm shadow-sm">
+                <p className="font-medium">
+                  From {row.fullFrom ? `+${row.fullFrom}` : maskTo(row.from)} · {new Date(row.at).toLocaleString()}
+                  {row.replied ? " · replied" : " · not replied"}
+                </p>
+                {row.text ? (
+                  <>
+                    <p className="mt-1 whitespace-pre-wrap text-navy-700">{row.text}</p>
+                    <a
+                      className="mt-2 inline-block text-xs font-semibold text-[#8C6E28] underline"
+                      href={`https://wa.me/${row.fullFrom}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Reply from WhatsApp
+                    </a>
+                  </>
+                ) : row.hasText ? (
+                  <button
+                    type="button"
+                    disabled={Boolean(busy)}
+                    className="mt-1 rounded-full border px-3 py-1 text-xs"
+                    onClick={async () => {
+                      const res = await fetch("/api/admin/ai/actions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "wa_expand_inbound", id: row.wamid }) });
+                      const json = await res.json().catch(() => ({}));
+                      if (res.ok) setData((d) => (d ? { ...d, whatsappInbox: (d.whatsappInbox || []).map((w, j) => (j === i ? { ...w, text: String(json.text || ""), fullFrom: String(json.from || "") } : w)) } : d));
+                      else setError(typeof json.error === "string" ? json.error : "Not allowed.");
+                    }}
+                  >
+                    Show message
+                  </button>
+                ) : (
+                  <p className="mt-1 text-xs text-navy-500">Non-text message (image, audio or document).</p>
+                )}
+              </li>
+            ))}
+            {!data?.whatsappInbox?.length ? <p className="text-sm text-navy-600">No incoming WhatsApp messages yet.</p> : null}
+          </ul>
+          <h3 className="mb-2 mt-5 font-serif text-base text-navy-900">Replies</h3>
+        </div>
       ) : null}
       {section === "WhatsApp" ? (
         <ul className="space-y-2">

@@ -113,7 +113,7 @@ export function Footer() {
         [t("footer.link.retail"), "/retail"],
         [t("footer.link.wishlist"), "/wishlist"],
         [t("footer.link.cart"), "/cart"],
-        ["Track Your Order", "/account/orders"],
+        ["Shop with Us on Etsy", company.etsy],
       ],
     },
     {
@@ -238,6 +238,15 @@ export function Footer() {
                       </li>
                     );
                   }
+                  if (href?.startsWith("http")) {
+                    return (
+                      <li key={key}>
+                        <a href={href} target="_blank" rel="noopener noreferrer" className={cls}>
+                          {label}
+                        </a>
+                      </li>
+                    );
+                  }
                   return (
                     <li key={key}>
                       <Link href={href ?? "/"} className={cls}>
@@ -253,15 +262,31 @@ export function Footer() {
       </div>
 
       <div className="border-t border-white/10">
-        <div className="mx-auto flex max-w-[1320px] flex-col gap-4 px-4 py-2.5 sm:px-5 sm:py-4 lg:flex-row lg:items-start lg:justify-between lg:gap-5">
+        <div className="mx-auto grid max-w-[1320px] gap-4 px-4 py-2.5 sm:px-5 sm:py-4 lg:grid-cols-3 lg:items-start lg:gap-5">
           <div className="flex min-w-0 gap-2 sm:gap-3">
             <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-[#C9A84C] sm:h-5 sm:w-5" />
             <div className="min-w-0">
               <p className="text-[9px] uppercase tracking-[0.16em] text-[#C9A84C] sm:text-[11px] sm:tracking-[0.2em]">{t("footer.office")}</p>
               <p className="mt-0.5 max-w-xl text-[11px] leading-snug text-cream-100/65 sm:text-sm sm:leading-relaxed">
-                {company.address[0]}, {company.address[1]}, {company.address[2]}
+                {company.displayAddress}
               </p>
-            <div className="mt-3 flex flex-wrap gap-1.5 sm:gap-2.5">
+            </div>
+          </div>
+          <div className="flex min-w-0 flex-col items-center text-center">
+            <p className="flex items-center gap-1.5 text-[9px] uppercase tracking-[0.16em] text-[#C9A84C] sm:text-[11px] sm:tracking-[0.2em]">
+              <Phone className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              {t("footer.contact")}
+            </p>
+            <a
+              href={`mailto:${company.email}`}
+              className="mt-1 block break-all text-[11px] text-cream-100/75 hover:text-[#C9A84C] sm:text-sm"
+            >
+              {company.email}
+            </a>
+            <a href={`tel:${company.phoneTel}`} className="mt-0.5 block text-[11px] text-cream-100/75 hover:text-[#C9A84C] sm:text-sm">
+              {company.phone}
+            </a>
+            <div className="mt-3 flex flex-wrap justify-center gap-1.5 sm:gap-2.5">
               {socials.map(({ label, Icon, href }) =>
                 href ? (
                   <a
@@ -287,22 +312,6 @@ export function Footer() {
                   </span>
                 )
               )}
-            </div>
-            </div>
-          </div>
-          <div className="flex min-w-0 gap-2 sm:gap-3 lg:max-w-md">
-            <Phone className="mt-0.5 h-4 w-4 shrink-0 text-[#C9A84C] sm:h-5 sm:w-5" />
-            <div className="min-w-0">
-              <p className="text-[9px] uppercase tracking-[0.16em] text-[#C9A84C] sm:text-[11px] sm:tracking-[0.2em]">{t("footer.contact")}</p>
-              <a
-                href={`mailto:${company.email}`}
-                className="mt-1 block break-all text-[11px] text-cream-100/75 hover:text-[#C9A84C] sm:text-sm"
-              >
-                {company.email}
-              </a>
-              <a href={`tel:${company.phoneTel}`} className="mt-0.5 block text-[11px] text-cream-100/75 hover:text-[#C9A84C] sm:text-sm">
-                {company.phone}
-              </a>
             </div>
           </div>
         </div>

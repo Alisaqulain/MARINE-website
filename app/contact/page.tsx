@@ -42,11 +42,7 @@ export default function ContactPage() {
                   <br />
                   Corporate Office &amp; Factory
                   <br />
-                  {company.address[0]}
-                  <br />
-                  {company.address[1]}
-                  <br />
-                  {company.address[2]}
+                  {company.displayAddress}
                 </span>
               </li>
               <li className="flex gap-3">
@@ -106,7 +102,7 @@ export default function ContactPage() {
               <p className="text-[11px] uppercase tracking-[0.28em] text-[#8C6E28]">Visit us</p>
               <h2 className="mt-2 font-serif text-[1.65rem] md:text-4xl">Find the atelier</h2>
               <p className="mt-2 max-w-lg text-navy-600">
-                Corporate office &amp; factory — {company.address.join(", ")}. Appointments welcome for
+                Corporate office &amp; factory — {company.displayAddress}. Appointments welcome for
                 wholesale buyers and OEM sampling.
               </p>
             </div>
@@ -122,7 +118,7 @@ export default function ContactPage() {
           </div>
           <div className="relative overflow-hidden rounded-3xl border border-[#eee7db] bg-white shadow-soft">
             <iframe
-              title={`${company.name} factory map — Muzaffarnagar, Uttar Pradesh, India`}
+              title={`${company.name} factory map — Roorkee, Uttarakhand, India`}
               src={companyMapSrc}
               className="h-[280px] w-full md:h-[480px]"
               loading="lazy"
@@ -135,11 +131,7 @@ export default function ContactPage() {
               </p>
               <p className="mt-2 font-serif text-2xl text-navy-950">{company.name}</p>
               <p className="mt-1 text-sm leading-relaxed text-navy-600">
-                {company.address[0]}
-                <br />
-                {company.address[1]}
-                <br />
-                {company.address[2]}
+                {company.displayAddress}
               </p>
             </div>
           </div>
