@@ -253,7 +253,7 @@ const messagesUrl = files.filter((p) => /graph\.facebook\.com|graphUrl\(/.test(f
 const postCallers = files.filter((p) => /await postMessage\(creds/.test(fs.readFileSync(p, "utf8")));
 check("C6.13a", "Bypass audit: postMessage is defined once, in lib/whatsapp/cloud.ts", files.filter((p) => /function postMessage\(/.test(fs.readFileSync(p, "utf8"))).join() === "lib/whatsapp/cloud.ts");
 check("C6.12", "Bypass audit: only lib/whatsapp/cloud.ts builds a Graph /messages URL", messagesUrl.length === 1 && messagesUrl[0] === "lib/whatsapp/cloud.ts", messagesUrl.join(", "));
-check("C6.13", "Bypass audit: postMessage callers are inbound.ts, followups.ts and the audited admin resend route only", postCallers.sort().join() === "app/api/admin/ai/actions/route.ts,lib/ai/followups.ts,lib/whatsapp/inbound.ts", postCallers.join(", "));
+check("C6.13", "Bypass audit: postMessage callers are inbound.ts, followups.ts, the audited admin resend route and the audited manual admin reply only", postCallers.sort().join() === "app/api/admin/ai/actions/route.ts,lib/ai/followups.ts,lib/whatsapp/inbound.ts,lib/whatsapp/manual-reply.ts", postCallers.join(", "));
 check("C6.14", "Bypass audit: coexistence-actions Graph helper refuses /messages", /\/messages\$\/\.test\(path\)/.test(fs.readFileSync("lib/whatsapp/coexistence.ts", "utf8")));
 
 // ════════════════════ C7: routes closed in direct mode ════════════════════

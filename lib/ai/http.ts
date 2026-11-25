@@ -124,7 +124,9 @@ function providerError(data: unknown, raw = ""): string | undefined {
   if (typeof err === "string") return err;
   if (err && typeof err === "object") {
     const e = err as Record<string, unknown>;
-    return [e.message, e.status, e.code].filter((v) => v != null && v !== "").join(" · ") || undefined;
+    // Meta puts the real explanation in error_data.details (e.g. recipient not allowed); keep it and the subcode.
+    const details = e.error_data && typeof e.error_data === "object" ? (e.error_data as Record<string, unknown>).details : undefined;
+    return [e.message, e.status, e.code, e.error_subcode, details].filter((v) => v != null && v !== "").join(" · ") || undefined;
   }
   if (typeof root.message === "string") return root.message;
   if (Array.isArray(root.message)) return root.message.join("; ");

@@ -8,6 +8,9 @@
 
 /** Digits for the live Marina Muse WhatsApp Business app number. Never a recipient, never a configured or test identifier. */
 export const BLOCKED_LIVE_NUMBER = "917457099540";
+/** Business numbers that may never be a message recipient: the old live number and the Cloud API number (+91 90683 49540). */
+export const BUSINESS_NUMBERS: readonly string[] = [BLOCKED_LIVE_NUMBER, "919068349540"];
+export const isBusinessNumber = (digits: string) => BUSINESS_NUMBERS.includes(digits.replace(/\D/g, ""));
 
 /**
  * Production Meta app and Embedded Signup configuration IDs (not secrets). They are NEVER used as a fallback (C9);
@@ -64,7 +67,7 @@ export function testRecipients(env: Env = process.env) {
   return val(env, "WHATSAPP_TEST_RECIPIENTS")
     .split(",")
     .map((n) => digitsOnly(n))
-    .filter((n) => /^\d{8,15}$/.test(n) && n !== BLOCKED_LIVE_NUMBER);
+    .filter((n) => /^\d{8,15}$/.test(n) && !isBusinessNumber(n));
 }
 
 export type Decision = { ok: boolean; reason: string };

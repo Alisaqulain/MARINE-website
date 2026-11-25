@@ -5,7 +5,7 @@
  */
 import { BLOCKED_LIVE_NUMBER, decryptToken, graphVersion, outboundAllowed, type StoredCoexistence } from "./coexistence.ts";
 import { deliveryStateFromHttp, env, looksLikePlaceholder, requestJson, type DeliveryState } from "../ai/http.ts";
-import { directConfig, directOutboundDecision, isDirectMode, sendEnvironmentDecision } from "./mode.ts";
+import { directConfig, directOutboundDecision, isBusinessNumber, isDirectMode, sendEnvironmentDecision } from "./mode.ts";
 
 export type WaCredentials = { token: string; phoneNumberId: string; wabaId: string; source: "env" | "signup" | "none" };
 
@@ -147,7 +147,7 @@ export function sendGate(input: { to: string; suppressed: boolean; template: boo
   }
   if (!input.creds.token || !input.creds.phoneNumberId) return { allowed: false, reason: "WhatsApp Cloud API credentials are missing." };
   if (!/^\d{8,15}$/.test(to)) return { allowed: false, reason: "Recipient is not a valid number." };
-  if (to === BLOCKED_LIVE_NUMBER) return { allowed: false, reason: "The business's own number cannot be messaged." };
+  if (isBusinessNumber(to)) return { allowed: false, reason: "The business's own number cannot be messaged." };
   if (input.suppressed) return { allowed: false, reason: "Recipient opted out." };
   if (!input.template && !input.windowOpen) return { allowed: false, reason: "Free-form replies are only allowed within 24 hours of the customer's last message." };
   if (input.template && !input.consent) return { allowed: false, reason: "Template follow-ups need recorded opt-in consent." };
@@ -171,7 +171,7 @@ export type PostResult =
 export async function postMessage(creds: WaCredentials, payload: Record<string, unknown>): Promise<PostResult> {
   const where = sendEnvironmentDecision(process.env, creds.phoneNumberId);
   if (!where.ok) return { ok: false, delivery: "failed", error: where.reason };
-  if (String(payload.to ?? "").replace(/\D/g, "") === BLOCKED_LIVE_NUMBER) return { ok: false, delivery: "failed", error: "The business's own number cannot be messaged." };
+  if (isBusinessNumber(String(payload.to ?? ""))) return { ok: false, delivery: "failed", error: "The business's own number cannot be messaged." };
   if (!creds.token || !creds.phoneNumberId) return { ok: false, delivery: "failed", error: "WhatsApp Cloud API credentials are missing." };
   const res = await requestJson<{ messages?: { id?: string }[] }>(graphUrl(`/${encodeURIComponent(creds.phoneNumberId)}/messages`), {
     method: "POST",

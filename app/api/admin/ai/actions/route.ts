@@ -11,6 +11,7 @@ import { originMatches } from "@/lib/whatsapp/coexistence";
 import { postMessage, resolveCredentials, sendGate, textPayload } from "@/lib/whatsapp/cloud";
 import { isDirectMode } from "@/lib/whatsapp/mode";
 import { deliveryEventsCollection, messagesCollection, readCoexistenceState } from "@/lib/whatsapp/store";
+import { sendManualReply } from "@/lib/whatsapp/manual-reply";
 import { DUPLICATE_RISK_WARNING, claimResend, completeResend, markResolved, reconcileResend } from "@/lib/whatsapp/recovery";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +24,7 @@ export const runtime = "nodejs";
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
   const action = String(body?.action || "");
-  const ownerOnly = action === "vapi_sync" || action === "approve_callback" || action === "wa_expand_message" || action === "wa_resend" || action === "wa_reconcile_resend";
+  const ownerOnly = action === "vapi_sync" || action === "approve_callback" || action === "wa_expand_message" || action === "wa_expand_inbound" || action === "wa_manual_reply" || action === "wa_resend" || action === "wa_reconcile_resend";
   const { error, session } = await requireAdminSession(ownerOnly ? "team" : "addProduct");
   if (error) return error;
   const actor = session?.user?.email || "admin";
@@ -50,6 +51,13 @@ export async function POST(req: Request) {
       if (!doc) return NextResponse.json({ error: "Not found." }, { status: 404 });
       await audit({ inbound: id.slice(-6) });
       return NextResponse.json({ ok: true, text: String(doc.text || ""), from: String(doc.from || "") });
+    }
+
+    // Manual admin reply: main admin only (ownerOnly above), same-origin, rate-limited; window and gates on the server.
+    if (action === "wa_manual_reply") {
+      const outcome = await sendManualReply({ inboundWamid: id, text: String(body?.text ?? ""), actor });
+      if (outcome.result === "sent") return NextResponse.json({ ok: true, result: "sent" });
+      return NextResponse.json({ error: outcome.reason, result: outcome.result }, { status: outcome.result === "refused" ? 409 : 502 });
     }
 
     if (action === "wa_mark_resolved") {

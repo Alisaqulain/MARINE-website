@@ -21,6 +21,7 @@ export function ShopTabs({
   productReviews,
   tab: controlledTab,
   onTabChange,
+  itemsOnly = false,
 }: {
   items: Product[];
   categoryItems?: Product[];
@@ -30,12 +31,15 @@ export function ShopTabs({
   productReviews?: ReturnType<typeof useProductReviews>;
   tab?: ShopTab;
   onTabChange?: (tab: ShopTab) => void;
+  /** Reviews are shown elsewhere (under the product images); only the Items list is shown here. */
+  itemsOnly?: boolean;
 }) {
   const hasCategory = Boolean(categoryLabel && categoryItems && categoryItems.length > 0);
   const [scope, setScope] = useState<"category" | "all">(hasCategory ? "category" : "all");
   const base = scope === "category" && hasCategory ? categoryItems! : items;
   const [ownTab, setOwnTab] = useState<ShopTab>("Items");
-  const tab = controlledTab ?? ownTab;
+  const tab = itemsOnly ? "Items" : controlledTab ?? ownTab;
+  const shownTabs = itemsOnly ? (["Items"] as const) : tabs;
   const setTab = (next: ShopTab) => {
     setOwnTab(next);
     onTabChange?.(next);
@@ -92,8 +96,8 @@ export function ShopTabs({
   return (
     <div className="bg-white">
       <div className="sticky top-[var(--site-nav)] z-20 bg-[#C9A84C] text-[#1a1408]">
-        <div className="grid grid-cols-2">
-          {tabs.map((t) => (
+        <div className={`grid ${shownTabs.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}>
+          {shownTabs.map((t) => (
             <button
               key={t}
               type="button"

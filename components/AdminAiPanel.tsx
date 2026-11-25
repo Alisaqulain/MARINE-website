@@ -207,14 +207,42 @@ export function AdminAiPanel() {
                 {row.text ? (
                   <>
                     <p className="mt-1 whitespace-pre-wrap text-navy-700">{row.text}</p>
-                    <a
-                      className="mt-2 inline-block text-xs font-semibold text-[#8C6E28] underline"
-                      href={`https://wa.me/${row.fullFrom}`}
-                      target="_blank"
-                      rel="noreferrer"
+                    <form
+                      className="mt-3 space-y-2"
+                      onSubmit={async (e) => {
+                        e.preventDefault();
+                        const form = e.currentTarget;
+                        const field = form.elements.namedItem("reply") as HTMLTextAreaElement;
+                        const text = field.value.trim();
+                        if (!text) return;
+                        if (!window.confirm(`Send this WhatsApp reply to +${row.fullFrom}?`)) return;
+                        setError("");
+                        const res = await fetch("/api/admin/ai/actions", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ action: "wa_manual_reply", id: row.wamid, text }),
+                        });
+                        const json = await res.json().catch(() => ({}));
+                        if (res.ok) {
+                          field.value = "";
+                          setData((d) => (d ? { ...d, whatsappInbox: (d.whatsappInbox || []).map((w, j) => (j === i ? { ...w, replied: true } : w)) } : d));
+                          window.alert("Reply sent.");
+                        } else {
+                          setError(`Reply ${json.result === "refused" ? "refused" : "failed"}: ${typeof json.error === "string" ? json.error : "not sent."}`);
+                        }
+                      }}
                     >
-                      Reply from WhatsApp
-                    </a>
+                      <textarea
+                        name="reply"
+                        rows={3}
+                        maxLength={4096}
+                        placeholder="Type a reply (sent only within 24 hours of the customer's last message)"
+                        className="w-full rounded-lg border border-[#e6dfd2] p-2 text-sm"
+                      />
+                      <button type="submit" disabled={Boolean(busy)} className="rounded-full bg-[#031D38] px-4 py-1.5 text-xs font-medium text-white">
+                        Send reply
+                      </button>
+                    </form>
                   </>
                 ) : row.hasText ? (
                   <button

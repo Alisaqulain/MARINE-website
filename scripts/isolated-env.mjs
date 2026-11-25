@@ -155,6 +155,13 @@ export function isolatedEnv(base = process.env) {
     WHATSAPP_INTEGRATION_MODE: "direct", WHATSAPP_PRODUCTION_SENDING_APPROVED: "false",
   };
   for (const [k, v] of Object.entries(forced)) { env[k] = v; source[k] = `forced (${v === "" ? "empty" : v})`; }
+  // Manual-reply testing (Ahmad's approval, 25 Nov 2026): sending may be switched on ONLY here, in the isolated
+  // environment, never in production. Production sending approval stays forced "false", so lib/whatsapp/mode.ts still
+  // requires the Meta TEST phone-number ID + test WABA ID and a recipient listed in WHATSAPP_TEST_RECIPIENTS.
+  if (env.WHATSAPP_TEST_MANUAL_REPLY === "true") {
+    env.WHATSAPP_OUTBOUND_ENABLED = "true";
+    source.WHATSAPP_OUTBOUND_ENABLED = "forced (true: isolated manual-reply test, test number + test recipients only)";
+  }
   const acl = { session: restrictToOwner(SESSION_FILE), credentials: restrictToOwner(CRED_FILE) };
   if (acl.session === "FAILED" || acl.session === "NOT owner-only") problems.push(`session file access could not be restricted (${acl.session})`);
   if (acl.credentials === "FAILED" || acl.credentials === "NOT owner-only") problems.push(`credentials file access could not be restricted (${acl.credentials})`);

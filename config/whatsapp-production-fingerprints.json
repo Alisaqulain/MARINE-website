@@ -2,8 +2,12 @@
   "version": 1,
   "note": "SHA-256 of '<kind>:<id>' for PRODUCTION Meta identifiers (ids) and protected recipient numbers (recipients). Values are never stored. Empty required lists block every Meta-related test run until the client supplies the hashes (Phase 2 v1.1 section 5).",
   "ids": {
-    "waba": [],
-    "phone_number_id": [],
+    "waba": [
+      "16be53e99ed2cbbb61043745d32623f3f18f061c6f2cf308ea8a8653ea007436"
+    ],
+    "phone_number_id": [
+      "f37dd328317d11ae63bb49a944b3bacc7310a1e3b4ab87dd2951a1648eee4f4e"
+    ],
     "app_id": [
       "5b89ccbe57ef30adfe1e0572b79daab9007349325541dff6c7ee7e74afc3d237"
     ],
@@ -12,10 +16,7 @@
     ]
   },
   "recipients": [
-    "d774752fb8288e4528b745119f8329b345711346f0e5f405d1fcd11d10c55dbc"
-  ],
-  "liveNumberNotOnCloudApi": {
-    "decidedBy": "Ali (explicit owner permission, Ahmad verbal OK), 16 Nov 2026: test only on the Meta test number with recipient 9457818861; the live business number has no Cloud API WABA/phone-number id yet",
-    "date": "2026-11-16"
-  }
+    "d774752fb8288e4528b745119f8329b345711346f0e5f405d1fcd11d10c55dbc",
+    "a37531159530e6119ef0046d1cbd7d6089baf6cd496ec24f87d72ffafc777614"
+  ]
 }
