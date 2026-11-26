@@ -1,6 +1,6 @@
 export const company = {
   name: "Marina Muse International",
-  role: "Exporter, Manufacturer & Supplier",
+  role: "Retailer, Exporter, Manufacturer & Supplier",
   address: [
     "Ground Floor, Building / Flat No. 85, Bajheri",
     "Bagowali Road, Near Bajheri, Muzaffarnagar",

@@ -214,14 +214,14 @@ export function Footer() {
         <div className="grid grid-cols-2 gap-x-2 gap-y-3 sm:grid-cols-3 sm:gap-x-6 sm:gap-y-6 lg:grid-cols-[minmax(0,20rem)_repeat(4,max-content)] lg:justify-between lg:gap-8">
           <div className="col-span-2 sm:col-span-3 lg:col-span-1">
             <BrandLogo size="footer" />
-            <p className="mt-1.5 max-w-sm text-[11px] leading-snug text-cream-100/70 sm:mt-3 sm:text-sm sm:leading-relaxed">
+            <p className="mt-1.5 max-w-sm text-[13px] leading-snug text-cream-100/90 sm:mt-3 sm:text-[15px] sm:leading-relaxed">
               {t("footer.tagline")}
             </p>
           </div>
 
           {columns.map((col) => (
             <div key={col.title}>
-              <p className="text-[9px] uppercase tracking-[0.16em] text-[#C9A84C] sm:text-[11px] sm:tracking-[0.24em]">{col.title}</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#C9A84C] sm:text-sm">{col.title}</p>
               <ul className="mt-1.5 space-y-1 sm:mt-3 sm:space-y-2">
                 {col.links.map((link) => {
                   const label = Array.isArray(link) ? link[0] : link.label;
@@ -229,7 +229,7 @@ export function Footer() {
                   const wholesale = Array.isArray(link) ? undefined : link.wholesale;
                   const key = `${col.title}-${label}`;
                   const cls =
-                    "whitespace-nowrap text-[9px] tracking-tight text-cream-100/75 transition hover:text-[#C9A84C] sm:text-sm sm:tracking-normal";
+                    "text-[13px] text-cream-100/90 transition lg:whitespace-nowrap hover:text-[#C9A84C] sm:text-[15px]";
                   if (wholesale) {
                     return (
                       <li key={key}>
@@ -284,7 +284,7 @@ export function Footer() {
                 <div className="min-w-0">
                   <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#C9A84C] sm:text-sm lg:justify-center">
                     <Phone className="hidden h-5 w-5 shrink-0 lg:block" />
-                    {t("footer.contact")}
+                    Contact Us
                   </p>
                   <a href={`tel:${company.phoneTel}`} className="mt-1 block text-[13px] text-cream-100/90 hover:text-[#C9A84C] sm:text-[15px]">
                     {company.phone}
@@ -342,7 +342,7 @@ export function Footer() {
 
       <div className="border-t border-white/10">
         <div className="mx-auto max-w-[1320px] px-4 py-2 pb-14 text-center text-[11px] leading-snug text-cream-100/45 sm:px-5 sm:py-3 sm:pb-3 sm:text-xs">
-          © 2026 {company.name}. Exporter · Manufacturer · Supplier.
+          © 2026 {company.name}. Retailer · Exporter · Manufacturer · Supplier.
           <span className="mt-1 block text-cream-100/55 sm:mt-0 sm:inline">
             {" "}
             | Developed by{" "}

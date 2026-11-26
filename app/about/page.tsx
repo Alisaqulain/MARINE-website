@@ -36,7 +36,7 @@ export default function AboutPage() {
       <BannerHero
         src="/about-banner.jpeg"
         mobileSrc="/mobile/about.png"
-        alt="About Marina Muse International — exporter, manufacturer & supplier of handcrafted nautical, brass and armour products from Roorkee, India"
+        alt="About Marina Muse International — retailer, exporter, manufacturer & supplier of handcrafted nautical, brass and armour products from Roorkee, India"
         title="About Marina Muse International"
       />
 
@@ -95,7 +95,7 @@ export default function AboutPage() {
               Marina Muse International
             </h2>
             <p className="mt-5 leading-relaxed text-navy-700">
-              Marina Muse International is an exporter, manufacturer and supplier from India specialising
+              Marina Muse International is a retailer, exporter, manufacturer and supplier from India specialising
               in handcrafted nautical, maritime, brass, armour, vintage, decorative and functional
               products. Every line is made with careful attention to quality, craftsmanship, finishing
               and durability.

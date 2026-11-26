@@ -11,7 +11,7 @@ const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || process.env.AUTH_URL || "ht
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: "Marina Muse International — Exporter, Manufacturer & Supplier",
+    default: "Marina Muse International — Retailer, Exporter, Manufacturer & Supplier",
     template: "%s · Marina Muse International",
   },
   description:
@@ -28,7 +28,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     siteName: "Marina Muse International",
-    title: "Marina Muse International — Exporter, Manufacturer & Supplier",
+    title: "Marina Muse International — Retailer, Exporter, Manufacturer & Supplier",
     description:
       "Premium nautical instruments, handcrafted brass décor and custom-made products from India. Wholesale and global shipping.",
     images: [{ url: "/newlogo.png", width: 512, height: 512, alt: "Marina Muse International" }],

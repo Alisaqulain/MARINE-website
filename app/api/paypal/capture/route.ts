@@ -9,6 +9,7 @@ import {
   whatsappConfirmUrl,
 } from "@/lib/orders";
 import { captureMatches, capturePayPalOrder, paypalConfigured } from "@/lib/paypal";
+import { reconcilePayPalOrder } from "@/lib/paypal-reconcile";
 
 export async function POST(req: Request) {
   if (!paypalConfigured()) {
@@ -60,6 +61,11 @@ export async function POST(req: Request) {
       whatsappUrl: whatsappConfirmUrl(order),
     });
   } catch (error) {
+    // The capture call can fail after PayPal already took the money (timeout, reload): ask PayPal before giving up.
+    const recovered = await reconcilePayPalOrder(order);
+    if (recovered.status === "paid") {
+      return NextResponse.json({ ok: true, order: publicOrder(order), token: order.token, whatsappUrl: whatsappConfirmUrl(order) });
+    }
     const message = error instanceof Error ? error.message : "PayPal capture failed.";
     return NextResponse.json({ error: message }, { status: 502 });
   }

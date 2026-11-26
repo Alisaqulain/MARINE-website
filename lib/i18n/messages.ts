@@ -40,7 +40,7 @@ const en: Messages = {
   "footer.link.terms": "Terms of Service",
   "footer.link.deletion": "Data Deletion",
   "footer.tagline":
-    "Premium nautical instruments, handcrafted brass décor and custom manufacturing from India — exporter, manufacturer & supplier.",
+    "Premium nautical instruments, handcrafted brass décor and custom manufacturing from India — retailer, exporter, manufacturer & supplier.",
   "footer.office": "Corporate Office & Factory",
   "login.title.login": "Login",
   "login.title.register": "Register",

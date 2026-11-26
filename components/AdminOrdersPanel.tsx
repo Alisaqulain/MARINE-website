@@ -75,6 +75,7 @@ export function AdminOrdersPanel() {
   const [input, setInput] = useState("");
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState("");
+  const [checking, setChecking] = useState("");
 
   async function load() {
     setLoading(true);
@@ -258,6 +259,24 @@ export function AdminOrdersPanel() {
                           {o.paidAt ? <p className="text-navy-700">Paid {when(o.paidAt)}</p> : null}
                           {o.paymentRef ? <p className="break-all text-xs text-navy-500">Ref {o.paymentRef}</p> : null}
                           <p className="mt-1 text-navy-700">Confirmation email: {o.emailSent ? "sent" : "not sent"}</p>
+                          {o.status === "pending" && o.paymentMethod === "paypal" ? (
+                            <button
+                              type="button"
+                              disabled={checking === o.id}
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                setChecking(o.id);
+                                const res = await fetch(`/api/admin/orders/${encodeURIComponent(o.id)}`, { method: "POST" });
+                                const data = await res.json().catch(() => ({}));
+                                setChecking("");
+                                window.alert(String(data.detail || data.error || "Could not check PayPal."));
+                                if (data.status === "paid") void load();
+                              }}
+                              className="mt-2 rounded-full bg-[#031D38] px-3 py-1 text-xs font-semibold text-white disabled:opacity-60"
+                            >
+                              {checking === o.id ? "Checking PayPal…" : "Check PayPal payment"}
+                            </button>
+                          ) : null}
                           {o.status === "paid" && !o.trackingNumber ? (
                             <p className="mt-1 text-xs text-navy-500">Book the parcel in Shipping → Book on ShipGlobal.</p>
                           ) : null}
