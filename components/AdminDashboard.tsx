@@ -19,6 +19,7 @@ import {
   Truck,
   Sparkles,
   MessageCircle,
+  ShoppingBag,
 } from "lucide-react";
 import Link from "next/link";
 import { signOut, useSession } from "next-auth/react";
@@ -31,6 +32,7 @@ import { AdminListPagination } from "@/components/AdminListPagination";
 import { AdminProductReviewsPanel } from "@/components/AdminProductReviewsPanel";
 import { AdminTestimonialForm } from "@/components/AdminTestimonialForm";
 import { AdminShipmentsPanel } from "@/components/AdminShipmentsPanel";
+import { AdminOrdersPanel } from "@/components/AdminOrdersPanel";
 import { AdminAiPanel } from "@/components/AdminAiPanel";
 import { AdminWhatsAppPanel } from "@/components/AdminWhatsAppPanel";
 import { AdminTeamPanel } from "@/components/AdminTeamPanel";
@@ -66,6 +68,7 @@ type Tab =
   | "contacts"
   | "returns"
   | "shipments"
+  | "orders"
   | "testimonials"
   | "blog"
   | "users"
@@ -124,6 +127,7 @@ export function AdminDashboard() {
       "ai",
       "whatsapp",
       "shipments",
+      "orders",
     ];
     if (saved && allowed.includes(saved as Tab)) setTab(saved as Tab);
     setRestored(true);
@@ -339,6 +343,7 @@ export function AdminDashboard() {
           { id: "quotes", label: "Bulk quotes", icon: FileText },
           { id: "applications", label: "Trade accounts", icon: Users },
           { id: "contacts", label: "Contact", icon: MessageSquare },
+          { id: "orders", label: "Orders", icon: ShoppingBag },
           { id: "shipments", label: "Shipping", icon: Truck },
           { id: "ai", label: "Marina AI", icon: Sparkles },
           { id: "whatsapp", label: "WhatsApp", icon: MessageCircle },
@@ -360,6 +365,7 @@ export function AdminDashboard() {
           { id: "users", label: "Customers", icon: Users },
           { id: "contacts", label: "Contact", icon: MessageSquare },
           { id: "returns", label: "Returns", icon: RotateCcw },
+          { id: "orders", label: "Orders", icon: ShoppingBag },
           { id: "shipments", label: "Shipping", icon: Truck },
           { id: "ai", label: "Marina AI", icon: Sparkles },
           { id: "whatsapp", label: "WhatsApp", icon: MessageCircle },
@@ -1214,6 +1220,7 @@ export function AdminDashboard() {
 
           {tab === "categories" && canAddProduct ? <AdminCategoriesPanel /> : null}
 
+          {tab === "orders" ? <AdminOrdersPanel /> : null}
           {tab === "shipments" ? <AdminShipmentsPanel /> : null}
           {tab === "ai" ? <AdminAiPanel /> : null}
           {tab === "whatsapp" ? <AdminWhatsAppPanel /> : null}

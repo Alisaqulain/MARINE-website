@@ -453,7 +453,14 @@ export async function listAiAdmin() {
       from: String(doc.from ?? ""),
       at: String(doc.at ?? ""),
       hasText: typeof doc.text === "string" && doc.text.length > 0,
-      replied: Boolean(whatsapp.some((out) => out.inReplyTo === doc.wamid || out.replyToWamid === doc.wamid)),
+      // Only a reply that actually went out counts; refused or failed attempts do not.
+      replied: Boolean(
+        whatsapp.some(
+          (out) =>
+            (out.inReplyTo === doc.wamid || out.replyToWamid === doc.wamid) &&
+            ["sent", "delivered", "read", "manual_sent"].includes(String(out.status ?? ""))
+        )
+      ),
     })),
     voice: voiceStatus(),
     chatModel: geminiConfigured() ? `gemini:${geminiModel()}` : "catalogue-only",

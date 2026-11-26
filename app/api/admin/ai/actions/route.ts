@@ -12,6 +12,7 @@ import { postMessage, resolveCredentials, sendGate, textPayload } from "@/lib/wh
 import { isDirectMode } from "@/lib/whatsapp/mode";
 import { deliveryEventsCollection, messagesCollection, readCoexistenceState } from "@/lib/whatsapp/store";
 import { sendManualReply } from "@/lib/whatsapp/manual-reply";
+import { isSuperAdminEmail } from "@/lib/staff-access";
 import { DUPLICATE_RISK_WARNING, claimResend, completeResend, markResolved, reconcileResend } from "@/lib/whatsapp/recovery";
 
 export const dynamic = "force-dynamic";
@@ -55,6 +56,11 @@ export async function POST(req: Request) {
 
     // Manual admin reply: main admin only (ownerOnly above), same-origin, rate-limited; window and gates on the server.
     if (action === "wa_manual_reply") {
+      // Main admin only (ADMIN_EMAILS), not every admin-role account; a refusal is audited like any other attempt.
+      if (!isSuperAdminEmail(actor)) {
+        await audit({ inbound: id.slice(-6), result: "refused", reason: "not the main admin" });
+        return NextResponse.json({ error: "Only the main admin can send WhatsApp replies.", result: "refused" }, { status: 403 });
+      }
       const outcome = await sendManualReply({ inboundWamid: id, text: String(body?.text ?? ""), actor });
       if (outcome.result === "sent") return NextResponse.json({ ok: true, result: "sent" });
       return NextResponse.json({ error: outcome.reason, result: outcome.result }, { status: outcome.result === "refused" ? 409 : 502 });

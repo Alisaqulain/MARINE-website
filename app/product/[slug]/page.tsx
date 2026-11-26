@@ -297,8 +297,8 @@ export default function ProductPage() {
                 </button>
               ))}
             </div>
-            {/* Reviews sit under the product images (B2C and B2B), before the Items list. */}
-            <div id="product-reviews" className="mt-6 scroll-mt-[var(--site-nav)] border-t border-[#e6dfd2] px-0 pt-5">
+            {/* Desktop: reviews fill the space under the product images (B2C and B2B), before the Items list. */}
+            <div id="product-reviews" className="mt-6 hidden scroll-mt-[var(--site-nav)] border-t border-[#e6dfd2] pt-5 lg:block">
               <ProductReviews slug={product.slug} productName={product.name} reviews={productReviews} />
             </div>
           </div>
@@ -331,7 +331,9 @@ export default function ProductPage() {
               <button
                 type="button"
                 onClick={() => {
-                  document.getElementById("product-reviews")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  document
+                    .getElementById(window.matchMedia("(min-width: 1024px)").matches ? "product-reviews" : "product-reviews-mobile")
+                    ?.scrollIntoView({ behavior: "smooth", block: "start" });
                 }}
                 aria-label="See reviews"
                 className="inline-flex items-center gap-2"
@@ -616,6 +618,11 @@ https://marinamuseinternational.com/product/${product.slug}`
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Mobile: reviews after the price and Add to Cart, before the Items list. */}
+      <div id="product-reviews-mobile" className="scroll-mt-[var(--site-nav)] border-t border-[#e6dfd2] px-5 pb-6 pt-5 lg:hidden">
+        <ProductReviews slug={product.slug} productName={product.name} reviews={productReviews} />
       </div>
 
       <div id="product-tabs" className="scroll-mt-[var(--site-nav)] lg:mx-auto lg:max-w-[1320px] lg:px-5 lg:pb-14">

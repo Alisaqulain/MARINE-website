@@ -10,6 +10,7 @@ import {
   Instagram,
   Linkedin,
   Lock,
+  Mail,
   MapPin,
   Phone,
   ShieldCheck,
@@ -262,31 +263,52 @@ export function Footer() {
       </div>
 
       <div className="border-t border-white/10">
-        <div className="mx-auto grid max-w-[1320px] gap-4 px-4 py-2.5 sm:px-5 sm:py-4 lg:grid-cols-3 lg:items-start lg:gap-5">
-          <div className="flex min-w-0 gap-2 sm:gap-3">
-            <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-[#C9A84C] sm:h-5 sm:w-5" />
-            <div className="min-w-0">
-              <p className="text-[9px] uppercase tracking-[0.16em] text-[#C9A84C] sm:text-[11px] sm:tracking-[0.2em]">{t("footer.office")}</p>
-              <p className="mt-0.5 max-w-xl text-[11px] leading-snug text-cream-100/65 sm:text-sm sm:leading-relaxed">
-                {company.displayAddress}
-              </p>
+        <div className="mx-auto max-w-[1320px] px-4 py-5 sm:px-5 lg:py-7">
+          <div className="grid gap-5 lg:grid-cols-3 lg:gap-0 lg:divide-x lg:divide-[#C9A84C]/70">
+            {/* Corporate office */}
+            <div className="flex gap-3 lg:flex-col lg:items-center lg:px-6 lg:text-center">
+              <MapPin className="mt-0.5 h-5 w-5 shrink-0 text-[#C9A84C] lg:hidden" />
+              <div className="min-w-0">
+                <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#C9A84C] sm:text-sm lg:justify-center">
+                  <MapPin className="hidden h-5 w-5 shrink-0 lg:block" />
+                  {t("footer.office")}
+                </p>
+                <p className="mt-1 text-[13px] text-cream-100/90 sm:text-[15px]">{company.displayAddress}</p>
+              </div>
             </div>
-          </div>
-          <div className="flex min-w-0 flex-col items-center text-center">
-            <p className="flex items-center gap-1.5 text-[9px] uppercase tracking-[0.16em] text-[#C9A84C] sm:text-[11px] sm:tracking-[0.2em]">
-              <Phone className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-              {t("footer.contact")}
-            </p>
-            <a
-              href={`mailto:${company.email}`}
-              className="mt-1 block break-all text-[11px] text-cream-100/75 hover:text-[#C9A84C] sm:text-sm"
-            >
-              {company.email}
-            </a>
-            <a href={`tel:${company.phoneTel}`} className="mt-0.5 block text-[11px] text-cream-100/75 hover:text-[#C9A84C] sm:text-sm">
-              {company.phone}
-            </a>
-            <div className="mt-3 flex flex-wrap justify-center gap-1.5 sm:gap-2.5">
+
+            {/* Contact + email */}
+            <div className="space-y-4 lg:px-6 lg:text-center">
+              <div className="flex gap-3 lg:flex-col lg:items-center">
+                <Phone className="mt-0.5 h-5 w-5 shrink-0 text-[#C9A84C] lg:hidden" />
+                <div className="min-w-0">
+                  <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#C9A84C] sm:text-sm lg:justify-center">
+                    <Phone className="hidden h-5 w-5 shrink-0 lg:block" />
+                    {t("footer.contact")}
+                  </p>
+                  <a href={`tel:${company.phoneTel}`} className="mt-1 block text-[13px] text-cream-100/90 hover:text-[#C9A84C] sm:text-[15px]">
+                    {company.phone}
+                  </a>
+                </div>
+              </div>
+              <div className="flex gap-3 lg:flex-col lg:items-center">
+                <Mail className="mt-0.5 h-5 w-5 shrink-0 text-[#C9A84C] lg:hidden" />
+                <div className="min-w-0">
+                  <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#C9A84C] sm:text-sm lg:justify-center">
+                    <Mail className="hidden h-5 w-5 shrink-0 lg:block" />
+                    Email Us
+                  </p>
+                  <a href={`mailto:${company.email}`} className="mt-1 block break-all text-[13px] text-cream-100/90 hover:text-[#C9A84C] sm:text-[15px]">
+                    {company.email}
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            {/* Follow us */}
+            <div className="border-t border-[#C9A84C]/70 pt-5 text-center lg:flex lg:flex-col lg:items-center lg:justify-center lg:border-t-0 lg:px-6 lg:pt-0">
+              <p className="text-[12px] font-semibold uppercase tracking-[0.3em] text-[#C9A84C] sm:text-sm lg:tracking-[0.14em]">Follow Us</p>
+              <div className="mt-3 flex flex-wrap justify-center gap-2.5">
               {socials.map(({ label, Icon, href }) =>
                 href ? (
                   <a
@@ -296,9 +318,9 @@ export function Footer() {
                     rel="noopener noreferrer"
                     aria-label={label}
                     title={label}
-                    className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#C9A84C] text-[#031D38] sm:h-10 sm:w-10"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#C9A84C] text-[#031D38] sm:h-10 sm:w-10"
                   >
-                    <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                    <Icon className="h-4 w-4" />
                   </a>
                 ) : (
                   <span
@@ -306,12 +328,13 @@ export function Footer() {
                     aria-label={label}
                     aria-disabled="true"
                     title={label}
-                    className="inline-flex h-7 w-7 cursor-default items-center justify-center rounded-full bg-[#C9A84C] text-[#031D38] sm:h-10 sm:w-10"
+                    className="inline-flex h-10 w-10 cursor-default items-center justify-center rounded-full bg-[#C9A84C] text-[#031D38] sm:h-10 sm:w-10"
                   >
-                    <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                    <Icon className="h-4 w-4" />
                   </span>
                 )
               )}
+              </div>
             </div>
           </div>
         </div>
