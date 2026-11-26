@@ -331,9 +331,14 @@ export default function ProductPage() {
               <button
                 type="button"
                 onClick={() => {
-                  document
-                    .getElementById(window.matchMedia("(min-width: 1024px)").matches ? "product-reviews" : "product-reviews-mobile")
-                    ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  if (window.matchMedia("(min-width: 1024px)").matches) {
+                    document.getElementById("product-reviews")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  } else {
+                    setShopTab("Reviews");
+                    requestAnimationFrame(() =>
+                      document.getElementById("product-tabs")?.scrollIntoView({ behavior: "smooth", block: "start" })
+                    );
+                  }
                 }}
                 aria-label="See reviews"
                 className="inline-flex items-center gap-2"
@@ -618,11 +623,6 @@ https://marinamuseinternational.com/product/${product.slug}`
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Mobile: reviews after the price and Add to Cart, before the Items list. */}
-      <div id="product-reviews-mobile" className="scroll-mt-[var(--site-nav)] border-t border-[#e6dfd2] px-5 pb-6 pt-5 lg:hidden">
-        <ProductReviews slug={product.slug} productName={product.name} reviews={productReviews} />
       </div>
 
       <div id="product-tabs" className="scroll-mt-[var(--site-nav)] lg:mx-auto lg:max-w-[1320px] lg:px-5 lg:pb-14">

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { countryName } from "@/lib/countries";
+import { AdminOrdersPanel } from "@/components/AdminOrdersPanel";
 
 type Stage = "" | "processing" | "in_transit" | "out_for_delivery" | "delivered";
 
@@ -64,6 +65,7 @@ export function AdminShipmentsPanel() {
   const [busy, setBusy] = useState("");
   const [tab, setTab] = useState<TabId>("to-ship");
   const [loading, setLoading] = useState(true);
+  const [view, setView] = useState<"shipments" | "orders">("shipments");
 
   async function load() {
     const res = await fetch("/api/admin/shipments", { cache: "no-store" });
@@ -133,8 +135,39 @@ export function AdminShipmentsPanel() {
     await load();
   }
 
+  const switcher = (
+    <div className="flex gap-2">
+      {([
+        ["shipments", "Shipments"],
+        ["orders", "All orders"],
+      ] as const).map(([id, label]) => (
+        <button
+          key={id}
+          type="button"
+          onClick={() => setView(id)}
+          className={`rounded-full px-4 py-1.5 text-sm font-semibold ${
+            view === id ? "bg-[#031D38] text-white" : "bg-white text-[#031D38] ring-1 ring-[#e6dfd2] hover:ring-[#C9A84C]"
+          }`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+
+  // Order management inside Shipping: every order (paid, awaiting payment, cancelled) with details.
+  if (view === "orders") {
+    return (
+      <div className="space-y-4">
+        {switcher}
+        <AdminOrdersPanel />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
+      {switcher}
       <div className="rounded-xl bg-white p-5 shadow-sm">
         <h2 className="font-serif text-lg text-navy-900">Shipping</h2>
         <p className="mt-1 text-sm text-navy-600">

@@ -49,7 +49,7 @@ export function ProductCard({ product }: { product: Product }) {
           }}
           className="absolute right-1.5 top-1.5 grid h-9 w-9 place-items-center text-[#222222]"
         >
-          <Heart className={`h-[22px] w-[22px] ${wished ? "fill-[#222222] text-[#222222]" : ""}`} />
+          <Heart className={`h-[22px] w-[22px] ${wished ? "fill-red-500 text-red-500" : ""}`} />
         </button>
         <ProductShareIcon
           path={`/product/${product.slug}`}

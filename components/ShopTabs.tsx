@@ -31,15 +31,25 @@ export function ShopTabs({
   productReviews?: ReturnType<typeof useProductReviews>;
   tab?: ShopTab;
   onTabChange?: (tab: ShopTab) => void;
-  /** Reviews are shown elsewhere (under the product images); only the Items list is shown here. */
+  /** Desktop: reviews are shown under the product images, so only the Items tab is shown here. */
   itemsOnly?: boolean;
 }) {
   const hasCategory = Boolean(categoryLabel && categoryItems && categoryItems.length > 0);
   const [scope, setScope] = useState<"category" | "all">(hasCategory ? "category" : "all");
   const base = scope === "category" && hasCategory ? categoryItems! : items;
   const [ownTab, setOwnTab] = useState<ShopTab>("Items");
-  const tab = itemsOnly ? "Items" : controlledTab ?? ownTab;
-  const shownTabs = itemsOnly ? (["Items"] as const) : tabs;
+  // itemsOnly applies on desktop only (reviews sit under the images there); mobile keeps Items | Reviews tabs.
+  const [isDesktop, setIsDesktop] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const update = () => setIsDesktop(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+  const onlyItems = itemsOnly && isDesktop;
+  const tab = onlyItems ? "Items" : controlledTab ?? ownTab;
+  const shownTabs = onlyItems ? (["Items"] as const) : tabs;
   const setTab = (next: ShopTab) => {
     setOwnTab(next);
     onTabChange?.(next);

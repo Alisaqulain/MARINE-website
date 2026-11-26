@@ -55,6 +55,11 @@ export function LiveTracking() {
           Track Your Order
         </h2>
         <p className="mt-1 text-center text-sm text-navy-600">Enter your order number and the email you ordered with.</p>
+        <p className="mt-1 text-center text-sm">
+          <Link href="/account/orders" className="font-semibold text-[#8C6E28] underline">
+            Order status: see all my orders
+          </Link>
+        </p>
         <form onSubmit={submit} className="mt-5 grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
           <input
             required
