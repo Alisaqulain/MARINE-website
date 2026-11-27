@@ -64,7 +64,11 @@ function TrackOrderContent() {
   }
 
   const stageLabel =
-    order?.tracking?.stage === "delivered"
+    order && order.status !== "paid"
+      ? order.status === "failed"
+        ? "Payment failed"
+        : "Awaiting payment"
+      : order?.tracking?.stage === "delivered"
       ? "Delivered"
       : order?.tracking?.stage === "out_for_delivery"
         ? "Out for delivery"

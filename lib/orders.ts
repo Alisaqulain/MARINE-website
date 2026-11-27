@@ -169,7 +169,7 @@ export async function getOrdersByEmail(email: string): Promise<OrderRecord[]> {
 /** Phase 2 commerce 2: needs both the order number and the matching email; reads the database. */
 export async function trackOrderByEmail(orderId: string, email: string) {
   const order = await getOrderDurable(orderId.trim());
-  if (!order || order.status !== "paid") return null;
+  if (!order) return null;
   if (order.email.trim().toLowerCase() !== email.trim().toLowerCase()) return null;
   return order;
 }

@@ -153,6 +153,22 @@ async function groundedReply(input: {
   return { text: result.text, model: "gemini" };
 }
 
+/**
+ * Plain-text layout for WhatsApp and the website chat: no markdown, each link on its own line under its product,
+ * bullets as "•". Neither WhatsApp nor the chat bubble renders markdown links.
+ */
+export function formatForChat(text: string) {
+  return text
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, "$1\n$2")
+    .replace(/\s*\((https?:\/\/[^)\s]+)\)/g, "\n$1")
+    .replace(/\s*Page:\s*(https?:\/\/\S+)/g, "\n$1")
+    .replace(/^[ \t]*[*-][ \t]+/gm, "• ")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 async function sessionProducts(sessionId: string, catalogue: CatalogueFact[]) {
   const db = await getDb();
   const last = await db
@@ -332,7 +348,8 @@ export async function handleCustomerMessage(input: {
   let model: "gemini" | "catalogue" | "approval" = "approval";
   if (reply == null) {
     // A follow-up such as "how many do you have?" refers to the products discussed last.
-    const products = answer.products.length ? answer.products : await sessionProducts(input.sessionId, catalogue);
+    // Greetings, team hand-off and policy answers must not drag in the products from earlier in the chat.
+    const products = answer.products.length ? answer.products : answer.policy ? [] : await sessionProducts(input.sessionId, catalogue);
     const written = await groundedReply({
       agent: input.channel === "whatsapp" ? "whatsapp" : "chat",
       message,
@@ -340,7 +357,7 @@ export async function handleCustomerMessage(input: {
       products,
       grounded: answer.text,
     });
-    reply = written.text;
+    reply = formatForChat(written.text);
     model = written.model;
     if (written.rejected?.length) {
       await db.collection("ai_audit").insertOne({

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { AdminWhatsAppInbox } from "@/components/AdminWhatsAppInbox";
 import { AdminWhatsAppRecovery, type RecoveryRow } from "@/components/AdminWhatsAppRecovery";
 
 type Board = {
@@ -196,75 +197,8 @@ export function AdminAiPanel() {
       ) : null}
       {section === "WhatsApp" ? (
         <div className="mb-4">
-          <h3 className="mb-2 font-serif text-base text-navy-900">Incoming messages</h3>
-          <ul className="space-y-2">
-            {(data?.whatsappInbox || []).map((row, i) => (
-              <li key={row.wamid || i} className="rounded-xl bg-white p-4 text-sm shadow-sm">
-                <p className="font-medium">
-                  From {row.fullFrom ? `+${row.fullFrom}` : maskTo(row.from)} · {new Date(row.at).toLocaleString()}
-                  {row.replied ? " · replied" : " · not replied"}
-                </p>
-                {row.text ? (
-                  <>
-                    <p className="mt-1 whitespace-pre-wrap text-navy-700">{row.text}</p>
-                    <form
-                      className="mt-3 space-y-2"
-                      onSubmit={async (e) => {
-                        e.preventDefault();
-                        const form = e.currentTarget;
-                        const field = form.elements.namedItem("reply") as HTMLTextAreaElement;
-                        const text = field.value.trim();
-                        if (!text) return;
-                        if (!window.confirm(`Send this WhatsApp reply to +${row.fullFrom}?`)) return;
-                        setError("");
-                        const res = await fetch("/api/admin/ai/actions", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ action: "wa_manual_reply", id: row.wamid, text }),
-                        });
-                        const json = await res.json().catch(() => ({}));
-                        if (res.ok) {
-                          field.value = "";
-                          setData((d) => (d ? { ...d, whatsappInbox: (d.whatsappInbox || []).map((w, j) => (j === i ? { ...w, replied: true } : w)) } : d));
-                          window.alert("Reply sent.");
-                        } else {
-                          setError(`Reply ${json.result === "refused" ? "refused" : "failed"}: ${typeof json.error === "string" ? json.error : "not sent."}`);
-                        }
-                      }}
-                    >
-                      <textarea
-                        name="reply"
-                        rows={3}
-                        maxLength={4096}
-                        placeholder="Type a reply (sent only within 24 hours of the customer's last message)"
-                        className="w-full rounded-lg border border-[#e6dfd2] p-2 text-sm"
-                      />
-                      <button type="submit" disabled={Boolean(busy)} className="rounded-full bg-[#031D38] px-4 py-1.5 text-xs font-medium text-white">
-                        Send reply
-                      </button>
-                    </form>
-                  </>
-                ) : row.hasText ? (
-                  <button
-                    type="button"
-                    disabled={Boolean(busy)}
-                    className="mt-1 rounded-full border px-3 py-1 text-xs"
-                    onClick={async () => {
-                      const res = await fetch("/api/admin/ai/actions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "wa_expand_inbound", id: row.wamid }) });
-                      const json = await res.json().catch(() => ({}));
-                      if (res.ok) setData((d) => (d ? { ...d, whatsappInbox: (d.whatsappInbox || []).map((w, j) => (j === i ? { ...w, text: String(json.text || ""), fullFrom: String(json.from || "") } : w)) } : d));
-                      else setError(typeof json.error === "string" ? json.error : "Not allowed.");
-                    }}
-                  >
-                    Show message
-                  </button>
-                ) : (
-                  <p className="mt-1 text-xs text-navy-500">Non-text message (image, audio or document).</p>
-                )}
-              </li>
-            ))}
-            {!data?.whatsappInbox?.length ? <p className="text-sm text-navy-600">No incoming WhatsApp messages yet.</p> : null}
-          </ul>
+          <h3 className="mb-2 font-serif text-base text-navy-900">Conversations</h3>
+          <AdminWhatsAppInbox rows={data?.whatsappInbox || []} onError={setError} />
           <h3 className="mb-2 mt-5 font-serif text-base text-navy-900">Replies</h3>
         </div>
       ) : null}
@@ -458,10 +392,29 @@ export function AdminAiPanel() {
                 {lead.quantity ? ` · qty ${lead.quantity}` : ""} · est. ${lead.estimatedValueUsd ?? 0}
               </p>
               <p className="mt-1 text-navy-700">{lead.summary}</p>
-              <p className="mt-1 text-xs text-navy-600">
-                {[lead.channel, lead.name, lead.company, lead.email, lead.phone, lead.country].filter(Boolean).join(" · ") || "No contact details yet"}
-                {lead.productInterest?.length ? ` · interested in ${lead.productInterest.join(", ")}` : ""}
-              </p>
+              {/* Contact person, shown separately so the team can call or write straight away. */}
+              <div className="mt-3 grid gap-x-6 gap-y-1 rounded-lg bg-[#FAF7F2] p-3 text-xs sm:grid-cols-2">
+                <p className="sm:col-span-2 text-[11px] font-semibold uppercase tracking-wide text-[#8C6E28]">Contact person</p>
+                <p><span className="text-navy-500">Name: </span>{lead.name || "—"}</p>
+                <p><span className="text-navy-500">Company: </span>{lead.company || "—"}</p>
+                <p>
+                  <span className="text-navy-500">Email: </span>
+                  {lead.email ? <a className="text-[#8C6E28] underline" href={`mailto:${lead.email}`}>{lead.email}</a> : "—"}
+                </p>
+                <p>
+                  <span className="text-navy-500">Phone / WhatsApp: </span>
+                  {lead.phone ? (
+                    <a className="text-[#8C6E28] underline" href={`https://wa.me/${String(lead.phone).replace(/\D/g, "")}`} target="_blank" rel="noreferrer">
+                      {lead.phone}
+                    </a>
+                  ) : "—"}
+                </p>
+                <p><span className="text-navy-500">Country: </span>{lead.country || "—"}</p>
+                <p><span className="text-navy-500">Came via: </span>{lead.channel || "—"}</p>
+                {lead.productInterest?.length ? (
+                  <p className="sm:col-span-2"><span className="text-navy-500">Interested in: </span>{lead.productInterest.join(", ")}</p>
+                ) : null}
+              </div>
               {lead.alertedAt ? (
                 <p className={`mt-1 text-xs ${lead.alertDelivered ? "text-emerald-700" : "text-red-700"}`}>
                   Owner alerted {new Date(lead.alertedAt).toLocaleString()} — {lead.alertDelivered ? "email delivered" : "email failed (check SMTP on /test)"}

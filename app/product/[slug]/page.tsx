@@ -552,8 +552,7 @@ export default function ProductPage() {
               <a
                 href={whatsAppChat(
                   `Hello Marina Muse, I am interested in this product:
-${product.name} (SKU ${product.sku})
-Price: ${formatPrice(displayPrice)}${b2b ? `
+${product.name} (SKU ${product.sku})${b2b ? `
 Wholesale quantity: ${orderQty}` : ""}
 https://marinamuseinternational.com/product/${product.slug}`
                 )}

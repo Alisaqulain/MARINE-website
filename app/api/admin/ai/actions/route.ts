@@ -25,7 +25,7 @@ export const runtime = "nodejs";
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
   const action = String(body?.action || "");
-  const ownerOnly = action === "vapi_sync" || action === "approve_callback" || action === "wa_expand_message" || action === "wa_expand_inbound" || action === "wa_manual_reply" || action === "wa_resend" || action === "wa_reconcile_resend";
+  const ownerOnly = action === "vapi_sync" || action === "approve_callback" || action === "wa_expand_message" || action === "wa_expand_inbound" || action === "wa_conversation" || action === "wa_manual_reply" || action === "wa_resend" || action === "wa_reconcile_resend";
   const { error, session } = await requireAdminSession(ownerOnly ? "team" : "addProduct");
   if (error) return error;
   const actor = session?.user?.email || "admin";
@@ -64,6 +64,25 @@ export async function POST(req: Request) {
       const outcome = await sendManualReply({ inboundWamid: id, text: String(body?.text ?? ""), actor });
       if (outcome.result === "sent") return NextResponse.json({ ok: true, result: "sent" });
       return NextResponse.json({ error: outcome.reason, result: outcome.result }, { status: outcome.result === "refused" ? 409 : 502 });
+    }
+
+    if (action === "wa_conversation") {
+      if (!isSuperAdminEmail(actor)) return NextResponse.json({ error: "Only the main admin can open WhatsApp conversations." }, { status: 403 });
+      const first = await messages.findOne({ wamid: id, direction: "in" });
+      const from = String(first?.from || "");
+      if (!from) return NextResponse.json({ error: "Conversation not found." }, { status: 404 });
+      const rows = await (await getDb())
+        .collection("ai_wa_messages")
+        .find({ $or: [{ from, direction: "in" }, { to: from, direction: "out" }] }, { projection: { _id: 0, direction: 1, text: 1, at: 1, status: 1, manual: 1 } })
+        .sort({ at: 1 })
+        .limit(200)
+        .toArray();
+      await audit({ conversation: from.slice(-4), messages: rows.length });
+      return NextResponse.json({
+        ok: true,
+        from,
+        messages: rows.map((r) => ({ direction: r.direction, text: String(r.text ?? ""), at: String(r.at ?? ""), status: r.status, manual: Boolean(r.manual) })),
+      });
     }
 
     if (action === "wa_mark_resolved") {
@@ -153,7 +172,7 @@ export async function POST(req: Request) {
   }
 
   if (action === "generate_content") {
-    if (!agentEnabled("growth")) return NextResponse.json({ error: "The growth agent is not enabled (AI_AGENTS_ENABLED / AI_AGENTS_DISABLED)." }, { status: 409 });
+    if (!agentEnabled("growth")) return NextResponse.json({ error: "Content drafts are switched off: the Growth agent is not enabled yet (needs Ahmad bhai's approval). Nothing is broken." }, { status: 409 });
     const kind = CONTENT_KINDS.find((k) => k === body?.kind) as ContentKind | undefined;
     if (!kind) return NextResponse.json({ error: `kind must be one of ${CONTENT_KINDS.join(", ")}` }, { status: 400 });
     const result = await generateContentDraft({

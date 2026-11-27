@@ -14,7 +14,7 @@ export type CatalogueFact = {
   moq?: number;
 };
 
-export type PolicyTopic = "shipping" | "returns" | "warranty" | "discount" | "manufacturing";
+export type PolicyTopic = "shipping" | "returns" | "warranty" | "discount" | "manufacturing" | "contact";
 
 export const APPROVED_POLICIES: Record<PolicyTopic, string | null> = {
   shipping:
@@ -23,6 +23,8 @@ export const APPROVED_POLICIES: Record<PolicyTopic, string | null> = {
     "Eligible standard retail products can be returned within 14 days. Personalised or custom-made goods may be excluded from that 14-day return. Wholesale returns and refunds follow the agreed order terms and need written authorisation first. Full policy: /returns (wholesale: /returns#wholesale).",
   warranty: null,
   discount: "No discount, payment term, or custom commercial commitment is offered unless an owner has approved that exact request.",
+  contact:
+    "Thank you, I'll pass this to our team so they can contact you about your requirement. You can also reach them directly: email info@marinamuseinternational.com or call/WhatsApp +91 74570 99540. To help them prepare, please share your name, company, the products you're interested in, quantity and country.",
   manufacturing:
     "Custom manufacturing is available. A quote is confirmed by the team. This assistant does not promise a production time or a unit price that is not on the current product record.",
 };
@@ -60,6 +62,23 @@ export function answerFromCatalogue(question: string, products: CatalogueFact[])
   const query = tokens(cleaned);
   const lower = cleaned.toLowerCase();
 
+  // Greeting only (no product words): welcome instead of "no catalogue match".
+  if (/^(hi+|hello+|hey+|hy+|namaste|namaskar|salam|assalam[ou]? ?alaikum|good (morning|afternoon|evening)|hola|bonjour)[\s!.,]*$/i.test(cleaned)) {
+    return {
+      text: "Hello and welcome to Marina Muse International! I can help with our products, prices, stock, shipping and returns, or connect you with our team for wholesale, B2B and custom orders. What are you looking for?",
+      products: [],
+      quote: false,
+      unknown: false,
+      policy: "contact",
+    };
+  }
+  // Asking for a person / the team / a call / a business discussion: hand off with the approved contact details.
+  if (
+    /\b(connect|talk|speak|call|contact|discuss|meeting|meet|reach)\b.*\b(team|person|human|someone|owner|manager|sales|business)\b/i.test(lower) ||
+    /\b(call me|callback|call back|human|real person|business (discussion|partnership|deal|enquiry|inquiry)|partnership|distributor|dealership)\b/i.test(lower)
+  ) {
+    return { text: APPROVED_POLICIES.contact!, products: [], quote: true, unknown: false, policy: "contact" };
+  }
   if (/\b(discount|% off|percent off|cheaper)\b/.test(lower)) {
     return { text: APPROVED_POLICIES.discount!, products: [], quote: false, unknown: false, policy: "discount" };
   }

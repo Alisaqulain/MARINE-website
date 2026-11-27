@@ -128,8 +128,8 @@ export function ChatWidget() {
         <div className="fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-50 flex h-[min(560px,calc(100dvh-var(--site-nav)-2rem))] w-auto max-w-[380px] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl sm:inset-x-auto sm:right-5 sm:w-[min(100%-1.5rem,380px)]">
           <div className="flex items-center justify-between bg-[#0B1D36] px-4 py-3 text-white">
             <div>
-              <p className="text-sm font-medium">AI Shipping Assistant</p>
-              <p className="text-[11px] text-[#C9A84C]">Online · Average reply 30 sec</p>
+              <p className="text-sm font-medium">Marina AI Assistant</p>
+              <p className="text-[11px] text-[#C9A84C]">Online · Usually replies in a few seconds</p>
             </div>
             <button onClick={() => setOpen(false)} aria-label="Close chat">
               <X className="h-5 w-5" />
@@ -139,13 +139,26 @@ export function ChatWidget() {
             {msgs.map((m, i) => (
               <div key={i} className={`flex ${m.from === "you" ? "justify-end" : "justify-start"}`}>
                 <div
-                  className={`max-w-[88%] rounded-2xl px-3 py-2 text-[13px] leading-relaxed ${
+                  className={`max-w-[88%] whitespace-pre-line break-words rounded-2xl px-3 py-2 text-[13px] leading-relaxed ${
                     m.from === "you"
                       ? "rounded-br-sm bg-[#0B1D36] text-white"
                       : "rounded-bl-sm bg-white text-navy-800 shadow-sm"
                   }`}
                 >
-                  {m.text}
+                  {m.text.split(/(https?:\/\/[^\s]+)/g).map((part, k) =>
+                    /^https?:\/\//.test(part) ? (
+                      <a
+                        key={k}
+                        href={part}
+                        onClick={() => setOpen(false)}
+                        className="break-all text-[#8C6E28] underline"
+                      >
+                        {part.replace(/^https?:\/\/(www\.)?marinamuseinternational\.com/, "") || part}
+                      </a>
+                    ) : (
+                      <span key={k}>{part}</span>
+                    )
+                  )}
                   {m.product && (productMap[m.product] || m.productName) && (
                     <div className="mt-3 overflow-hidden rounded-xl border border-[#eee7db] bg-[#FAF7F2]">
                       <div className="flex gap-2 p-2">
@@ -159,7 +172,7 @@ export function ChatWidget() {
                           <p className="text-[11px] text-navy-600">
                             {formatPrice(m.price ?? (productMap[m.product] ? priceFor(productMap[m.product]) : 0))}
                           </p>
-                          <Link href={`/product/${m.product}`} className="text-[11px] text-[#8C6E28]">
+                          <Link href={`/product/${m.product}`} onClick={() => setOpen(false)} className="text-[11px] text-[#8C6E28]">
                             View details
                           </Link>
                         </div>
