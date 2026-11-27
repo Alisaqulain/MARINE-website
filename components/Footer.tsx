@@ -341,10 +341,10 @@ export function Footer() {
       </div>
 
       <div className="border-t border-white/10">
-        <div className="mx-auto max-w-[1320px] whitespace-nowrap px-2 py-2 pb-14 text-center text-[2.3vw] leading-snug text-cream-100/45 sm:whitespace-normal sm:px-5 sm:py-3 sm:pb-3 sm:text-xs">
+        <div className="mx-auto max-w-[1320px] px-2 py-2 pb-14 text-center text-[2.6vw] leading-snug text-cream-100/45 sm:px-5 sm:py-3 sm:pb-3 sm:text-xs">
           © 2026 {company.name}. Retailer · Exporter · Manufacturer · Supplier.
-          <span className="text-cream-100/55">
-            <span className="hidden sm:inline"> |</span> Developed by{" "}
+          <span className="mt-0.5 block text-cream-100/55 sm:mt-0 sm:inline">
+            <span className="hidden sm:inline"> | </span>Developed by{" "}
             <a
               href="https://wa.me/918860249843"
               target="_blank"

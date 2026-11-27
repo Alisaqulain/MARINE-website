@@ -30,6 +30,14 @@ export async function reconcilePayPalOrder(order: OrderRecord): Promise<Reconcil
     }
     return { status: "paid", detail: `Payment confirmed by PayPal (capture ${check.captureId}).` };
   } catch (err) {
-    return { status: "error", detail: err instanceof Error ? err.message.slice(0, 200) : "PayPal check failed." };
+    const message = err instanceof Error ? err.message : "";
+    if (/does not exist|RESOURCE_NOT_FOUND/i.test(message)) {
+      return {
+        status: "error",
+        detail:
+          "PayPal cannot find this payment in the PayPal account connected to the website (it was probably made through a different PayPal account/app or in sandbox). Check PayPal → Activity. If the money is there, use “Mark as paid manually” with the PayPal transaction ID.",
+      };
+    }
+    return { status: "error", detail: message.slice(0, 200) || "PayPal check failed." };
   }
 }

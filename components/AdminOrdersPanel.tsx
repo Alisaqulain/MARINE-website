@@ -277,6 +277,27 @@ export function AdminOrdersPanel() {
                               {checking === o.id ? "Checking PayPal…" : "Check PayPal payment"}
                             </button>
                           ) : null}
+                          {o.status === "pending" ? (
+                            <button
+                              type="button"
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                const txn = window.prompt("Only after checking PayPal → Activity: enter the PayPal transaction ID of this payment.");
+                                if (!txn) return;
+                                const res = await fetch(`/api/admin/orders/${encodeURIComponent(o.id)}`, {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ action: "mark_paid", transactionId: txn.trim() }),
+                                });
+                                const data = await res.json().catch(() => ({}));
+                                window.alert(String(data.detail || data.error || "Could not update the order."));
+                                if (res.ok) void load();
+                              }}
+                              className="ml-2 mt-2 rounded-full border border-[#031D38] px-3 py-1 text-xs font-semibold text-[#031D38]"
+                            >
+                              Mark as paid manually
+                            </button>
+                          ) : null}
                           {o.status === "paid" && !o.trackingNumber ? (
                             <p className="mt-1 text-xs text-navy-500">Book the parcel in Shipping → Book on ShipGlobal.</p>
                           ) : null}
