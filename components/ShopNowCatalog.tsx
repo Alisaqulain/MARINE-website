@@ -361,7 +361,7 @@ export function ShopNowCatalog({ retail = false }: { retail?: boolean }) {
                 aria-label="Sort and filter products"
                 className="max-w-[7.5rem] shrink-0 rounded-full border border-[#ddd] bg-white px-2 py-1.5 text-[11px] sm:max-w-none sm:px-3 sm:text-[12px] md:py-1.5 md:text-sm"
               >
-                <option value="mix">Mix</option>
+                <option value="mix">Featured (mixed)</option>
                 <option value="new">Newest first</option>
                 <option value="price-asc">Price: Low to High</option>
                 <option value="price-desc">Price: High to Low</option>
