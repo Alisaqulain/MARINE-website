@@ -30,6 +30,14 @@ const starter: Msg[] = [
 
 
 const CHAT_SESSION_KEY = "marina-chat-session";
+const CHAT_THEME_KEY = "marina-chat-theme";
+/** Chat background options (the visitor's choice is remembered on this device). */
+const CHAT_THEMES = [
+  { id: "cream", label: "Cream", bg: "#F4F1EA" },
+  { id: "white", label: "White", bg: "#FFFFFF" },
+  { id: "blue", label: "Blue", bg: "#E8F0FA" },
+  { id: "green", label: "Green", bg: "#E6F4EA" },
+] as const;
 const CHAT_MSGS_KEY = "marina-chat-messages";
 
 /** One chat id per device, so Marina AI remembers the conversation across pages, reloads and visits. */
@@ -52,6 +60,24 @@ export function ChatWidget() {
   const [msgs, setMsgs] = useState<Msg[]>(starter);
   const listRef = useRef<HTMLDivElement>(null);
   const [loaded, setLoaded] = useState(false);
+  const [theme, setTheme] = useState<string>("cream");
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(CHAT_THEME_KEY);
+      if (saved && CHAT_THEMES.some((t) => t.id === saved)) setTheme(saved);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  function pickTheme(id: string) {
+    setTheme(id);
+    try {
+      localStorage.setItem(CHAT_THEME_KEY, id);
+    } catch {
+      /* ignore */
+    }
+  }
+  const themeBg = CHAT_THEMES.find((t) => t.id === theme)?.bg ?? "#F4F1EA";
 
   useEffect(() => {
     try {
@@ -178,11 +204,24 @@ export function ChatWidget() {
               <p className="text-sm font-medium">Marina AI Assistant</p>
               <p className="text-[11px] text-[#C9A84C]">Online · Usually replies in a few seconds</p>
             </div>
+            <div className="ml-auto mr-3 flex items-center gap-1.5" aria-label="Chat background">
+              {CHAT_THEMES.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  title={`${t.label} background`}
+                  aria-label={`${t.label} background`}
+                  onClick={() => pickTheme(t.id)}
+                  className={`h-4 w-4 rounded-full border ${theme === t.id ? "border-[#C9A84C] ring-2 ring-[#C9A84C]" : "border-white/60"}`}
+                  style={{ background: t.bg }}
+                />
+              ))}
+            </div>
             <button onClick={() => setOpen(false)} aria-label="Close chat">
               <X className="h-5 w-5" />
             </button>
           </div>
-          <div ref={listRef} className="flex-1 space-y-3 overflow-y-auto scroll-smooth bg-[#F4F1EA] p-4">
+          <div ref={listRef} className="flex-1 space-y-3 overflow-y-auto scroll-smooth p-4" style={{ background: themeBg }}>
             {msgs.map((m, i) => (
               <div key={i} className={`group flex flex-col ${m.from === "you" ? "items-end" : "items-start"}`}>
                 <div className={`flex w-full ${m.from === "you" ? "justify-end" : "justify-start"}`}>

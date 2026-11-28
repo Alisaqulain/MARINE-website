@@ -80,30 +80,39 @@ export function AdminWhatsAppInbox({ rows, onError }: { rows: InboxRow[]; onErro
 
   if (!customers.length) return <p className="text-sm text-navy-600">No incoming WhatsApp messages yet.</p>;
 
+  const active = customers.find((c) => c.from === openFrom);
+
   return (
-    <ul className="space-y-2">
-      {customers.map((c) => (
-        <li key={c.from} className="rounded-xl bg-white shadow-sm">
+    <div className="rounded-xl bg-white shadow-sm">
+      {/* One tab per contact number */}
+      <div className="flex gap-1 overflow-x-auto border-b border-[#f0ece4] p-2" role="tablist" aria-label="WhatsApp contacts">
+        {customers.map((c) => (
           <button
+            key={c.from}
             type="button"
+            role="tab"
+            aria-selected={openFrom === c.from}
             disabled={busy}
             onClick={() => void open(c.from, c.lastWamid)}
-            className="flex w-full items-center justify-between gap-3 p-4 text-left text-sm"
+            className={`flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-left text-xs transition ${
+              openFrom === c.from ? "bg-[#031D38] text-white" : "bg-[#FAF7F2] text-navy-900 hover:bg-[#f0ebe0]"
+            }`}
           >
             <span>
-              <span className="font-medium text-navy-900">
-                Customer {openFrom === c.from && fullNumber ? `+${fullNumber}` : mask(c.from)}
-              </span>
-              <span className="block text-xs text-navy-500">
-                {c.count} message{c.count === 1 ? "" : "s"} · last {new Date(c.lastAt).toLocaleString()}
+              <span className="block font-semibold">{openFrom === c.from && fullNumber ? `+${fullNumber}` : mask(c.from)}</span>
+              <span className={`block text-[10px] ${openFrom === c.from ? "text-white/70" : "text-navy-500"}`}>
+                {c.count} msg · {new Date(c.lastAt).toLocaleDateString()}
               </span>
             </span>
-            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${c.replied ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800"}`}>
-              {c.replied ? "Replied" : "Needs reply"}
-            </span>
+            {!c.replied ? <span className="h-2 w-2 rounded-full bg-amber-500" title="Needs reply" /> : null}
           </button>
-          {openFrom === c.from ? (
-            <div className="border-t border-[#f0ece4] p-4">
+        ))}
+      </div>
+      {active ? (
+        <div className="p-4">
+          <p className="mb-2 text-xs text-navy-500">
+            Customer +{fullNumber} · {active.replied ? "replied" : "needs reply"}
+          </p>
               <div className="max-h-[420px] space-y-2 overflow-y-auto rounded-lg bg-[#F4F1EA] p-3">
                 {thread.map((m, i) => (
                   <div key={i} className={`flex ${m.direction === "out" ? "justify-end" : "justify-start"}`}>
@@ -133,16 +142,16 @@ export function AdminWhatsAppInbox({ rows, onError }: { rows: InboxRow[]; onErro
                 <button
                   type="button"
                   disabled={busy || !text.trim()}
-                  onClick={() => void send(c.lastWamid)}
+                  onClick={() => void send(active.lastWamid)}
                   className="self-end rounded-full bg-[#031D38] px-4 py-2 text-xs font-medium text-white disabled:opacity-50"
                 >
                   Send
                 </button>
               </div>
-            </div>
-          ) : null}
-        </li>
-      ))}
-    </ul>
+        </div>
+      ) : (
+        <p className="p-4 text-sm text-navy-600">Choose a contact above to open the conversation.</p>
+      )}
+    </div>
   );
 }

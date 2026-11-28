@@ -627,6 +627,8 @@ export type WaEvent = {
   profileName?: string;
   /** Phase 2 E: the customer's inbound message timestamp from Meta (epoch seconds), inbound messages only. */
   inboundAt?: number;
+  /** The message the customer replied to (WhatsApp quote), if any. */
+  contextId?: string;
 };
 
 export type WaPlan = WaEvent & { action: "ignore" | "draft"; reason: string; send: false };
@@ -635,7 +637,7 @@ type Change = {
   field?: string;
   value?: {
     metadata?: { phone_number_id?: string; display_phone_number?: string };
-    messages?: { id?: string; from?: string; timestamp?: string; type?: string; text?: { body?: string } }[];
+    messages?: { id?: string; from?: string; timestamp?: string; type?: string; text?: { body?: string }; context?: { id?: string } }[];
     contacts?: { wa_id?: string; profile?: { name?: string } }[];
     message_echoes?: { id?: string; from?: string; to?: string; timestamp?: string; type?: string; text?: { body?: string } }[];
     state_sync?: { action?: string; contact?: { phone_number?: string }; metadata?: { timestamp?: string } }[];
@@ -730,6 +732,7 @@ export function normaliseWebhook(body: unknown): WaEvent[] {
             profileName:
               value.contacts?.find((contact) => digits(contact.wa_id) === digits(message.from))?.profile?.name?.slice(0, 80) || undefined,
             ...(/^\d{9,11}$/.test(String(message.timestamp ?? "")) ? { inboundAt: Number(message.timestamp) } : {}),
+            ...(message.context?.id ? { contextId: String(message.context.id).slice(0, 200) } : {}),
           });
         }
         continue;

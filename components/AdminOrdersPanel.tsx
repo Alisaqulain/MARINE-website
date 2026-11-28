@@ -76,6 +76,8 @@ export function AdminOrdersPanel() {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState("");
   const [checking, setChecking] = useState("");
+  // "Mark as paid manually" only appears after PayPal could not confirm the payment for that order.
+  const [manualFor, setManualFor] = useState("");
 
   async function load() {
     setLoading(true);
@@ -270,6 +272,7 @@ export function AdminOrdersPanel() {
                                 const data = await res.json().catch(() => ({}));
                                 setChecking("");
                                 window.alert(String(data.detail || data.error || "Could not check PayPal."));
+                                setManualFor(data.status === "paid" ? "" : o.id);
                                 if (data.status === "paid") void load();
                               }}
                               className="mt-2 rounded-full bg-[#031D38] px-3 py-1 text-xs font-semibold text-white disabled:opacity-60"
@@ -277,7 +280,7 @@ export function AdminOrdersPanel() {
                               {checking === o.id ? "Checking PayPal…" : "Check PayPal payment"}
                             </button>
                           ) : null}
-                          {o.status === "pending" ? (
+                          {o.status === "pending" && manualFor === o.id ? (
                             <button
                               type="button"
                               onClick={async (e) => {

@@ -65,7 +65,7 @@ export default async function BlogPostPage({ params }: Props) {
         {bannerSrc(post.image) ? (
           // Full banner. Height follows the picture so the top is not cropped.
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={bannerSrc(post.image)} alt="" className="col-start-1 row-start-1 h-auto w-full" />
+          <img src={bannerSrc(post.image)} alt="" className="col-start-1 row-start-1 h-[260px] w-full object-cover sm:h-[340px] md:h-[420px]" />
         ) : null}
         <div className="col-start-1 row-start-1 flex flex-col justify-end bg-gradient-to-r from-[#081525]/75 via-[#081525]/35 to-transparent">
           <div className="mx-auto w-full max-w-[1100px] px-5 pb-6 pt-10 md:pb-8 md:pt-16">

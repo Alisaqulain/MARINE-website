@@ -105,9 +105,15 @@ export async function draftInbound(plan: WaPlan) {
     // Agent not enabled (fail-closed switch, lib/ai/agents.ts): the message is kept for the team, no AI reply is drafted.
     if (!agentEnabled("whatsapp")) return { sent: false as const, drafted: false as const };
 
+    // When the customer replied to a specific message, show the AI which one (otherwise "this" has no meaning).
+    let quoted = "";
+    if (plan.contextId) {
+      const original = await db.collection("ai_wa_messages").findOne({ wamid: plan.contextId }, { projection: { text: 1 } });
+      if (typeof original?.text === "string" && original.text.trim()) quoted = original.text.trim().slice(0, 800);
+    }
     const result = await handleCustomerMessage({
       sessionId,
-      message: plan.text,
+      message: quoted ? `${plan.text}\n\n(The customer is replying to this earlier message: "${quoted}")` : plan.text,
       region: regionFromPhone(from),
       channel: "whatsapp",
       knownContact: { phone: `+${from}`, ...(plan.profileName ? { name: plan.profileName } : {}) },
