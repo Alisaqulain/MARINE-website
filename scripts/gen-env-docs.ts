@@ -20,7 +20,7 @@ const EXAMPLES: Record<string, string> = {
   SMTP_FROM: "info@marinamuseinternational.com",
   PAYPAL_MODE: "sandbox",
   SHIPGLOBAL_SERVICE: "DHLECS",
-  SHIPGLOBAL_API_BASE: "https://labels.shipglobal.in/api/v1",
+  SHIPGLOBAL_API_BASE: "https://app.shipglobal.in/apiv1",
   KVM2_UPLOAD_URL: "https://marinamuseinternational.com",
   GEMINI_MODEL: "gemini-3.8-flash",
   VAPI_OUTBOUND_ENABLED: "false",

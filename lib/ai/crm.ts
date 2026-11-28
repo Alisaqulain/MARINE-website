@@ -118,6 +118,7 @@ export function approvedPolicyLines() {
     `Returns: ${APPROVED_POLICIES.returns}`,
     `Discounts: ${APPROVED_POLICIES.discount}`,
     `Custom manufacturing: ${APPROVED_POLICIES.manufacturing}`,
+    "Company contact: Marina Muse International, email info@marinamuseinternational.com, phone/WhatsApp +91 74570 99540, website https://marinamuseinternational.com, Roorkee-247667, Uttarakhand, India.",
     `Warranty: ${APPROVED_POLICIES.warranty ?? "There is no approved warranty statement. Do not describe one."}`,
   ];
 }
@@ -132,9 +133,12 @@ async function groundedReply(input: {
   history: TranscriptLine[];
   products: CatalogueFact[];
   grounded: string;
+  customerRecords?: string;
 }): Promise<{ text: string; model: "gemini" | "catalogue"; rejected?: string[]; error?: string }> {
   if (!geminiConfigured()) return { text: input.grounded, model: "catalogue" };
-  const facts = factsBlock({ products: input.products, policies: approvedPolicyLines(), origin: getSiteOrigin() });
+  const facts =
+    factsBlock({ products: input.products, policies: approvedPolicyLines(), origin: getSiteOrigin() }) +
+    (input.customerRecords ? `\n\nCUSTOMER RECORDS (this customer's own quote requests and orders):\n${input.customerRecords}` : "");
   const turns: GeminiTurn[] = input.history.slice(-8).map((line) => ({
     role: line.role === "customer" ? "user" : "model",
     text: line.text,
@@ -178,6 +182,40 @@ async function toEnglish(agent: AgentId, message: string) {
     maxOutputTokens: 120,
   });
   return result.ok ? result.text.trim().slice(0, 300) : "";
+}
+
+/** Price questions in several languages; without one, WhatsApp product replies leave prices out. */
+const PRICE_ASK = /\b(price|prices|cost|rate|rates|how much|kitne|kitna|kimat|keemat|daam|dam|qeemat|precio|prix|preis)\b|कीमत|दाम|قیمت|سعر|价格|値段/i;
+
+function withoutPrices(text: string) {
+  return text
+    .replace(/\s*\(?\$\s?\d[\d,]*(?:\.\d+)?\s*(?:USD)?\)?/gi, "")
+    .replace(/\bis\s*,\s*/g, "is ")
+    .replace(/\s+,/g, ",");
+}
+
+/** This customer's quote requests and orders (by email or phone), for "my quotation / my order" questions. */
+async function customerRecords(contact: { email?: string; phone?: string }) {
+  const email = (contact.email || "").trim().toLowerCase();
+  const phone = (contact.phone || "").replace(/\D/g, "").slice(-10);
+  if (!email && phone.length < 10) return "";
+  const db = await getDb();
+  const or: Record<string, unknown>[] = [];
+  if (email) or.push({ email });
+  if (phone.length === 10) or.push({ phone: { $regex: `${phone}$` } });
+  const [quotes, orders] = await Promise.all([
+    email ? db.collection("bulk_quotes").find({ email }).sort({ createdAt: -1 }).limit(5).toArray() : Promise.resolve([]),
+    db.collection("orders").find({ $or: or }).sort({ createdAt: -1 }).limit(5).toArray(),
+  ]);
+  const lines: string[] = [];
+  for (const q of quotes) {
+    lines.push(`Quote request ${new Date(String(q.createdAt)).toISOString().slice(0, 10)}: ${q.productOther || q.product}, quantity ${q.quantity}, destination ${q.destinationCountry}, status ${q.status}.`);
+  }
+  for (const o of orders) {
+    const items = Array.isArray(o.items) ? o.items.map((i: { name?: string; qty?: number }) => `${i.name} x${i.qty}`).join(", ") : "";
+    lines.push(`Order ${o.id} (${String(o.createdAt).slice(0, 10)}): ${items}; status ${o.status === "paid" ? "paid" : o.status === "failed" ? "payment failed" : "awaiting payment"}${o.tracking?.trackingNumber ? `, tracking ${o.tracking.trackingNumber}` : ""}.`);
+  }
+  return lines.join("\n");
 }
 
 async function sessionProducts(sessionId: string, catalogue: CatalogueFact[]) {
@@ -391,9 +429,10 @@ export async function handleCustomerMessage(input: {
       message,
       history,
       products,
-      grounded: answer.text,
+      grounded: input.channel === "whatsapp" && !PRICE_ASK.test(message) ? withoutPrices(answer.text) : answer.text,
+      customerRecords: await customerRecords(contact).catch(() => ""),
     });
-    reply = formatForChat(written.text);
+    reply = formatForChat(input.channel === "whatsapp" && !PRICE_ASK.test(message) ? withoutPrices(written.text) : written.text);
     model = written.model;
     if (written.rejected?.length) {
       await db.collection("ai_audit").insertOne({

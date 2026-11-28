@@ -4,6 +4,7 @@ import { recordJobRun, runFollowUps } from "@/lib/ai/followups";
 import { acquireJobLease, releaseJobLease } from "@/lib/ai/job-lease";
 import { messagesCollection } from "@/lib/whatsapp/store";
 import { sweepReservations } from "@/lib/whatsapp/recovery";
+import { runWeeklyAutoBlog } from "@/lib/ai/auto-blog";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -20,8 +21,10 @@ export async function POST(req: Request) {
   try {
     const summary = await runFollowUps();
     const sweep = await sweepReservations(await messagesCollection());
-    await recordJobRun("followups", true, { ...summary, sweep });
-    return NextResponse.json({ ok: true, ...summary, sweep });
+    // 2 Gemini blog posts per week (Growth agent only); a failure here never fails the follow-up job.
+    const blog = await runWeeklyAutoBlog().catch((err) => ({ error: err instanceof Error ? err.message.slice(0, 200) : "blog failed" }));
+    await recordJobRun("followups", true, { ...summary, sweep, blog });
+    return NextResponse.json({ ok: true, ...summary, sweep, blog });
   } catch (err) {
     const message = err instanceof Error ? err.message.slice(0, 200) : "Job failed";
     await recordJobRun("followups", false, { error: message }).catch(() => undefined);

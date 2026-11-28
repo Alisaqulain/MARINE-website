@@ -6,7 +6,7 @@ import { formatPrice, products } from "@/lib/products";
 import { MessageCircle, Send, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { WholesaleNavLink } from "@/components/WholesaleNavLink";
 import { useRegion } from "@/lib/region-context";
 import { aiSessionId } from "@/lib/ai/session-client";
@@ -29,11 +29,48 @@ const starter: Msg[] = [
 ];
 
 
+const CHAT_SESSION_KEY = "marina-chat-session";
+const CHAT_MSGS_KEY = "marina-chat-messages";
+
+/** One chat id per device, so Marina AI remembers the conversation across pages, reloads and visits. */
+function chatSessionId(): string {
+  try {
+    const existing = localStorage.getItem(CHAT_SESSION_KEY);
+    if (existing) return existing;
+    const created = aiSessionId();
+    localStorage.setItem(CHAT_SESSION_KEY, created);
+    return created;
+  } catch {
+    return aiSessionId();
+  }
+}
+
 export function ChatWidget() {
   const { priceFor } = useRegion();
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const [msgs, setMsgs] = useState<Msg[]>(starter);
+  const listRef = useRef<HTMLDivElement>(null);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(CHAT_MSGS_KEY) || "[]") as Msg[];
+      if (Array.isArray(saved) && saved.length) setMsgs(saved);
+    } catch {
+      /* ignore */
+    }
+    setLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (!loaded) return;
+    try {
+      localStorage.setItem(CHAT_MSGS_KEY, JSON.stringify(msgs.slice(-60)));
+    } catch {
+      /* storage full or blocked: the chat still works */
+    }
+  }, [msgs, loaded]);
 
   const productMap = useMemo(
     () => Object.fromEntries(products.map((p) => [p.slug, p])),
@@ -63,6 +100,16 @@ export function ChatWidget() {
 
   const [busy, setBusy] = useState(false);
 
+  useEffect(() => {
+    const el = listRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [msgs, open, busy]);
+
+  /** Removes one of your messages (and Marina's answer to it) from this chat. */
+  function removeAt(index: number) {
+    setMsgs((m) => m.filter((_, i) => i !== index && !(i === index + 1 && m[i]?.from === "bot")));
+  }
+
   async function send() {
     const value = text.trim();
     if (!value || busy) return;
@@ -73,7 +120,7 @@ export function ChatWidget() {
       const res = await fetch("/api/ai/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId: aiSessionId(), message: value }),
+        body: JSON.stringify({ sessionId: chatSessionId(), message: value }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -135,9 +182,10 @@ export function ChatWidget() {
               <X className="h-5 w-5" />
             </button>
           </div>
-          <div className="flex-1 space-y-3 overflow-y-auto bg-[#F4F1EA] p-4">
+          <div ref={listRef} className="flex-1 space-y-3 overflow-y-auto scroll-smooth bg-[#F4F1EA] p-4">
             {msgs.map((m, i) => (
-              <div key={i} className={`flex ${m.from === "you" ? "justify-end" : "justify-start"}`}>
+              <div key={i} className={`group flex flex-col ${m.from === "you" ? "items-end" : "items-start"}`}>
+                <div className={`flex w-full ${m.from === "you" ? "justify-end" : "justify-start"}`}>
                 <div
                   className={`max-w-[88%] whitespace-pre-line break-words rounded-2xl px-3 py-2 text-[13px] leading-relaxed ${
                     m.from === "you"
@@ -188,8 +236,27 @@ export function ChatWidget() {
                     </div>
                   )}
                 </div>
+                </div>
+                {m.from === "you" ? (
+                  <div className="mt-0.5 flex gap-2 text-[10px] text-navy-500 opacity-70 group-hover:opacity-100">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setText(m.text);
+                        removeAt(i);
+                      }}
+                      className="underline"
+                    >
+                      Edit
+                    </button>
+                    <button type="button" onClick={() => removeAt(i)} className="underline">
+                      Delete
+                    </button>
+                  </div>
+                ) : null}
               </div>
             ))}
+            {busy ? <p className="text-[12px] italic text-navy-500">Marina is typing…</p> : null}
           </div>
           <form
             className="flex items-center gap-2 border-t border-[#eee7db] bg-white p-3"

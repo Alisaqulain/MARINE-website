@@ -104,10 +104,28 @@ export function AdminShipmentsPanel() {
   async function book(orderId: string) {
     setError("");
     setBusy(orderId);
+    // 1) live services and prices for this order (FedEx, DHL, Aramex, UPS, ShipGlobal … as offered for the destination)
+    const ratesRes = await fetch(`/api/admin/shipments?rates=${encodeURIComponent(orderId)}`, { cache: "no-store" });
+    const rates = await ratesRes.json().catch(() => ({}));
+    if (!ratesRes.ok || !Array.isArray(rates.services) || !rates.services.length) {
+      setBusy("");
+      setError(typeof rates.error === "string" ? rates.error : "ShipGlobal returned no services for this destination.");
+      return;
+    }
+    const list = (rates.services as { title: string; transit: string; total: number; notes: string }[])
+      .map((s, i) => `${i + 1}. ${s.title} — ${rates.currency} ${s.total} — ${s.transit}${s.notes ? ` (${s.notes})` : ""}`)
+      .join("\n");
+    const choice = window.prompt(`Choose the courier for ${orderId} (billed weight ${rates.weight}).\nThe price is charged to the ShipGlobal wallet.\n\n${list}\n\nType the number:`, "1");
+    const picked = choice ? rates.services[Number(choice) - 1] : null;
+    if (!picked) {
+      setBusy("");
+      return;
+    }
+    // 2) book with that service
     const res = await fetch("/api/admin/shipments", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ orderId }),
+      body: JSON.stringify({ orderId, service: picked.title }),
     });
     const data = await res.json().catch(() => ({}));
     setBusy("");

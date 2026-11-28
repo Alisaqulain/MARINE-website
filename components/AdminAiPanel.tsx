@@ -239,6 +239,21 @@ export function AdminAiPanel() {
       {section === "Content" ? (
         <div className="space-y-3">
           <div className="rounded-xl bg-white p-4 text-sm shadow-sm">
+            <p className="font-medium">Blog with Gemini</p>
+            <p className="mt-1 text-xs text-navy-600">
+              Writes an SEO article from the live catalogue (no prices). Automatic: 2 posts per week (Monday and Thursday) when the
+              Growth agent is on — published directly if BLOG_AUTOPUBLISH=publish, otherwise saved as a draft in Blog.
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <button type="button" disabled={Boolean(busy)} className="btn-gold" onClick={() => void act({ action: "auto_blog", publish: false }, "Blog draft written — see the Blog section.")}>
+                Write blog draft now
+              </button>
+              <button type="button" disabled={Boolean(busy)} className="rounded-full border px-4 py-2 text-xs" onClick={() => void act({ action: "auto_blog", publish: true }, "Blog post published.")}>
+                Write and publish now
+              </button>
+            </div>
+          </div>
+          <div className="rounded-xl bg-white p-4 text-sm shadow-sm">
             <p className="font-medium">Growth agent — draft content (owner review, never auto-published)</p>
             <div className="mt-2 flex flex-wrap gap-2">
               <select className="input max-w-[12rem]" value={kind} onChange={(e) => setKind(e.target.value as (typeof CONTENT_KINDS)[number])}>

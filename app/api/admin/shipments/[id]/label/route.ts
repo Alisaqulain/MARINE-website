@@ -1,7 +1,8 @@
 import { access, readFile } from "fs/promises";
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/admin-auth";
-import { labelFilePath } from "@/lib/shipglobal";
+import { fetchShipGlobalLabel, labelFilePath } from "@/lib/shipglobal";
+import { getOrderDurable, saveOrder } from "@/lib/orders";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { error } = await requireAdminSession("view");
@@ -15,7 +16,21 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   try {
     await access(file);
   } catch {
-    return NextResponse.json({ error: "No ShipGlobal label is saved for this order yet." }, { status: 404 });
+    // Not saved yet (e.g. the wallet was empty at booking): pay & get the label from ShipGlobal now.
+    const order = await getOrderDurable(orderId);
+    const tracking = order?.shipment?.waybill || order?.tracking?.trackingNumber || "";
+    if (!order || !tracking) {
+      return NextResponse.json({ error: "This order has no ShipGlobal tracking number yet. Book it first." }, { status: 404 });
+    }
+    try {
+      await fetchShipGlobalLabel(orderId, tracking);
+      if (order.shipment?.error) {
+        order.shipment = { ...order.shipment, error: undefined };
+        saveOrder(order);
+      }
+    } catch (err) {
+      return NextResponse.json({ error: err instanceof Error ? err.message : "ShipGlobal label failed." }, { status: 502 });
+    }
   }
   const pdf = await readFile(file);
   return new NextResponse(new Uint8Array(pdf), {

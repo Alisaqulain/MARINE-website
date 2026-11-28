@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/admin-auth";
 import { fulfillPaidOrder, getOrderDurable, listRecentOrders } from "@/lib/orders";
-import { pingShipGlobal, shipGlobalConfigured } from "@/lib/shipglobal";
+import { pingShipGlobal, shipGlobalConfigured, shipGlobalRates } from "@/lib/shipglobal";
 
 function view(order: Awaited<ReturnType<typeof listRecentOrders>>[number]) {
   return {
@@ -25,9 +25,20 @@ function view(order: Awaited<ReturnType<typeof listRecentOrders>>[number]) {
   };
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   const { error } = await requireAdminSession("view");
   if (error) return error;
+  // ?rates=<orderId>: live ShipGlobal services and prices for that order (nothing is booked).
+  const ratesFor = new URL(req.url).searchParams.get("rates");
+  if (ratesFor) {
+    const order = await getOrderDurable(ratesFor);
+    if (!order) return NextResponse.json({ error: "Order not found." }, { status: 404 });
+    try {
+      return NextResponse.json(await shipGlobalRates(order));
+    } catch (err) {
+      return NextResponse.json({ error: err instanceof Error ? err.message : "Could not load rates." }, { status: 502 });
+    }
+  }
   const orders = await listRecentOrders(200);
   const connection = await pingShipGlobal();
   return NextResponse.json({
@@ -50,6 +61,11 @@ export async function POST(req: Request) {
   if (order.status !== "paid") {
     return NextResponse.json({ error: "Only paid orders can be booked with ShipGlobal." }, { status: 400 });
   }
-  await fulfillPaidOrder(order);
+  const service = typeof body?.service === "string" ? body.service.trim().slice(0, 80) : "";
+  if (service && !order.shipment?.waybill) {
+    // A new service choice replaces an earlier failed attempt so the booking runs again with it.
+    order.shipment = { provider: "shipglobal", service };
+  }
+  await fulfillPaidOrder(order, { book: true });
   return NextResponse.json({ ok: true, item: view(order) });
 }

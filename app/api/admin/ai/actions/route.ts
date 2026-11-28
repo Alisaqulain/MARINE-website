@@ -12,6 +12,7 @@ import { postMessage, resolveCredentials, sendGate, textPayload } from "@/lib/wh
 import { isDirectMode } from "@/lib/whatsapp/mode";
 import { deliveryEventsCollection, messagesCollection, readCoexistenceState } from "@/lib/whatsapp/store";
 import { sendManualReply } from "@/lib/whatsapp/manual-reply";
+import { generateBlogPost } from "@/lib/ai/auto-blog";
 import { isSuperAdminEmail } from "@/lib/staff-access";
 import { DUPLICATE_RISK_WARNING, claimResend, completeResend, markResolved, reconcileResend } from "@/lib/whatsapp/recovery";
 
@@ -169,6 +170,16 @@ export async function POST(req: Request) {
     );
     await audit({ followUpId: id, ok: call.ok, callId: call.ok ? call.callId : undefined });
     return call.ok ? NextResponse.json({ ok: true, callId: call.callId }) : NextResponse.json({ error: call.error }, { status: 502 });
+  }
+
+  if (action === "auto_blog") {
+    try {
+      const post = await generateBlogPost({ publish: body?.publish === true, topic: typeof body?.topic === "string" ? body.topic.slice(0, 120) : undefined });
+      await audit({ blog: post.slug, published: post.published });
+      return NextResponse.json({ ok: true, ...post });
+    } catch (err) {
+      return NextResponse.json({ error: err instanceof Error ? err.message : "Blog post failed." }, { status: 409 });
+    }
   }
 
   if (action === "generate_content") {

@@ -26,6 +26,8 @@ export type OrderTracking = {
 
 export type OrderShipment = {
   provider: "shipglobal";
+  /** Service chosen by the admin from the live rates (e.g. "ShipGlobal Direct", "Fedex", "DHL", "Aramex"). */
+  service?: string;
   waybill?: string;
   orderNumber?: string;
   trackingUrl?: string;
@@ -102,11 +104,11 @@ export async function newOrderId() {
       .collection<{ _id: string; seq: number }>("order_counters")
       .findOneAndUpdate({ _id: day }, { $inc: { seq: 1 } }, { upsert: true, returnDocument: "after" });
     const seq = Number(row?.seq ?? 0);
-    if (seq > 0) return `MM-${day}-${String(seq).padStart(3, "0")}`;
+    if (seq > 0) return `MMI-${day}-${String(seq).padStart(3, "0")}`;
   } catch {
     /* fall through to a unique fallback */
   }
-  return `MM-${day}-${Date.now().toString(36).toUpperCase().slice(-5)}`;
+  return `MMI-${day}-${Date.now().toString(36).toUpperCase().slice(-5)}`;
 }
 
 export function newToken() {
@@ -295,10 +297,15 @@ export async function listRecentOrders(limit = 40): Promise<OrderRecord[]> {
 }
 
 /** Books the parcel with ShipGlobal, then saves the order. Never throws. */
-export async function fulfillPaidOrder(order: OrderRecord) {
+export async function fulfillPaidOrder(order: OrderRecord, options: { book?: boolean } = {}) {
+  // Booking charges the ShipGlobal wallet, so by default the admin books from Shipping after choosing the courier.
+  // SHIPGLOBAL_AUTO_BOOK=true books right after payment with the default service.
+  const book = options.book === true || process.env.SHIPGLOBAL_AUTO_BOOK === "true";
   try {
-    const { bookShipGlobalShipment } = await import("@/lib/shipglobal");
-    await bookShipGlobalShipment(order);
+    if (book) {
+      const { bookShipGlobalShipment } = await import("@/lib/shipglobal");
+      await bookShipGlobalShipment(order);
+    }
   } catch (err) {
     console.error("[shipglobal]", err);
     order.shipment = {

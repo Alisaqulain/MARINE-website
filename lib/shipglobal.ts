@@ -8,11 +8,15 @@ import { shipGlobalDraftErrors, type ShipGlobalDraft } from "@/lib/shipglobal-ch
 import { getStorefrontProduct } from "@/lib/storefront-catalog";
 import type { OrderRecord } from "@/lib/orders";
 
-const BASE = (process.env.SHIPGLOBAL_API_BASE ?? "https://labels.shipglobal.in/api/v1").replace(/\/$/, "");
-const LOGIN_PATH = "/customers.php";
-const ORDER_PATH = "/addOrder.php";
+// ShipGlobal Vendor API v1 (developer.docs.shipglobal.in): Basic Auth with the ShipGlobal account email/password.
+// The old label API (labels.shipglobal.in/api/v1) is ignored even if still set in SHIPGLOBAL_API_BASE.
+const CONFIGURED_BASE = (process.env.SHIPGLOBAL_API_BASE ?? "").trim().replace(/\/$/, "");
+const BASE = CONFIGURED_BASE && !/labels\.shipglobal\.in/.test(CONFIGURED_BASE) ? CONFIGURED_BASE : "https://app.shipglobal.in/apiv1";
+const RATES_PATH = "/rates/calculate";
+const ADD_ORDER_PATH = "/order/add";
+const LABEL_PATH = "/order/getLabel";
+const TRACKING_PATH = "/tools/tracking";
 
-let cachedToken: { value: string; expires: number } | null = null;
 /**
  * The last login ShipGlobal refused (400/401/403), keyed by a hash of the credentials. Health checks do not
  * re-send the same rejected email/password for REJECTED_LOGIN_TTL_MS; new credentials are tried immediately.
@@ -32,7 +36,8 @@ export function shipGlobalConfigured() {
 }
 
 export function shipGlobalService() {
-  return process.env.SHIPGLOBAL_SERVICE?.trim() || "DHLECS";
+  const configured = process.env.SHIPGLOBAL_SERVICE?.trim() ?? "";
+  return configured && !/^DHLECS$/i.test(configured) ? configured : "Shipglobal Direct";
 }
 
 export type ShipGlobalConnection = {
@@ -65,9 +70,9 @@ function logShipGlobal(event: string, fields: Record<string, string | number | b
   console.info("[shipglobal]", event, fields);
 }
 
-/** Logs in once. Does not create a shipment. Never returns the token or password. */
+/** Checks the login with a free rate calculation. Does not create a shipment. Never returns the password. */
 export async function pingShipGlobal(): Promise<ShipGlobalConnection> {
-  const endpoint = `POST ${LOGIN_PATH}`;
+  const endpoint = `POST ${RATES_PATH}`;
   const service = shipGlobalService();
   if (!shipGlobalConfigured()) {
     return {
@@ -92,38 +97,26 @@ export async function pingShipGlobal(): Promise<ShipGlobalConnection> {
     };
   }
   try {
-    // A still-valid token from an earlier successful login proves the connection without logging in again.
-    const result = await accessToken();
-    if (!result.tokenReceived) {
-      return {
-        ok: false,
-        httpStatus: result.httpStatus,
-        tokenReceived: false,
-        service,
-        endpoint,
-        failure: loginFailureClass(result.httpStatus),
-        message: result.message,
-      };
+    const { res, data } = await apiPost(RATES_PATH, { package_weight: "0.5", country_iso_code_2: "US", postcode: "10001" });
+    if (!res.ok || data.success !== true) {
+      const message = apiFailureMessage(res.status, data);
+      if (res.status === 401 || res.status === 403 || data.error_code === "EA_401") {
+        rejectedLogin = { fingerprint: credentialFingerprint(), at: Date.now(), httpStatus: res.status || 401, message };
+      }
+      return { ok: false, httpStatus: res.status, tokenReceived: false, service, endpoint, failure: loginFailureClass(res.status === 200 ? 401 : res.status), message };
     }
+    rejectedLogin = null;
     return {
       ok: true,
-      httpStatus: result.httpStatus,
+      httpStatus: res.status,
       tokenReceived: true,
       service,
       endpoint,
-      message: "ShipGlobal accepted the login and returned a token. Shipping is connected. No shipment was created.",
+      message: "ShipGlobal accepted the login (rate check OK). Shipping is connected. No shipment was created.",
     };
   } catch (err) {
-    const detail = publicError(err instanceof Error ? err.message : "ShipGlobal login failed.");
-    return {
-      ok: false,
-      httpStatus: null,
-      tokenReceived: false,
-      service,
-      endpoint,
-      failure: "temporary",
-      message: detail,
-    };
+    const detail = publicError(err instanceof Error ? err.message : "ShipGlobal check failed.");
+    return { ok: false, httpStatus: null, tokenReceived: false, service, endpoint, failure: "temporary", message: detail };
   }
 }
 
@@ -163,84 +156,91 @@ function cmBox(dimensions: string | undefined) {
   return { l: 25, b: 18, h: 12 };
 }
 
-function tokenExpiry(expiresAt: unknown) {
-  if (typeof expiresAt !== "string") return Date.now() + 12 * 60 * 60 * 1000;
-  const parsed = Date.parse(expiresAt.includes("T") ? expiresAt : `${expiresAt.replace(" ", "T")}Z`);
-  if (!Number.isFinite(parsed)) return Date.now() + 12 * 60 * 60 * 1000;
-  return parsed - 60_000;
-}
-
-function loginFailureMessage(status: number, error: string) {
-  if (status === 401 || /invalid credentials/i.test(error)) {
-    // Verified 2026-11-08 without real credentials: the endpoint answers {} with 400 "email and password are required",
-    // form-encoded bodies with 400 "Invalid JSON", and wrong credentials with 401 "Invalid credentials" — so the request is right.
-    return "ShipGlobal label API returned HTTP 401 Invalid credentials. The request format is correct (POST /customers.php, JSON {email, password} — the endpoint recognises both fields); ShipGlobal does not accept this email/password for the label API. Ask ShipGlobal to enable label-API access for this email, or confirm the label-portal password. The v2 dashboard at v2.app.shipglobal.in is a different login. No shipment was created.";
-  }
-  if (status === 404) {
-    return "ShipGlobal login endpoint returned HTTP 404. Confirm POST /customers.php with ShipGlobal support before changing the API URL.";
-  }
-  return error
-    ? `Shipping is not connected. ShipGlobal returned HTTP ${status}: ${publicError(error)}`
-    : `Shipping is not connected. ShipGlobal returned HTTP ${status} and no token.`;
-}
-
-async function accessToken() {
-  if (cachedToken && cachedToken.expires > Date.now() + 60_000) {
-    return { token: cachedToken.value, httpStatus: 200, tokenReceived: true, message: "" };
-  }
+function authHeaders() {
   const email = process.env.SHIPGLOBAL_EMAIL?.trim() ?? "";
   const password = process.env.SHIPGLOBAL_PASSWORD?.trim() ?? "";
-  if (!email || !password) {
-    throw new Error("Add SHIPGLOBAL_EMAIL and SHIPGLOBAL_PASSWORD on the server.");
-  }
-  const res = await fetch(`${BASE}${LOGIN_PATH}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({ email, password }),
-    signal: AbortSignal.timeout(20_000),
-  });
-  const data = (await res.json().catch(() => ({}))) as { token?: string; error?: string; expires_at?: string };
-  const tokenReceived = typeof data.token === "string" && data.token.length > 0;
-  logShipGlobal("login", { status: res.status, tokenReceived, error: publicError(String(data.error || "")) });
-  if (!res.ok || !tokenReceived || !data.token) {
-    cachedToken = null;
-    const message = loginFailureMessage(res.status, String(data.error || ""));
-    if (res.status === 400 || res.status === 401 || res.status === 403) {
-      rejectedLogin = { fingerprint: credentialFingerprint(), at: Date.now(), httpStatus: res.status, message };
-    }
-    return { token: "", httpStatus: res.status, tokenReceived: false, message };
-  }
-  rejectedLogin = null;
-  cachedToken = { value: data.token, expires: tokenExpiry(data.expires_at) };
-  return { token: data.token, httpStatus: res.status, tokenReceived: true, message: "" };
+  if (!email || !password) throw new Error("Add SHIPGLOBAL_EMAIL and SHIPGLOBAL_PASSWORD on the server.");
+  return {
+    Authorization: `Basic ${Buffer.from(`${email}:${password}`).toString("base64")}`,
+    "Content-Type": "application/json",
+    Accept: "application/json",
+  };
 }
 
-function readLabel(data: Record<string, unknown>) {
-  const dpd = (data.dpd ?? {}) as Record<string, unknown>;
-  const raw = (dpd.raw_response ?? {}) as Record<string, unknown>;
-  const nested = (data.data ?? {}) as Record<string, unknown>;
-  const waybill = String(nested.waybill_number || dpd.waybill_number || raw.waybill_number || "");
-  const pdf = String(nested.pdf_base64 || raw.pdf_base64 || "");
-  const orderNumber = String(nested.order_number || data.order_id || "");
-  const trackingUrl = String(raw.tracking_url || nested.tracking_url || "");
-  const success = data.success === true || dpd.success === true || Boolean(waybill);
-  const error = String(data.error || dpd.error || "");
-  return { success, waybill, pdf, orderNumber, trackingUrl, error };
-}
-
-async function postAddOrder(token: string, payload: Record<string, unknown>, download: boolean) {
-  const res = await fetch(`${BASE}${ORDER_PATH}${download ? "?download=true" : ""}`, {
+async function apiPost(pathName: string, body: Record<string, unknown>, timeoutMs = 45_000) {
+  const res = await fetch(`${BASE}${pathName}`, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(45_000),
+    headers: authHeaders(),
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(timeoutMs),
   });
   const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   return { res, data };
+}
+
+function apiFailureMessage(status: number, data: Record<string, unknown>) {
+  const error = String(data.error || data.msg || data.message || "");
+  if (status === 401 || data.error_code === "EA_401") {
+    return "ShipGlobal refused the login (EA_401 Invalid Username/Password). Use the ShipGlobal account email and password (Basic Auth). No shipment was created.";
+  }
+  return error ? `ShipGlobal returned HTTP ${status}: ${publicError(error)}` : `ShipGlobal returned HTTP ${status}.`;
+}
+
+/** ShipGlobal tracking numbers look like SG32611267981716; find one anywhere in a response. */
+function findTracking(data: unknown): string {
+  const text = JSON.stringify(data ?? {});
+  return /\bSG\d{9,}\b/.exec(text)?.[0] ?? "";
+}
+
+/**
+ * Pay & Get Label for an existing ShipGlobal tracking number (charged to the wallet once; ShipGlobal returns the
+ * same label again afterwards). Saves the PDF next to the other labels.
+ */
+export async function fetchShipGlobalLabel(orderId: string, tracking: string) {
+  const { res, data } = await apiPost(LABEL_PATH, { tracking, label: true });
+  logShipGlobal("order/getLabel", { orderId, status: res.status, success: data.success === true });
+  const pdf = typeof data.label === "string" ? data.label : "";
+  if (data.success !== true || !pdf) throw new Error(apiFailureMessage(res.status, data));
+  const file = labelFilePath(orderId);
+  await mkdir(path.dirname(file), { recursive: true });
+  await writeFile(file, Buffer.from(pdf, "base64"));
+  return file;
+}
+
+/** Package weight in kg for an order (same estimate the booking uses). */
+async function orderWeightKg(order: OrderRecord) {
+  let grams = 0;
+  for (const line of order.items) {
+    const product = (await getStorefrontProduct(line.slug)) ?? getProduct(line.slug);
+    grams += gramsFrom(product?.weight, line.qty);
+  }
+  return (Math.max(grams, 50) / 1000).toFixed(3);
+}
+
+/** Live ShipGlobal services and prices (INR) for this order's destination — FedEx, DHL, Aramex, UPS where offered. */
+export async function shipGlobalRates(order: OrderRecord) {
+  const destination = countryCode(order.country);
+  if (!destination) throw new Error("The order has no valid destination country.");
+  const { res, data } = await apiPost(RATES_PATH, { package_weight: await orderWeightKg(order), country_iso_code_2: destination, postcode: order.postal }, 20_000);
+  if (!res.ok || data.success !== true) throw new Error(apiFailureMessage(res.status, data));
+  const services = Array.isArray(data.services) ? (data.services as Record<string, unknown>[]) : [];
+  return {
+    weight: `${data.billed_weight ?? ""} ${data.billed_weight_unit ?? ""}`.trim(),
+    currency: String(data.currency ?? "INR"),
+    services: services.map((s) => ({
+      title: String(s.title ?? ""),
+      transit: String(s.transit_time ?? ""),
+      notes: String(s.notes ?? ""),
+      total: Number(s.subtotal_fee ?? (s.price as Record<string, unknown> | undefined)?.logistic_fee ?? 0),
+    })),
+  };
+}
+
+/** Live tracking (events + last-mile carrier link) for a ShipGlobal tracking number. */
+export async function trackShipGlobal(tracking: string) {
+  const { res, data } = await apiPost(TRACKING_PATH, { tracking }, 20_000);
+  if (!res.ok || data.success !== true) throw new Error(apiFailureMessage(res.status, data));
+  return data;
 }
 
 async function createLabel(order: OrderRecord) {
@@ -255,7 +255,7 @@ async function createLabel(order: OrderRecord) {
   let length = 25;
   let breadth = 18;
   let height = 12;
-  const service = shipGlobalService();
+  const service = order.shipment?.service || shipGlobalService();
   const hsn = process.env.SHIPGLOBAL_HSN?.trim() || "74199990";
   const items = [];
   for (const line of order.items) {
@@ -310,73 +310,63 @@ async function createLabel(order: OrderRecord) {
     invoice_date: today,
     order_reference: order.id,
     service,
-    package_weight: weight,
-    package_length: length,
-    package_breadth: breadth,
-    package_height: height,
+    package_weight: (Math.max(weight, 50) / 1000).toFixed(3),
+    package_length: String(length),
+    package_breadth: String(breadth),
+    package_height: String(height),
     currency_code: "USD",
     csb5_status: Number(process.env.SHIPGLOBAL_CSB5 ?? "1") || 0,
-    seller_nickname: "MarinaMuse",
-    seller_firstname: process.env.SHIPGLOBAL_SELLER_FIRST?.trim() || "Marina",
-    seller_lastname: process.env.SHIPGLOBAL_SELLER_LAST?.trim() || "Muse",
-    seller_mobile: company.phoneTel,
-    seller_email: company.email,
-    seller_company: company.name,
-    seller_address: seller.line1,
-    seller_address_2: company.address[1] || seller.line2,
-    seller_city: company.city,
-    seller_postcode: company.pin,
-    seller_country_code: "IN",
-    seller_state: company.state,
+    "csbv5-limit-comfirmation": 1,
+    address_nickname: process.env.SHIPGLOBAL_PICKUP_NICKNAME?.trim() || "",
     customer_shipping_firstname: buyer.first,
     customer_shipping_lastname: buyer.last,
     customer_shipping_mobile: order.phone,
     customer_shipping_email: order.email,
-    customer_shipping_company: buyer.last === buyer.first ? "NA" : `${buyer.first} ${buyer.last}`,
+    customer_shipping_company: "",
     customer_shipping_address: shipTo.line1,
     customer_shipping_address_2: shipTo.line2,
+    customer_shipping_address_3: "",
     customer_shipping_city: order.city,
     customer_shipping_postcode: order.postal,
     customer_shipping_country_code: destination,
     customer_shipping_state: order.state?.trim() || order.city,
-    vendor_order_items: items,
-    tracking: order.id,
+    ioss_number: process.env.SHIPGLOBAL_IOSS?.trim() || "",
+    vendor_order_items: items.map((item) => ({
+      ...item,
+      vendor_order_item_quantity: String(item.vendor_order_item_quantity),
+      vendor_order_item_unit_price: String(item.vendor_order_item_unit_price),
+      vendor_order_item_tax_rate: String(item.vendor_order_item_tax_rate),
+    })),
   };
-  const ioss = process.env.SHIPGLOBAL_IOSS?.trim();
-  if (ioss) payload.ioss_number = ioss;
 
-  const login = await accessToken();
-  if (!login.tokenReceived || !login.token) {
-    throw new Error(login.message || "ShipGlobal did not return a token.");
+  // 1) Create the order (no charge yet).
+  const added = await apiPost(ADD_ORDER_PATH, payload);
+  logShipGlobal("order/add", { orderId: order.id, status: added.res.status, success: added.data.success === true });
+  let waybill = findTracking(added.data);
+  if (!waybill) {
+    const reason = apiFailureMessage(added.res.status, added.data);
+    throw new Error(added.data.success === true ? "ShipGlobal created the order but returned no tracking number." : reason);
   }
-  let booked = await postAddOrder(login.token, payload, false);
-  const already = booked.res.status === 409 || /already generated/i.test(String(booked.data.error || ""));
-  if (already) {
-    logShipGlobal("addOrder", { orderId: order.id, status: booked.res.status, duplicate: true, download: true });
-    booked = await postAddOrder(login.token, payload, true);
-  }
-  const { res, data } = booked;
-  logShipGlobal("addOrder", {
-    orderId: order.id,
-    status: res.status,
-    success: data.success === true,
-    duplicate: already,
-    download: already,
-  });
-  if (!res.ok && !data.success && !data.dpd) {
-    const details = Array.isArray(data.details) ? data.details.map(String).join(" ") : "";
-    throw new Error(publicError(String(data.error || details || "ShipGlobal could not create this shipment.")));
-  }
-  const label = readLabel(data);
-  if (!label.success || !label.waybill) {
-    throw new Error(publicError(label.error || "ShipGlobal did not return a waybill."));
-  }
-  if (label.pdf) {
+
+  // 2) Pay & Get Label (charged to the ShipGlobal wallet). A wallet problem keeps the tracking number for a retry.
+  const label = await apiPost(LABEL_PATH, { tracking: waybill, label: true });
+  logShipGlobal("order/getLabel", { orderId: order.id, status: label.res.status, success: label.data.success === true });
+  waybill = findTracking(label.data) || waybill;
+  const pdf = typeof label.data.label === "string" ? label.data.label : "";
+  if (pdf) {
     const file = labelFilePath(order.id);
     await mkdir(path.dirname(file), { recursive: true });
-    await writeFile(file, Buffer.from(label.pdf, "base64"));
+    await writeFile(file, Buffer.from(pdf, "base64"));
   }
-  return label;
+  const labelError = label.data.success === true ? "" : apiFailureMessage(label.res.status, label.data);
+  return {
+    success: true,
+    waybill,
+    pdf,
+    orderNumber: "",
+    trackingUrl: `https://shipglobal.in/tracking/?tracking=${encodeURIComponent(waybill)}`,
+    error: labelError,
+  };
 }
 
 async function remember(order: OrderRecord) {
@@ -425,6 +415,7 @@ export async function bookShipGlobalShipment(order: OrderRecord) {
         orderNumber: label.orderNumber || undefined,
         trackingUrl,
         bookedAt: new Date().toISOString(),
+        ...(label.error ? { error: `Order created (${label.waybill}) but the label was not paid: ${label.error} Top up the ShipGlobal wallet, then use Label / Retry.` } : {}),
       };
       order.tracking = {
         stage: "in_transit",
@@ -435,7 +426,6 @@ export async function bookShipGlobalShipment(order: OrderRecord) {
       };
       await remember(order);
     } catch (err) {
-      cachedToken = null;
       order.shipment = {
         provider: "shipglobal",
         error: publicError(err instanceof Error ? err.message : "ShipGlobal booking failed."),
