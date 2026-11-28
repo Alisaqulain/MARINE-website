@@ -92,8 +92,21 @@ function store() {
   return g.__marinaOrders;
 }
 
-export function newOrderId() {
-  return `MM-${Date.now().toString(36).toUpperCase()}`;
+export async function newOrderId() {
+  const now = new Date();
+  const day = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
+  try {
+    const { getDb } = await import("@/lib/mongodb");
+    const db = await getDb();
+    const row = await db
+      .collection<{ _id: string; seq: number }>("order_counters")
+      .findOneAndUpdate({ _id: day }, { $inc: { seq: 1 } }, { upsert: true, returnDocument: "after" });
+    const seq = Number(row?.seq ?? 0);
+    if (seq > 0) return `MM-${day}-${String(seq).padStart(3, "0")}`;
+  } catch {
+    /* fall through to a unique fallback */
+  }
+  return `MM-${day}-${Date.now().toString(36).toUpperCase().slice(-5)}`;
 }
 
 export function newToken() {

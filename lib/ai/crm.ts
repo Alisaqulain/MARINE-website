@@ -169,6 +169,17 @@ export function formatForChat(text: string) {
     .trim();
 }
 
+/** Short English version of a customer message, only for catalogue search (the reply stays in the customer's language). */
+async function toEnglish(agent: AgentId, message: string) {
+  const result = await generateFor(agent, "translate", {
+    system: "Translate the customer's message into short, plain English. Keep product names. Output only the translation, nothing else.",
+    turns: [{ role: "user", text: message.slice(0, 500) }],
+    temperature: 0,
+    maxOutputTokens: 120,
+  });
+  return result.ok ? result.text.trim().slice(0, 300) : "";
+}
+
 async function sessionProducts(sessionId: string, catalogue: CatalogueFact[]) {
   const db = await getDb();
   const last = await db
@@ -197,6 +208,23 @@ export async function lookupProductsForAgent(query: string, region: PriceRegion 
 
 export async function recentTranscript(sessionId: string): Promise<TranscriptLine[]> {
   const db = await getDb();
+  // WhatsApp: the whole chat with this number (customer, AI and admin replies, also from before the AI was on).
+  const wa = /^wa_(\d{8,15})$/.exec(sessionId);
+  if (wa) {
+    const phone = wa[1];
+    const rows = await db
+      .collection("ai_wa_messages")
+      .find({ $or: [{ from: phone, direction: "in" }, { to: phone, direction: "out" }], text: { $type: "string" } })
+      .sort({ at: -1 })
+      .limit(16)
+      .toArray();
+    if (rows.length) {
+      return rows
+        .reverse()
+        .filter((row) => String(row.status ?? "") !== "manual_failed")
+        .map((row) => ({ role: row.direction === "in" ? "customer" : "assistant", text: String(row.text ?? "").slice(0, 600) }));
+    }
+  }
   const rows = await db.collection("ai_messages").find({ sessionId }).sort({ at: -1, _id: -1 }).limit(12).toArray();
   return rows.reverse().map((row) => ({ role: String(row.role), text: String(row.text ?? "").slice(0, 600) }));
 }
@@ -309,7 +337,15 @@ export async function handleCustomerMessage(input: {
   const message = input.message.trim().slice(0, 2000);
   if (!message) return { error: "Message is empty." as const };
   const catalogue = await facts(input.region);
-  const answer = answerFromCatalogue(message, catalogue);
+  let answer = answerFromCatalogue(message, catalogue);
+  // Any language (Hindi, Hinglish, Arabic, Urdu, Spanish, Japanese, …): when nothing matched, search again in English.
+  if (answer.unknown && !answer.policy && geminiConfigured()) {
+    const english = await toEnglish(input.channel === "whatsapp" ? "whatsapp" : "chat", message);
+    if (english && english.toLowerCase() !== message.toLowerCase()) {
+      const retry = answerFromCatalogue(english, catalogue);
+      if (!retry.unknown || retry.policy) answer = retry;
+    }
+  }
   const history = await recentTranscript(input.sessionId);
   const db = await getDb();
   const sessions = db.collection("ai_sessions");

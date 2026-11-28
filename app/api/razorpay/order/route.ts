@@ -39,7 +39,7 @@ export async function POST(req: Request) {
   }
 
   const order = saveOrder({
-    id: newOrderId(),
+    id: await newOrderId(),
     token: newToken(),
     status: "pending",
     name,

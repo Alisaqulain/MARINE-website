@@ -13,12 +13,35 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 const PAGE_SIZE = 24;
 
+/** Deterministic shuffle for the "Mix" order (same seed → same order while the visitor stays on the page). */
+function mixed<T>(items: T[], seed: number): T[] {
+  const out = [...items];
+  let state = seed >>> 0 || 1;
+  const random = () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
 export function ShopNowCatalog({ retail = false }: { retail?: boolean }) {
   const [catalogProducts, setCatalogProducts] = useState<Product[]>(staticProducts);
   const [open, setOpen] = useState<string | null>(null);
   const [parent, setParent] = useState<string | null>(null);
   const [sub, setSub] = useState<string | null>(null);
-  const [sort, setSort] = useState("new");
+  const [sort, setSort] = useState("mix");
+  // "Mix": a fresh random order per visit (seeded, so it does not reshuffle on every render).
+  const [mixSeed, setMixSeed] = useState(0);
+  useEffect(() => {
+    setMixSeed(Math.floor(Math.random() * 2 ** 31) + 1);
+  }, []);
   const [grid, setGrid] = useState(true);
   const [limit, setLimit] = useState(PAGE_SIZE);
   const [query, setQuery] = useState("");
@@ -120,9 +143,10 @@ export function ShopNowCatalog({ retail = false }: { retail?: boolean }) {
     if (sort === "price-asc") next.sort((a, b) => shownPrice(a) - shownPrice(b) || byNewest(a, b));
     else if (sort === "price-desc") next.sort((a, b) => shownPrice(b) - shownPrice(a) || byNewest(a, b));
     else if (sort === "rating") next.sort((a, b) => b.rating - a.rating || b.reviews - a.reviews || byNewest(a, b));
+    else if (sort === "mix" && mixSeed) next = mixed(next, mixSeed);
     else next.sort(byNewest);
     return next;
-  }, [parent, sub, sort, query, catalogProducts, retail, priceFor]);
+  }, [parent, sub, sort, query, catalogProducts, retail, priceFor, mixSeed]);
 
   const filtered = Boolean(sub || parent);
   const activeSlug = sub || parent;
@@ -337,6 +361,7 @@ export function ShopNowCatalog({ retail = false }: { retail?: boolean }) {
                 aria-label="Sort and filter products"
                 className="max-w-[7.5rem] shrink-0 rounded-full border border-[#ddd] bg-white px-2 py-1.5 text-[11px] sm:max-w-none sm:px-3 sm:text-[12px] md:py-1.5 md:text-sm"
               >
+                <option value="mix">Mix</option>
                 <option value="new">Newest first</option>
                 <option value="price-asc">Price: Low to High</option>
                 <option value="price-desc">Price: High to Low</option>
