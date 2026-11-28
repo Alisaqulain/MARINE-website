@@ -29,6 +29,7 @@ import { agentEnabled, agentInstructions, factsBlock, replyIsGrounded, type Agen
 import { geminiConfigured, geminiModel, type GeminiTurn } from "@/lib/ai/gemini";
 import { generateFor } from "@/lib/ai/usage";
 import { vapiStatus } from "@/lib/ai/vapi";
+import { trainingFacts } from "@/lib/ai/training";
 
 export type AiLead = {
   id: string;
@@ -118,7 +119,7 @@ export function approvedPolicyLines() {
     `Returns: ${APPROVED_POLICIES.returns}`,
     `Discounts: ${APPROVED_POLICIES.discount}`,
     `Custom manufacturing: ${APPROVED_POLICIES.manufacturing}`,
-    "Company contact: Marina Muse International, email info@marinamuseinternational.com, phone/WhatsApp +91 74570 99540, website https://marinamuseinternational.com, Roorkee-247667, Uttarakhand, India.",
+    "Company contact: Marina Muse International, email info@marinamuseinternational.com, phone/WhatsApp +91 90683 49540, website https://marinamuseinternational.com, Roorkee-247667, Uttarakhand, India.",
     `Warranty: ${APPROVED_POLICIES.warranty ?? "There is no approved warranty statement. Do not describe one."}`,
   ];
 }
@@ -139,13 +140,17 @@ async function groundedReply(input: {
   const facts =
     factsBlock({ products: input.products, policies: approvedPolicyLines(), origin: getSiteOrigin() }) +
     (input.customerRecords ? `\n\nCUSTOMER RECORDS (this customer's own quote requests and orders):\n${input.customerRecords}` : "");
+  const training = await trainingFacts(input.agent === "whatsapp" ? "whatsapp" : "chat").catch(() => "");
+  const allFacts = training
+    ? `${facts}\n\nADMIN TRAINING ANSWERS (written by Marina Muse; follow them when the customer asks something similar):\n${training}`
+    : facts;
   const turns: GeminiTurn[] = input.history.slice(-8).map((line) => ({
     role: line.role === "customer" ? "user" : "model",
     text: line.text,
   }));
   turns.push({
     role: "user",
-    text: `${facts}\n\nCatalogue answer to rephrase or extend (already verified):\n${input.grounded}\n\nCustomer message:\n${input.message}`,
+    text: `${allFacts}\n\nCatalogue answer to rephrase or extend (already verified):\n${input.grounded}\n\nCustomer message:\n${input.message}`,
   });
   const result = await generateFor(input.agent, "reply", { system: agentInstructions(input.agent), turns, temperature: 0.3, maxOutputTokens: 1024 });
   if (!result.ok) return { text: input.grounded, model: "catalogue", error: result.error };

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AdminWhatsAppInbox } from "@/components/AdminWhatsAppInbox";
+import { AdminAiTraining } from "@/components/AdminAiTraining";
 import { AdminWhatsAppRecovery, type RecoveryRow } from "@/components/AdminWhatsAppRecovery";
 
 type Board = {
@@ -72,6 +73,7 @@ const sections = [
   "WhatsApp",
   "Growth",
   "Content",
+  "Training",
   "Health",
 ] as const;
 
@@ -236,6 +238,7 @@ export function AdminAiPanel() {
           {!data?.whatsapp?.length ? <p className="text-sm text-navy-600">No WhatsApp replies yet.</p> : null}
         </ul>
       ) : null}
+      {section === "Training" ? <AdminAiTraining /> : null}
       {section === "Content" ? (
         <div className="space-y-3">
           <div className="rounded-xl bg-white p-4 text-sm shadow-sm">

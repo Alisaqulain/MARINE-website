@@ -112,6 +112,13 @@ export function AdminShipmentsPanel() {
       setError(typeof rates.error === "string" ? rates.error : "ShipGlobal returned no services for this destination.");
       return;
     }
+    // FedEx and UPS are not offered to the admin (business choice).
+    rates.services = (rates.services as { title: string }[]).filter((s) => !/fedex|\bups\b/i.test(s.title));
+    if (!rates.services.length) {
+      setBusy("");
+      setError("Only FedEx/UPS were offered for this destination.");
+      return;
+    }
     const list = (rates.services as { title: string; transit: string; total: number; notes: string }[])
       .map((s, i) => `${i + 1}. ${s.title} — ${rates.currency} ${s.total} — ${s.transit}${s.notes ? ` (${s.notes})` : ""}`)
       .join("\n");

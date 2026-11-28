@@ -24,7 +24,7 @@ export const APPROVED_POLICIES: Record<PolicyTopic, string | null> = {
   warranty: null,
   discount: "No discount, payment term, or custom commercial commitment is offered unless an owner has approved that exact request.",
   contact:
-    "Thank you, I'll pass this to our team so they can contact you about your requirement. You can also reach them directly: email info@marinamuseinternational.com or call/WhatsApp +91 74570 99540. To help them prepare, please share your name, company, the products you're interested in, quantity and country.",
+    "Thank you, I'll pass this to our team so they can contact you about your requirement. You can also reach them directly: email info@marinamuseinternational.com or call/WhatsApp +91 90683 49540. To help them prepare, please share your name, company, the products you're interested in, quantity and country.",
   manufacturing:
     "Custom manufacturing is available. A quote is confirmed by the team. This assistant does not promise a production time or a unit price that is not on the current product record.",
 };

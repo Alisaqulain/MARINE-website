@@ -13,6 +13,7 @@ import { isDirectMode } from "@/lib/whatsapp/mode";
 import { deliveryEventsCollection, messagesCollection, readCoexistenceState } from "@/lib/whatsapp/store";
 import { sendManualReply } from "@/lib/whatsapp/manual-reply";
 import { generateBlogPost } from "@/lib/ai/auto-blog";
+import { deleteTraining, listTraining, saveTraining } from "@/lib/ai/training";
 import { isSuperAdminEmail } from "@/lib/staff-access";
 import { DUPLICATE_RISK_WARNING, claimResend, completeResend, markResolved, reconcileResend } from "@/lib/whatsapp/recovery";
 
@@ -170,6 +171,21 @@ export async function POST(req: Request) {
     );
     await audit({ followUpId: id, ok: call.ok, callId: call.ok ? call.callId : undefined });
     return call.ok ? NextResponse.json({ ok: true, callId: call.callId }) : NextResponse.json({ error: call.error }, { status: 502 });
+  }
+
+  if (action === "training_list" || action === "training_save" || action === "training_delete") {
+    try {
+      if (action === "training_save") {
+        const id = await saveTraining({ id: typeof body?.id === "string" ? body.id : undefined, agent: body?.agent, question: body?.question, answer: body?.answer, actor });
+        await audit({ trainingId: id });
+      } else if (action === "training_delete") {
+        await deleteTraining(String(body?.id || ""));
+        await audit({ trainingId: String(body?.id || "") });
+      }
+      return NextResponse.json({ ok: true, training: await listTraining() });
+    } catch (err) {
+      return NextResponse.json({ error: err instanceof Error ? err.message : "Training not saved." }, { status: 400 });
+    }
   }
 
   if (action === "auto_blog") {

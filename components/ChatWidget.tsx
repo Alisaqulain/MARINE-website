@@ -34,6 +34,7 @@ const CHAT_THEME_KEY = "marina-chat-theme";
 /** Chat background options (the visitor's choice is remembered on this device). */
 const CHAT_THEMES = [
   { id: "cream", label: "Cream", bg: "#F4F1EA" },
+  { id: "darkgreen", label: "Dark green", bg: "#0B3B2E" },
   { id: "white", label: "White", bg: "#FFFFFF" },
   { id: "blue", label: "Blue", bg: "#E8F0FA" },
   { id: "green", label: "Green", bg: "#E6F4EA" },
